@@ -81,4 +81,19 @@ export default class CardExplorerPlugin extends Plugin {
       workspace.revealLeaf(leaf);
     }
   }
+
+  /**
+   * Refresh notes in all active Card Explorer views
+   * Used by components to trigger note reload
+   */
+  async refreshNotes(): Promise<void> {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CARD_EXPLORER);
+
+    for (const leaf of leaves) {
+      const view = leaf.view as CardExplorerView;
+      if (view && typeof view.refreshNotes === "function") {
+        await view.refreshNotes();
+      }
+    }
+  }
 }
