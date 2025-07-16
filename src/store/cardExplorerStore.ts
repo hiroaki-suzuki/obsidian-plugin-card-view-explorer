@@ -1,6 +1,14 @@
+import type { App, CachedMetadata, TFile } from "obsidian";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type { FilterState, NoteData, SortConfig } from "../types";
+import type {
+  ContentPreview,
+  FilterState,
+  MarkdownFile,
+  NoteData,
+  NoteMetadata,
+  SortConfig,
+} from "../types";
 
 /**
  * Constants - Replace Magic Numbers with Named Constants
@@ -18,6 +26,9 @@ const DEFAULT_SORT_ORDER = "desc" as const;
 
 /** Special sort key identifier for file modification time */
 const MTIME_SORT_KEY = "mtime";
+
+/** Maximum number of lines to extract for note preview */
+const PREVIEW_MAX_LINES = 3;
 
 /**
  * Card Explorer Store State Interface
@@ -77,6 +88,11 @@ export interface CardExplorerState {
    * @param error - Error message or null to clear error
    */
   setError: (error: string | null) => void;
+  /**
+   * Refresh notes from Obsidian APIs
+   * @param app - Obsidian App instance for API access
+   */
+  refreshNotes: (app: App) => Promise<void>;
   /** Clear all active filters and reset to default state */
   clearFilters: () => void;
   /** Reset entire store to initial state */
@@ -506,6 +522,192 @@ const togglePinState = (pinnedNotes: Set<string>, filePath: string): Set<string>
 };
 
 /**
+ * Data Processing Functions - Note Loading and Transformation
+ *
+ * These functions handle loading notes from Obsidian APIs and transforming
+ * them into the NoteData format used by the Card Explorer.
+ */
+
+/**
+ * Check if a file is a markdown file
+ *
+ * Type guard function to ensure we only process markdown files.
+ *
+ * @param {TFile} file - File to check
+ * @returns {file is MarkdownFile} True if file is a markdown file
+ */
+const isMarkdownFile = (file: TFile): file is MarkdownFile => {
+  return file.extension === "md";
+};
+
+/**
+ * Extract note metadata from Obsidian's metadata cache
+ *
+ * Safely extracts frontmatter and tags from a note using Obsidian's
+ * metadata cache API. Handles cases where metadata is not available.
+ *
+ * @param {App} app - Obsidian App instance
+ * @param {TFile} file - File to extract metadata from
+ * @returns {NoteMetadata} Extracted metadata or defaults
+ */
+const extractNoteMetadata = (app: App, file: TFile): NoteMetadata => {
+  try {
+    const cached = app.metadataCache.getFileCache(file);
+
+    // Extract frontmatter
+    const frontmatter = cached?.frontmatter || null;
+
+    // Extract tags from multiple sources
+    const tags: string[] = [];
+
+    // Tags from frontmatter
+    if (frontmatter?.tags) {
+      if (Array.isArray(frontmatter.tags)) {
+        tags.push(...frontmatter.tags.map((tag) => String(tag)));
+      } else {
+        tags.push(String(frontmatter.tags));
+      }
+    }
+
+    // Tags from content (hashtags)
+    if (cached?.tags) {
+      cached.tags.forEach((tagCache) => {
+        const tag = tagCache.tag.startsWith("#") ? tagCache.tag.slice(1) : tagCache.tag;
+        if (!tags.includes(tag)) {
+          tags.push(tag);
+        }
+      });
+    }
+
+    return {
+      frontmatter,
+      tags,
+      cached,
+    };
+  } catch (error) {
+    console.warn(`Failed to extract metadata for ${file.path}:`, error);
+    return {
+      frontmatter: null,
+      tags: [],
+      cached: null,
+    };
+  }
+};
+
+/**
+ * Extract content preview from a note
+ *
+ * Reads the note content and extracts the first few lines for preview.
+ * Uses Obsidian's vault.cachedRead() for efficient content access.
+ *
+ * @param {App} app - Obsidian App instance
+ * @param {TFile} file - File to extract content from
+ * @returns {Promise<ContentPreview>} Preview content or error info
+ */
+const extractContentPreview = async (app: App, file: TFile): Promise<ContentPreview> => {
+  try {
+    const content = await app.vault.cachedRead(file);
+
+    // Split content into lines and take first N lines
+    const lines = content.split("\n");
+    const previewLines = lines.slice(0, PREVIEW_MAX_LINES);
+
+    // Join lines and trim whitespace
+    const preview = previewLines.join("\n").trim();
+
+    return {
+      preview: preview || file.basename, // Fallback to filename if no content
+      success: true,
+    };
+  } catch (error) {
+    console.warn(`Failed to extract content preview for ${file.path}:`, error);
+    return {
+      preview: file.basename, // Fallback to filename
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+};
+
+/**
+ * Transform a TFile into NoteData
+ *
+ * Converts an Obsidian TFile into the NoteData format used by Card Explorer.
+ * Extracts metadata, content preview, and other required information.
+ *
+ * @param {App} app - Obsidian App instance
+ * @param {TFile} file - File to transform
+ * @returns {Promise<NoteData>} Transformed note data
+ */
+const transformFileToNoteData = async (app: App, file: TFile): Promise<NoteData> => {
+  // Extract metadata (frontmatter and tags)
+  const metadata = extractNoteMetadata(app, file);
+
+  // Extract content preview
+  const contentPreview = await extractContentPreview(app, file);
+
+  // Get folder path (parent folder or empty string for root)
+  const folder = file.parent?.path || "";
+
+  // Create NoteData object
+  const noteData: NoteData = {
+    file,
+    title: file.basename, // Filename without extension
+    path: file.path, // Full path
+    preview: contentPreview.preview,
+    lastModified: new Date(file.stat.mtime), // File modification time
+    frontmatter: metadata.frontmatter,
+    tags: metadata.tags,
+    folder,
+  };
+
+  return noteData;
+};
+
+/**
+ * Load all markdown notes from Obsidian vault
+ *
+ * Queries Obsidian's vault for all markdown files and transforms them
+ * into NoteData objects. Handles errors gracefully and filters out
+ * non-markdown files.
+ *
+ * @param {App} app - Obsidian App instance
+ * @returns {Promise<NoteData[]>} Array of transformed note data
+ */
+const loadNotesFromVault = async (app: App): Promise<NoteData[]> => {
+  try {
+    // Get all files from vault
+    const allFiles = app.vault.getMarkdownFiles();
+
+    // Filter to only markdown files (should already be filtered by getMarkdownFiles)
+    const markdownFiles = allFiles.filter(isMarkdownFile);
+
+    // Transform each file to NoteData
+    const noteDataPromises = markdownFiles.map((file) => transformFileToNoteData(app, file));
+
+    // Wait for all transformations to complete
+    const noteDataResults = await Promise.allSettled(noteDataPromises);
+
+    // Extract successful results and log failures
+    const notes: NoteData[] = [];
+    noteDataResults.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        notes.push(result.value);
+      } else {
+        console.warn(`Failed to process note ${markdownFiles[index].path}:`, result.reason);
+      }
+    });
+
+    return notes;
+  } catch (error) {
+    console.error("Failed to load notes from vault:", error);
+    throw new Error(
+      `Failed to load notes: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
+};
+
+/**
  * Card Explorer Zustand Store
  *
  * Main state management store for the Card Explorer plugin.
@@ -616,6 +818,42 @@ export const useCardExplorerStore = create<CardExplorerState>()(
      * Set error state for user feedback (null to clear error)
      */
     setError: (error: string | null) => set({ error }),
+
+    /**
+     * Refresh notes from Obsidian APIs
+     * Loads all notes from vault and updates store state
+     */
+    refreshNotes: async (app: App) => {
+      try {
+        // Set loading state
+        set({ isLoading: true, error: null });
+
+        // Load notes from vault
+        const notes = await loadNotesFromVault(app);
+
+        // Update store with new notes (this will trigger recomputation)
+        const state = get();
+        set({ notes });
+
+        // Recompute filtered results with current filters/sort
+        const filteredNotes = recomputeFilteredNotes(
+          notes,
+          state.filters,
+          state.sortConfig,
+          state.pinnedNotes
+        );
+        set({ filteredNotes });
+
+        // Clear loading state
+        set({ isLoading: false });
+      } catch (error) {
+        console.error("Failed to refresh notes:", error);
+        set({
+          isLoading: false,
+          error: error instanceof Error ? error.message : "Failed to load notes",
+        });
+      }
+    },
 
     /**
      * Clear all active filters and reset to default state

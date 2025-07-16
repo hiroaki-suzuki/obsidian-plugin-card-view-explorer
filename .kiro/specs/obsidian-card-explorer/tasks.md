@@ -37,7 +37,7 @@
   - Create selectors for computed state (filtered notes, sorted notes)
   - _Requirements: 2.1, 3.1, 4.1_
 
-- [ ] 4.2 Add note loading and data processing actions
+- [x] 4.2 Add note loading and data processing actions
   - Implement refreshNotes action to load notes from Obsidian APIs
   - Create note data transformation from TFile to NoteData
   - Add filtering logic based on FilterState
