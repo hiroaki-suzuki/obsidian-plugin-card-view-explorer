@@ -1,9 +1,5 @@
 import { Plugin, type WorkspaceLeaf } from "obsidian";
-import {
-  type CardExplorerSettings,
-  CardExplorerSettingTab,
-  DEFAULT_SETTINGS,
-} from "./settings";
+import { type CardExplorerSettings, CardExplorerSettingTab, DEFAULT_SETTINGS } from "./settings";
 import { CardExplorerView, VIEW_TYPE_CARD_EXPLORER } from "./view";
 
 export default class CardExplorerPlugin extends Plugin {
@@ -14,10 +10,7 @@ export default class CardExplorerPlugin extends Plugin {
     await this.loadSettings();
 
     // Register the Card Explorer view
-    this.registerView(
-      VIEW_TYPE_CARD_EXPLORER,
-      (leaf) => new CardExplorerView(leaf, this)
-    );
+    this.registerView(VIEW_TYPE_CARD_EXPLORER, (leaf) => new CardExplorerView(leaf, this));
 
     // Register commands
     this.addCommand({

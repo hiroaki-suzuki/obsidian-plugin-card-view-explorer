@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": "/src",
+      obsidian: "/src/test/obsidian-mock.ts",
     },
   },
 });
