@@ -1,0 +1,92 @@
+import type { App, TFile } from "obsidian";
+import type { ContentPreview, NoteMetadata } from "../../types";
+import { PREVIEW_MAX_LINES } from "../utils";
+
+/**
+ * Extract note metadata from Obsidian's metadata cache
+ *
+ * Safely extracts frontmatter and tags from a note using Obsidian's
+ * metadata cache API. Handles cases where metadata is not available.
+ *
+ * @param {App} app - Obsidian App instance
+ * @param {TFile} file - File to extract metadata from
+ * @returns {NoteMetadata} Extracted metadata or defaults
+ */
+export const extractNoteMetadata = (app: App, file: TFile): NoteMetadata => {
+  try {
+    const cached = app.metadataCache.getFileCache(file);
+
+    // Extract frontmatter
+    const frontmatter = cached?.frontmatter || null;
+
+    // Extract tags from multiple sources
+    const tags: string[] = [];
+
+    // Tags from frontmatter
+    if (frontmatter?.tags) {
+      if (Array.isArray(frontmatter.tags)) {
+        tags.push(...frontmatter.tags.map((tag) => String(tag)));
+      } else {
+        tags.push(String(frontmatter.tags));
+      }
+    }
+
+    // Tags from content (hashtags)
+    if (cached?.tags) {
+      cached.tags.forEach((tagCache) => {
+        const tag = tagCache.tag.startsWith("#") ? tagCache.tag.slice(1) : tagCache.tag;
+        if (!tags.includes(tag)) {
+          tags.push(tag);
+        }
+      });
+    }
+
+    return {
+      frontmatter,
+      tags,
+      cached,
+    };
+  } catch (error) {
+    console.warn(`Failed to extract metadata for ${file.path}:`, error);
+    return {
+      frontmatter: null,
+      tags: [],
+      cached: null,
+    };
+  }
+};
+
+/**
+ * Extract content preview from a note
+ *
+ * Reads the note content and extracts the first few lines for preview.
+ * Uses Obsidian's vault.cachedRead() for efficient content access.
+ *
+ * @param {App} app - Obsidian App instance
+ * @param {TFile} file - File to extract content from
+ * @returns {Promise<ContentPreview>} Preview content or error info
+ */
+export const extractContentPreview = async (app: App, file: TFile): Promise<ContentPreview> => {
+  try {
+    const content = await app.vault.cachedRead(file);
+
+    // Split content into lines and take first N lines
+    const lines = content.split("\n");
+    const previewLines = lines.slice(0, PREVIEW_MAX_LINES);
+
+    // Join lines and trim whitespace
+    const preview = previewLines.join("\n").trim();
+
+    return {
+      preview: preview || file.basename, // Fallback to filename if no content
+      success: true,
+    };
+  } catch (error) {
+    console.warn(`Failed to extract content preview for ${file.path}:`, error);
+    return {
+      preview: file.basename, // Fallback to filename
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+};
