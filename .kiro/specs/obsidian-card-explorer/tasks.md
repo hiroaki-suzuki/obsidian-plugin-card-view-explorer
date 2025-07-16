@@ -60,7 +60,7 @@
   - _Requirements: 2.2, 3.2_
 
 - [ ] 6. Build core React components
-- [ ] 6.1 Create NoteCard component
+- [x] 6.1 Create NoteCard component
   - Implement individual note card display with title, preview, and date
   - Add pin toggle button with Zustand store integration
   - Handle note click events to open notes in active pane
