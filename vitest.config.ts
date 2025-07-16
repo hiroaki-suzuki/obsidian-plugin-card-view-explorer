@@ -10,8 +10,14 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
-      include: ["src/**/*.ts"],
-      exclude: ["src/test/**", "src/**/*.test.ts", "src/**/*.d.ts"],
+      include: ["src/**/*.ts", "src/**/*.tsx"],
+      exclude: [
+        "src/test/**",
+        "src/**/*.test.ts",
+        "src/**/*.test.tsx",
+        "src/**/*.d.ts",
+        "src/**/*.css.ts", // Vanilla Extract CSS files
+      ],
     },
   },
   resolve: {
@@ -19,5 +25,8 @@ export default defineConfig({
       "@": "/src",
       obsidian: "/src/test/obsidian-mock.ts",
     },
+  },
+  define: {
+    global: "globalThis",
   },
 });

@@ -23,7 +23,8 @@ export const CardExplorerPlaceholder: React.FC<CardExplorerPlaceholderProps> = (
       <p>React components are ready to be mounted.</p>
       <p>Main CardView component will be implemented in upcoming tasks.</p>
       <small>
-        Plugin loaded with settings: Auto-start {plugin.settings.autoStart ? "enabled" : "disabled"}
+        Plugin loaded with settings: Auto-start{" "}
+        {plugin.settings?.autoStart ? "enabled" : "disabled"}
       </small>
     </div>
   );
