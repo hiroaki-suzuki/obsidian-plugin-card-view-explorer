@@ -157,8 +157,12 @@ export const matchesDateRangeCriteria = (
 
   if (dateRange.type === "within") {
     // Check if note was modified within the specified time range
+    // Calculate how many days ago the note was last modified
     const noteDaysDiff = calculateDaysDifference(now, noteDate);
+    // Calculate how many days ago the filter date was set
     const filterDaysDiff = calculateDaysDifference(now, filterDate);
+    // Note passes filter if it was modified more recently than (or equal to) the filter date
+    // Example: If filter is "within 3 days" and note was modified 2 days ago, it passes
     return noteDaysDiff <= filterDaysDiff;
   }
 
