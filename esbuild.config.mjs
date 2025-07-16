@@ -1,5 +1,4 @@
 import process from "node:process";
-import { vanillaExtractPlugin } from "@vanilla-extract/esbuild-plugin";
 import builtins from "builtin-modules";
 import esbuild from "esbuild";
 
@@ -41,7 +40,6 @@ const context = await esbuild.context({
   minify: prod,
   jsx: "automatic",
   jsxImportSource: "react",
-  plugins: [vanillaExtractPlugin()],
 });
 
 if (prod) {

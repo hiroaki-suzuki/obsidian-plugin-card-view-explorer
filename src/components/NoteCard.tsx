@@ -2,7 +2,6 @@ import type React from "react";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
-import * as styles from "./NoteCard.css";
 
 interface NoteCardProps {
   note: NoteData;
@@ -58,7 +57,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
 
   return (
     <div
-      className={isPinned ? styles.noteCardPinned : styles.noteCard}
+      className={`note-card ${isPinned ? "pinned" : ""}`}
       onClick={handleNoteClick}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -70,40 +69,50 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
       tabIndex={0}
       aria-label={`Open note: ${note.title}`}
     >
-      {/* Pin toggle button */}
-      <button
-        type="button"
-        className={`${styles.pinButtonVariants[isPinned ? "active" : "default"]} pin-button`}
-        onClick={handlePinToggle}
-        title={isPinned ? "Unpin note" : "Pin note"}
-        aria-label={isPinned ? "Unpin note" : "Pin note"}
-      >
-        <div className={styles.pinIcon} />
-      </button>
-
-      {/* Note content */}
-      <div className={styles.content}>
-        {/* Title */}
-        <h3 className={styles.title} title={note.title}>
+      {/* Note header with title and pin button */}
+      <div className="note-card-header">
+        <h3 className="note-card-title" title={note.title}>
           {note.title}
         </h3>
 
-        {/* Preview text */}
-        <div className={styles.preview} title={note.preview}>
-          {note.preview}
-        </div>
+        <button
+          type="button"
+          className={`pin-button ${isPinned ? "pinned" : ""}`}
+          onClick={handlePinToggle}
+          title={isPinned ? "Unpin note" : "Pin note"}
+          aria-label={isPinned ? "Unpin note" : "Pin note"}
+        >
+          {isPinned ? "📌" : "📍"}
+        </button>
+      </div>
 
-        {/* Footer with date and folder */}
-        <div className={styles.footer}>
-          <span className={styles.date} title={note.lastModified.toLocaleString()}>
-            {formatDate(note.lastModified)}
-          </span>
-          {note.folder && (
-            <span className={styles.folder} title={note.folder}>
-              {note.folder}
+      {/* Preview text */}
+      <div className="note-card-preview" title={note.preview}>
+        {note.preview}
+      </div>
+
+      {/* Tags if available */}
+      {note.tags.length > 0 && (
+        <div className="note-card-tags">
+          {note.tags.slice(0, 3).map((tag) => (
+            <span key={tag} className="note-card-tag">
+              #{tag}
             </span>
-          )}
+          ))}
+          {note.tags.length > 3 && <span className="note-card-tag">+{note.tags.length - 3}</span>}
         </div>
+      )}
+
+      {/* Footer with folder and date */}
+      <div className="note-card-footer">
+        {note.folder && (
+          <span className="note-card-folder" title={note.folder}>
+            {note.folder}
+          </span>
+        )}
+        <span className="note-card-date" title={note.lastModified.toLocaleString()}>
+          {formatDate(note.lastModified)}
+        </span>
       </div>
     </div>
   );
