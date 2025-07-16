@@ -1,13 +1,7 @@
 import type { App, TFile } from "obsidian";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as metadataExtractor from "./metadataExtractor";
 import { isMarkdownFile, loadNotesFromVault, transformFileToNoteData } from "./noteLoader";
-
-// Mock the metadata extractor module
-vi.mock("./metadataExtractor", () => ({
-  extractNoteMetadata: vi.fn(),
-  extractContentPreview: vi.fn(),
-}));
 
 // Mock TFile
 const createMockTFile = (
@@ -68,16 +62,20 @@ describe("Note Loader", () => {
 
     it("should transform TFile to NoteData successfully", async () => {
       // Mock the metadata extractor functions
-      vi.mocked(metadataExtractor.extractNoteMetadata).mockReturnValue({
-        frontmatter: { title: "Test Note", priority: 1 },
-        tags: ["tag1", "tag2"],
-        cached: null,
-      });
+      const extractMetadataSpy = vi
+        .spyOn(metadataExtractor, "extractNoteMetadata")
+        .mockReturnValue({
+          frontmatter: { title: "Test Note", priority: 1 },
+          tags: ["tag1", "tag2"],
+          cached: null,
+        });
 
-      vi.mocked(metadataExtractor.extractContentPreview).mockResolvedValue({
-        preview: "This is a test note\nWith some content\nAnd more lines",
-        success: true,
-      });
+      const extractPreviewSpy = vi
+        .spyOn(metadataExtractor, "extractContentPreview")
+        .mockResolvedValue({
+          preview: "This is a test note\nWith some content\nAnd more lines",
+          success: true,
+        });
 
       const result = await transformFileToNoteData(mockApp, mockFile);
 
@@ -92,68 +90,92 @@ describe("Note Loader", () => {
         folder: "folder",
       });
 
-      expect(metadataExtractor.extractNoteMetadata).toHaveBeenCalledWith(mockApp, mockFile);
-      expect(metadataExtractor.extractContentPreview).toHaveBeenCalledWith(mockApp, mockFile);
+      expect(extractMetadataSpy).toHaveBeenCalledWith(mockApp, mockFile);
+      expect(extractPreviewSpy).toHaveBeenCalledWith(mockApp, mockFile);
+
+      extractMetadataSpy.mockRestore();
+      extractPreviewSpy.mockRestore();
     });
 
     it("should handle file in root folder", async () => {
       const rootFile = createMockTFile("/test.md", "test", "md", 1704067200000);
 
-      vi.mocked(metadataExtractor.extractNoteMetadata).mockReturnValue({
-        frontmatter: null,
-        tags: [],
-        cached: null,
-      });
+      const extractMetadataSpy = vi
+        .spyOn(metadataExtractor, "extractNoteMetadata")
+        .mockReturnValue({
+          frontmatter: null,
+          tags: [],
+          cached: null,
+        });
 
-      vi.mocked(metadataExtractor.extractContentPreview).mockResolvedValue({
-        preview: "Root file content",
-        success: true,
-      });
+      const extractPreviewSpy = vi
+        .spyOn(metadataExtractor, "extractContentPreview")
+        .mockResolvedValue({
+          preview: "Root file content",
+          success: true,
+        });
 
       const result = await transformFileToNoteData(mockApp, rootFile);
 
       expect(result.folder).toBe("");
       expect(result.path).toBe("/test.md");
+
+      extractMetadataSpy.mockRestore();
+      extractPreviewSpy.mockRestore();
     });
 
     it("should handle metadata extraction failure", async () => {
-      vi.mocked(metadataExtractor.extractNoteMetadata).mockReturnValue({
-        frontmatter: null,
-        tags: [],
-        cached: null,
-      });
+      const extractMetadataSpy = vi
+        .spyOn(metadataExtractor, "extractNoteMetadata")
+        .mockReturnValue({
+          frontmatter: null,
+          tags: [],
+          cached: null,
+        });
 
-      vi.mocked(metadataExtractor.extractContentPreview).mockResolvedValue({
-        preview: "test", // Fallback to filename
-        success: false,
-        error: "Failed to read content",
-      });
+      const extractPreviewSpy = vi
+        .spyOn(metadataExtractor, "extractContentPreview")
+        .mockResolvedValue({
+          preview: "test", // Fallback to filename
+          success: false,
+          error: "Failed to read content",
+        });
 
       const result = await transformFileToNoteData(mockApp, mockFile);
 
       expect(result.frontmatter).toBe(null);
       expect(result.tags).toEqual([]);
       expect(result.preview).toBe("test");
+
+      extractMetadataSpy.mockRestore();
+      extractPreviewSpy.mockRestore();
     });
 
     it("should handle content preview failure", async () => {
-      vi.mocked(metadataExtractor.extractNoteMetadata).mockReturnValue({
-        frontmatter: { title: "Test" },
-        tags: ["tag1"],
-        cached: null,
-      });
+      const extractMetadataSpy = vi
+        .spyOn(metadataExtractor, "extractNoteMetadata")
+        .mockReturnValue({
+          frontmatter: { title: "Test" },
+          tags: ["tag1"],
+          cached: null,
+        });
 
-      vi.mocked(metadataExtractor.extractContentPreview).mockResolvedValue({
-        preview: "test", // Fallback to filename
-        success: false,
-        error: "Content read failed",
-      });
+      const extractPreviewSpy = vi
+        .spyOn(metadataExtractor, "extractContentPreview")
+        .mockResolvedValue({
+          preview: "test", // Fallback to filename
+          success: false,
+          error: "Content read failed",
+        });
 
       const result = await transformFileToNoteData(mockApp, mockFile);
 
       expect(result.preview).toBe("test");
       expect(result.frontmatter).toEqual({ title: "Test" });
       expect(result.tags).toEqual(["tag1"]);
+
+      extractMetadataSpy.mockRestore();
+      extractPreviewSpy.mockRestore();
     });
   });
 
@@ -172,7 +194,8 @@ describe("Note Loader", () => {
       const mockApp = createMockApp(mockFiles);
 
       // Mock metadata extraction for all files
-      vi.mocked(metadataExtractor.extractNoteMetadata)
+      const _extractMetadataSpy = vi
+        .spyOn(metadataExtractor, "extractNoteMetadata")
         .mockReturnValueOnce({
           frontmatter: { title: "Note 1" },
           tags: ["tag1"],
@@ -190,7 +213,8 @@ describe("Note Loader", () => {
         });
 
       // Mock content preview for all files
-      vi.mocked(metadataExtractor.extractContentPreview)
+      const _extractPreviewSpy = vi
+        .spyOn(metadataExtractor, "extractContentPreview")
         .mockResolvedValueOnce({
           preview: "Content 1",
           success: true,
@@ -225,16 +249,20 @@ describe("Note Loader", () => {
       const mockApp = createMockApp(mockFiles);
 
       // Mock metadata extraction only for markdown files
-      vi.mocked(metadataExtractor.extractNoteMetadata).mockReturnValue({
-        frontmatter: null,
-        tags: [],
-        cached: null,
-      });
+      const _extractMetadataSpy = vi
+        .spyOn(metadataExtractor, "extractNoteMetadata")
+        .mockReturnValue({
+          frontmatter: null,
+          tags: [],
+          cached: null,
+        });
 
-      vi.mocked(metadataExtractor.extractContentPreview).mockResolvedValue({
-        preview: "Content",
-        success: true,
-      });
+      const _extractPreviewSpy = vi
+        .spyOn(metadataExtractor, "extractContentPreview")
+        .mockResolvedValue({
+          preview: "Content",
+          success: true,
+        });
 
       const result = await loadNotesFromVault(mockApp);
 
@@ -252,7 +280,8 @@ describe("Note Loader", () => {
       const mockApp = createMockApp(mockFiles);
 
       // Mock successful processing for first and third files
-      vi.mocked(metadataExtractor.extractNoteMetadata)
+      const _extractMetadataSpy = vi
+        .spyOn(metadataExtractor, "extractNoteMetadata")
         .mockReturnValueOnce({
           frontmatter: null,
           tags: [],
@@ -270,7 +299,8 @@ describe("Note Loader", () => {
         });
 
       // Mock content preview - second one fails
-      vi.mocked(metadataExtractor.extractContentPreview)
+      const _extractPreviewSpy = vi
+        .spyOn(metadataExtractor, "extractContentPreview")
         .mockResolvedValueOnce({
           preview: "Content 1",
           success: true,
