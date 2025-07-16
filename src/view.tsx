@@ -70,4 +70,17 @@ export class CardExplorerView extends ItemView {
       this.root.render(<CardExplorerPlaceholder plugin={this.plugin} />);
     }
   }
+
+  /**
+   * Refresh notes data in the store
+   * Called by the plugin to trigger note reload
+   */
+  async refreshNotes(): Promise<void> {
+    // Import the store dynamically to avoid circular dependencies
+    const { useCardExplorerStore } = await import("./store/cardExplorerStore");
+    const store = useCardExplorerStore.getState();
+
+    // Trigger note refresh in the store
+    await store.refreshNotes(this.plugin.app);
+  }
 }

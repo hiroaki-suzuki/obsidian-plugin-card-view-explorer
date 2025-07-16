@@ -60,14 +60,14 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
     <div
       className={isPinned ? styles.noteCardPinned : styles.noteCard}
       onClick={handleNoteClick}
-      role="button"
-      tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           handleNoteClick();
         }
       }}
+      role="button"
+      tabIndex={0}
       aria-label={`Open note: ${note.title}`}
     >
       {/* Pin toggle button */}

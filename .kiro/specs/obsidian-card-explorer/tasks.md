@@ -59,7 +59,7 @@
   - Implement folder path extraction from TFile
   - _Requirements: 2.2, 3.2_
 
-- [ ] 6. Build core React components
+- [x] 6. Build core React components
 - [x] 6.1 Create NoteCard component
   - Implement individual note card display with title, preview, and date
   - Add pin toggle button with Zustand store integration
@@ -67,7 +67,7 @@
   - Style card layout with CSS
   - _Requirements: 1.2, 4.1, 5.5_
 
-- [ ] 6.2 Create FilterPanel component
+- [x] 6.2 Create FilterPanel component
   - Implement search input for filename filtering
   - Add folder selection dropdown with multiple selection
   - Create tag filter input with available tags
@@ -75,7 +75,7 @@
   - Integrate with Zustand store for filter state management
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 6.3 Create VirtualList component with react-virtuoso
+- [x] 6.3 Create VirtualList component with react-virtuoso
   - Implement virtualized list for performance with large note collections
   - Integrate with Zustand store for filtered and sorted notes
   - Handle dynamic item heights for variable card content
