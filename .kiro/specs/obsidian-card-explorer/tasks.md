@@ -44,15 +44,15 @@
   - Implement sorting logic with frontmatter and mtime fallback
   - _Requirements: 1.1, 2.2, 2.3, 3.2, 3.3, 3.4_
 
-- [ ] 5. Create note data processing utilities
-- [ ] 5.1 Implement note content extraction
+- [x] 5. Create note data processing utilities
+- [x] 5.1 Implement note content extraction
   - Create function to extract first 3 lines of note content using vault.cachedRead()
   - Handle markdown content without interpretation
   - Implement fallback for content extraction failures
   - Add content preview caching for performance
   - _Requirements: 1.3_
 
-- [ ] 5.2 Implement metadata extraction utilities
+- [x] 5.2 Implement metadata extraction utilities
   - Create function to extract frontmatter using metadataCache.getFileCache()
   - Extract tags from note metadata
   - Handle missing or invalid frontmatter gracefully
