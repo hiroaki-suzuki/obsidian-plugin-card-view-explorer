@@ -82,7 +82,7 @@
   - Add loading states and empty state handling
   - _Requirements: 6.1, 6.3_
 
-- [ ] 7. Implement main CardView container component
+- [x] 7. Implement main CardView container component
   - Create main container component that orchestrates all child components
   - Integrate FilterPanel and VirtualList components
   - Handle plugin prop passing and Obsidian API access
@@ -90,7 +90,7 @@
   - Add loading states and error handling UI
   - _Requirements: 1.4, 6.1_
 
-- [ ] 8. Add data persistence and settings
+- [-] 8. Add data persistence and settings
 - [ ] 8.1 Implement plugin data persistence
   - Create functions to save and load pin states using plugin.saveData()
   - Implement settings persistence using Obsidian's settings system

@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/complexity/noUselessConstructor: <explanation> */
 import type { WorkspaceLeaf } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type CardExplorerPlugin from "./main";
@@ -15,8 +16,30 @@ vi.mock("react-dom/client", () => ({
 vi.mock("react", () => ({
   default: {
     createElement: vi.fn(),
+    Component: class Component {
+      constructor(_props: any) {}
+      render() {
+        return null;
+      }
+      static getDerivedStateFromError() {
+        return {};
+      }
+      componentDidCatch() {}
+    },
   },
   createElement: vi.fn(),
+  Component: class Component {
+    constructor(_props: any) {}
+    render() {
+      return null;
+    }
+    static getDerivedStateFromError() {
+      return {};
+    }
+    componentDidCatch() {}
+  },
+  useEffect: vi.fn(),
+  useMemo: vi.fn(),
 }));
 
 describe("CardExplorerView", () => {

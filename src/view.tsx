@@ -1,6 +1,6 @@
 import { ItemView, type WorkspaceLeaf } from "obsidian";
 import { createRoot, type Root } from "react-dom/client";
-import { CardExplorerPlaceholder } from "./components/CardExplorerPlaceholder";
+import { CardView } from "./components/CardView";
 import type CardExplorerPlugin from "./main";
 
 export const VIEW_TYPE_CARD_EXPLORER = "card-explorer-view";
@@ -43,11 +43,11 @@ export class CardExplorerView extends ItemView {
     this.containerElement.style.display = "flex";
     this.containerElement.style.flexDirection = "column";
 
-    // Create React root and mount a placeholder component
+    // Create React root and mount the main CardView component
     this.root = createRoot(this.containerElement);
 
-    // For now, render a placeholder until the main CardView component is implemented
-    this.root.render(<CardExplorerPlaceholder plugin={this.plugin} />);
+    // Render the main CardView component
+    this.root.render(<CardView plugin={this.plugin} />);
   }
 
   async onClose(): Promise<void> {
@@ -63,11 +63,11 @@ export class CardExplorerView extends ItemView {
 
   /**
    * Method to re-render the React component tree
-   * This will be useful when the main CardView component is implemented
+   * Used to refresh the CardView component when needed
    */
   refresh(): void {
     if (this.root && this.containerElement) {
-      this.root.render(<CardExplorerPlaceholder plugin={this.plugin} />);
+      this.root.render(<CardView plugin={this.plugin} />);
     }
   }
 

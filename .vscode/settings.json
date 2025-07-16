@@ -63,5 +63,5 @@
     "**/.git/**": true,
     "**/*.tsbuildinfo": true
   },
-  "cSpell.words": ["frontmatter", "overscan"]
+  "cSpell.words": ["collab", "frontmatter", "lezer", "overscan"]
 }

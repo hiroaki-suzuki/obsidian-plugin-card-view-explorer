@@ -1,7 +1,6 @@
 import type React from "react";
 import { useCallback, useState } from "react";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
-import type { FilterState } from "../types";
 
 interface FilterPanelProps {
   /** Available tags from all notes for tag filter dropdown */
