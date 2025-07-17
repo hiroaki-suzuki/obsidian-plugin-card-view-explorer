@@ -95,11 +95,13 @@ export const loadNotesFromVault = async (app: App): Promise<NoteData[]> => {
     // Import error handling utilities dynamically
     const { handleError, ErrorCategory } = await import("../../utils/errorHandling");
 
-    const errorInfo = handleError(error, ErrorCategory.API, {
+    handleError(error, ErrorCategory.API, {
       operation: "loadNotesFromVault",
       fileCount: 0,
     });
 
-    throw new Error(errorInfo.message);
+    // Throw original error message format for tests
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    throw new Error(`Failed to load notes: ${errorMessage}`);
   }
 };

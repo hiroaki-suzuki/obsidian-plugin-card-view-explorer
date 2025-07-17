@@ -47,6 +47,8 @@ export const extractNoteMetadata = (app: App, file: TFile): NoteMetadata => {
       cached,
     };
   } catch (error) {
+    console.warn(`Failed to extract metadata for ${file.path}:`, error);
+
     // Import error handling utilities dynamically
     import("../../utils/errorHandling").then(({ handleError, ErrorCategory }) => {
       handleError(
@@ -95,6 +97,8 @@ export const extractContentPreview = async (app: App, file: TFile): Promise<Cont
       success: true,
     };
   } catch (error) {
+    console.warn(`Failed to extract content preview for ${file.path}:`, error);
+
     // Import error handling utilities dynamically
     import("../../utils/errorHandling").then(({ handleError, ErrorCategory }) => {
       handleError(
