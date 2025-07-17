@@ -107,17 +107,23 @@ describe("VirtualList", () => {
 
     render(<VirtualList plugin={mockPlugin} />);
 
-    expect(screen.getByText("Error Loading Notes")).toBeInTheDocument();
-    expect(screen.getByText("Failed to load notes")).toBeInTheDocument();
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+    expect(screen.getByText("Failed to load notes from your vault.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 
   it("should handle retry button click in error state", async () => {
-    // Mock store with error state
+    // Mock store methods
+    const mockRefreshNotes = vi.fn();
+    const mockSetError = vi.fn();
+
+    // Mock store with error state and methods
     mockUseCardExplorerStore.mockReturnValue({
       filteredNotes: [],
       isLoading: false,
       error: "Failed to load notes",
+      refreshNotes: mockRefreshNotes,
+      setError: mockSetError,
     });
 
     const user = userEvent.setup();
@@ -126,7 +132,7 @@ describe("VirtualList", () => {
     const retryButton = screen.getByRole("button", { name: "Retry" });
     await user.click(retryButton);
 
-    expect(mockPlugin.refreshNotes).toHaveBeenCalled();
+    expect(mockRefreshNotes).toHaveBeenCalledWith(mockPlugin.app);
   });
 
   it("should render empty state", () => {
