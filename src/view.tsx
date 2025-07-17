@@ -3,55 +3,99 @@ import { createRoot, type Root } from "react-dom/client";
 import { CardView } from "./components/CardView";
 import type CardExplorerPlugin from "./main";
 
+/** Card Explorer view identifier - used to identify the view within Obsidian workspace */
 export const VIEW_TYPE_CARD_EXPLORER = "card-explorer-view";
 
+/**
+ * Card Explorer Obsidian view class
+ *
+ * This class extends Obsidian's ItemView and serves as the bridge between
+ * the React component tree and Obsidian's workspace system.
+ *
+ * Key responsibilities:
+ * - Mount and unmount React application
+ * - Manage Obsidian view lifecycle
+ * - Bridge between plugin and React components
+ */
 export class CardExplorerView extends ItemView {
+  /** Reference to the plugin instance - used for settings and API access */
   plugin: CardExplorerPlugin;
+
+  /** React root DOM element - created using React 18's createRoot API */
   private root: Root | null = null;
+
+  /** Container element where React components are mounted - base point for DOM operations */
   private containerElement: HTMLElement | null = null;
 
+  /**
+   * CardExplorerView constructor
+   * @param leaf - Obsidian workspace leaf
+   * @param plugin - Card Explorer plugin instance
+   */
   constructor(leaf: WorkspaceLeaf, plugin: CardExplorerPlugin) {
     super(leaf);
     this.plugin = plugin;
   }
 
+  /**
+   * Returns the view type identifier
+   * @returns View identifier string
+   */
   getViewType(): string {
     return VIEW_TYPE_CARD_EXPLORER;
   }
 
+  /**
+   * Returns the display name of the view
+   * @returns View title string
+   */
   getDisplayText(): string {
     return "Card Explorer";
   }
 
+  /**
+   * Returns the icon for the view
+   * @returns Icon name string
+   */
   getIcon(): string {
     return "layout-grid";
   }
 
+  /**
+   * Initialization process when the view is opened
+   * Mounts React components and sets up basic styling
+   */
   async onOpen(): Promise<void> {
-    // Get the content container (skip the header)
+    // Get content container (skip header)
     const container = this.containerEl.children[1];
     container.empty();
 
-    // Create the React mount point
+    // Create React mount point
     this.containerElement = container.createEl("div", {
       cls: "card-explorer-container",
     });
 
-    // Set up basic styling for the container
+    // Set up basic container styling
+    // Set full height and width, use flexbox layout
     this.containerElement.style.height = "100%";
     this.containerElement.style.width = "100%";
     this.containerElement.style.display = "flex";
     this.containerElement.style.flexDirection = "column";
 
-    // Create React root and mount the main CardView component
+    // Create React root and mount main CardView component
     this.root = createRoot(this.containerElement);
 
-    // Render the main CardView component
+    // Render main CardView component
+    // Pass plugin instance as props
     this.root.render(<CardView plugin={this.plugin} />);
   }
 
+  /**
+   * Cleanup process when the view is closed
+   * Unmounts React root and clears references
+   */
   async onClose(): Promise<void> {
-    // Cleanup React root
+    // Clean up React root
     if (this.root) {
       this.root.unmount();
       this.root = null;
@@ -63,7 +107,7 @@ export class CardExplorerView extends ItemView {
 
   /**
    * Method to re-render the React component tree
-   * Used to refresh the CardView component when needed
+   * Used to update CardView component when necessary
    */
   refresh(): void {
     if (this.root && this.containerElement) {
@@ -72,15 +116,15 @@ export class CardExplorerView extends ItemView {
   }
 
   /**
-   * Refresh notes data in the store
-   * Called by the plugin to trigger note reload
+   * Updates note data in the store
+   * Called by the plugin to trigger note reloading
    */
   async refreshNotes(): Promise<void> {
-    // Import the store dynamically to avoid circular dependencies
+    // Dynamically import store to avoid circular dependencies
     const { useCardExplorerStore } = await import("./store/cardExplorerStore");
     const store = useCardExplorerStore.getState();
 
-    // Trigger note refresh in the store
+    // Trigger note update in store
     await store.refreshNotes(this.plugin.app);
   }
 }

@@ -1,29 +1,53 @@
+/**
+ * Unit tests for CardExplorerPlugin main class
+ *
+ * Tests plugin lifecycle, event handling, and integration with Obsidian APIs.
+ * Uses comprehensive mocking to isolate plugin logic from external dependencies.
+ */
+
 import type { App, EventRef, TFile } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CardExplorerPlugin from "./main";
 
-// Mock the debounce utility
+/**
+ * Mock debounce utility to avoid timing issues in tests
+ * Returns function immediately without delay for predictable test behavior
+ */
 vi.mock("./utils/debounce", () => ({
   debounceAsync: vi.fn((fn) => fn),
   DEFAULT_REFRESH_DEBOUNCE_DELAY: 300,
 }));
 
-// Mock the view
+/**
+ * Mock CardExplorerView to avoid React rendering in unit tests
+ * Provides minimal interface for testing view integration
+ */
 vi.mock("./view", () => ({
   CardExplorerView: vi.fn(),
   VIEW_TYPE_CARD_EXPLORER: "card-explorer-view",
 }));
 
-// Mock other dependencies
+/**
+ * Mock settings module with default values
+ * Provides consistent settings for testing without file I/O
+ */
 vi.mock("./settings", () => ({
   CardExplorerSettingTab: vi.fn(),
   DEFAULT_SETTINGS: { autoStart: false, showInSidebar: false, sortKey: "updated" },
 }));
 
+/**
+ * Mock plugin types with default data structure
+ * Ensures consistent data format for testing
+ */
 vi.mock("./types/plugin", () => ({
   DEFAULT_DATA: { pinnedNotes: [], lastFilters: null, sortConfig: null },
 }));
 
+/**
+ * Mock data persistence utilities to avoid file system operations
+ * Returns predictable data for testing plugin initialization and data handling
+ */
 vi.mock("./utils/dataPersistence", () => ({
   loadPluginData: vi.fn().mockResolvedValue({
     data: { pinnedNotes: [], lastFilters: null, sortConfig: null },

@@ -13,7 +13,31 @@
  * @param delay - The delay in milliseconds
  * @returns A debounced version of the function
  */
-export function debounce<T extends (...args: any[]) => any>(
+export /**
+ * Debounce utility function
+ *
+ * Creates a debounced version of a function that delays execution until after
+ * the specified delay has elapsed since the last time it was invoked.
+ * Useful for limiting the rate of function calls, especially for expensive
+ * operations like API calls or DOM updates.
+ *
+ * @template T - The type of the function to debounce
+ * @param func - The function to debounce
+ * @param delay - The delay in milliseconds to wait before executing
+ * @returns A debounced version of the input function
+ *
+ * @example
+ * ```typescript
+ * const debouncedSearch = debounce((query: string) => {
+ *   performSearch(query);
+ * }, 300);
+ *
+ * // Will only execute once after 300ms of no calls
+ * debouncedSearch("hello");
+ * debouncedSearch("hello world"); // Cancels previous call
+ * ```
+ */
+function debounce<T extends (...args: any[]) => any>(
   func: T,
   delay: number
 ): (...args: Parameters<T>) => void {
