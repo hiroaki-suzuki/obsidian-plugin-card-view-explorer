@@ -10,29 +10,80 @@ import {
 import { DEFAULT_REFRESH_DEBOUNCE_DELAY, debounceAsync } from "./utils/debounce";
 import { CardExplorerView, VIEW_TYPE_CARD_EXPLORER } from "./view";
 
+/**
+ * Main Card Explorer plugin class
+ *
+ * This class serves as the core of the Obsidian plugin with the following responsibilities:
+ * - Plugin lifecycle management (initialization and cleanup)
+ * - User settings loading and saving
+ * - File system event monitoring and processing
+ * - Card Explorer view management
+ */
 export default class CardExplorerPlugin extends Plugin {
-  settings: CardExplorerSettings = DEFAULT_SETTINGS;
-  data: PluginData = DEFAULT_DATA;
+  /**
+   * Plugin settings that control behavior and appearance
+   *
+   * Settings include:
+   * - sortKey: Frontmatter key used for sorting
+   * - autoStart: Auto-start flag when Obsidian launches
+   * - showInSidebar: Sidebar display flag
+   *
+   * Initialized with default values and loaded from disk in onload()
+   */
+  private settings: CardExplorerSettings = DEFAULT_SETTINGS;
 
-  // Event handling
+  /**
+   * Plugin persistent data (pinned notes, user preferences, etc.)
+   *
+   * Stored data includes:
+   * - pinnedNotes: List of paths for pinned notes
+   * - lastFilters: Last used filter settings
+   * - sortConfig: Sort configuration
+   *
+   * Saved separately from settings in data.json file
+   */
+  private data: PluginData = DEFAULT_DATA;
+
+  // Event handling related properties
+  /**
+   * Array of registered event handler references for cleanup
+   * Used to properly remove all event listeners when plugin is unloaded
+   */
   private eventRefs: EventRef[] = [];
+
+  /**
+   * Debounced function for note updates
+   *
+   * Prevents excessive update processing when multiple file events
+   * (create, delete, modify, rename) occur in a short time period
+   * Executed with DEFAULT_REFRESH_DEBOUNCE_DELAY (300ms) delay
+   */
   private debouncedRefreshNotes: () => Promise<void>;
 
+  /**
+   * Constructor: Initialize plugin and set up debounced update function
+   * @param app - Obsidian app instance
+   * @param manifest - Plugin manifest data
+   */
   constructor(app: any, manifest: any) {
     super(app, manifest);
 
-    // Initialize debounced refresh function
+    // Initialize debounced update function
     this.debouncedRefreshNotes = debounceAsync(async () => {
       await this.refreshNotes();
     }, DEFAULT_REFRESH_DEBOUNCE_DELAY) as unknown as () => Promise<void>;
   }
 
+  /**
+   * Plugin initialization lifecycle method
+   * Sets up views, commands, event handlers, and loads user data
+   */
   async onload(): Promise<void> {
     // Load settings and data
     await this.loadSettings();
     await this.loadPluginData();
 
-    // Register the Card Explorer view
+    // Register Card Explorer view
     this.registerView(VIEW_TYPE_CARD_EXPLORER, (leaf) => new CardExplorerView(leaf, this));
 
     // Register commands
@@ -52,30 +103,42 @@ export default class CardExplorerPlugin extends Plugin {
     // Register settings tab
     this.addSettingTab(new CardExplorerSettingTab(this.app, this));
 
-    // Set up real-time event handling
+    // Set up real-time event processing
     this.setupEventHandlers();
 
-    // Auto-start if enabled
+    // If auto-start is enabled
     if (this.settings.autoStart) {
-      // Delay to ensure workspace is ready
+      // Wait for workspace to be ready
       this.app.workspace.onLayoutReady(() => {
         this.activateView();
       });
     }
   }
 
+  /**
+   * Plugin cleanup lifecycle method
+   * Removes event handlers and detaches views when plugin is disabled
+   */
   async onunload(): Promise<void> {
-    // Cleanup event handlers
+    // Clean up event handlers
     this.cleanupEventHandlers();
 
     // Cleanup - detach all Card Explorer views
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_CARD_EXPLORER);
   }
 
+  /**
+   * Load plugin settings from disk
+   * Called during plugin initialization to restore user settings
+   */
   async loadSettings(): Promise<void> {
     this.settings = await loadPluginSettings(this);
   }
 
+  /**
+   * Save current plugin settings to disk
+   * Called when user changes settings
+   */
   async saveSettings(): Promise<void> {
     const success = await savePluginSettings(this, this.settings);
     if (!success) {
@@ -83,11 +146,55 @@ export default class CardExplorerPlugin extends Plugin {
     }
   }
 
+  /**
+   * Get current plugin settings
+   * Provides controlled access to private settings property
+   * @returns Current plugin settings object
+   */
+  getSettings(): CardExplorerSettings {
+    return this.settings;
+  }
+
+  /**
+   * Update specific setting value
+   * @param key - Setting key to update
+   * @param value - New value for the setting
+   */
+  updateSetting<K extends keyof CardExplorerSettings>(
+    key: K,
+    value: CardExplorerSettings[K]
+  ): void {
+    this.settings[key] = value;
+  }
+
+  /**
+   * Get current plugin data
+   * Provides controlled access to private data property
+   * @returns Current plugin data object
+   */
+  getData(): PluginData {
+    return this.data;
+  }
+
+  /**
+   * Update plugin data
+   * Provides controlled access to update private data property
+   * @param data - New plugin data
+   */
+  updateData(data: PluginData): void {
+    this.data = data;
+  }
+
+  /**
+   * Load plugin data from disk
+   * Handles migration when data format changes between versions
+   * @returns Promise that resolves when data is loaded
+   */
   async loadPluginData(): Promise<void> {
     const { data, migration } = await loadPluginData(this);
     this.data = data;
 
-    // Log migration information if migration occurred
+    // Log migration if it occurred
     if (migration.migrated) {
       console.log("Card Explorer: Data migrated", {
         from: migration.fromVersion,
@@ -97,6 +204,11 @@ export default class CardExplorerPlugin extends Plugin {
     }
   }
 
+  /**
+   * Save plugin data to disk
+   * Used to persist user settings and pinned notes
+   * @returns Promise that resolves when data is saved
+   */
   async savePluginData(): Promise<void> {
     const success = await savePluginData(this, this.data);
     if (!success) {
@@ -104,6 +216,12 @@ export default class CardExplorerPlugin extends Plugin {
     }
   }
 
+  /**
+   * Activate or create Card Explorer view in workspace
+   * Creates new view if none exists, focuses existing view if found
+   * Respects user settings for sidebar vs main workspace placement
+   * @returns Promise that resolves when view is activated
+   */
   async activateView(): Promise<void> {
     const { workspace } = this.app;
 
@@ -111,13 +229,15 @@ export default class CardExplorerPlugin extends Plugin {
     const leaves = workspace.getLeavesOfType(VIEW_TYPE_CARD_EXPLORER);
 
     if (leaves.length > 0) {
-      // A Card Explorer view already exists, use it
+      // Use existing Card Explorer view if available
       leaf = leaves[0];
     } else {
       // Create new Card Explorer view
       if (this.settings.showInSidebar) {
+        // Place in right sidebar if user setting is configured for sidebar display
         leaf = workspace.getRightLeaf(false);
       } else {
+        // Otherwise create in main workspace area
         leaf = workspace.getLeaf(true);
       }
 
@@ -129,21 +249,21 @@ export default class CardExplorerPlugin extends Plugin {
       }
     }
 
-    // Reveal the leaf
+    // Reveal leaf (give it focus)
     if (leaf) {
       workspace.revealLeaf(leaf);
     }
   }
 
   /**
-   * Refresh notes in all active Card Explorer views
-   * Used by components to trigger note reload
+   * Update notes in all active Card Explorer views
+   * Used by components to trigger note reloading
    */
   async refreshNotes(): Promise<void> {
     try {
       const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CARD_EXPLORER);
 
-      // Use Promise.allSettled to handle individual view failures gracefully
+      // Use Promise.allSettled to properly handle individual view failures
       const refreshPromises = leaves.map(async (leaf) => {
         const view = leaf.view as CardExplorerView;
         if (view && typeof view.refreshNotes === "function") {
@@ -153,14 +273,14 @@ export default class CardExplorerPlugin extends Plugin {
 
       const results = await Promise.allSettled(refreshPromises);
 
-      // Log any failures but don't throw
+      // Log failures but don't throw exceptions
       results.forEach((result, index) => {
         if (result.status === "rejected") {
           console.warn(`Failed to refresh Card Explorer view ${index}:`, result.reason);
         }
       });
     } catch (error) {
-      // Import error handling utilities dynamically
+      // Dynamically import error handling utility
       const { handleError, ErrorCategory } = await import("./utils/errorHandling");
 
       handleError(error, ErrorCategory.API, {
@@ -172,7 +292,7 @@ export default class CardExplorerPlugin extends Plugin {
 
   /**
    * Set up event handlers for real-time updates
-   * Subscribes to vault and metadata cache events to keep notes up-to-date
+   * Subscribe to vault and metadata cache events to keep notes up to date
    */
   private setupEventHandlers(): void {
     // Subscribe to vault events for file changes
@@ -236,7 +356,7 @@ export default class CardExplorerPlugin extends Plugin {
 
   /**
    * Clean up event handlers
-   * Unsubscribes from all vault and metadata cache events
+   * Unsubscribe from all vault and metadata cache events
    */
   private cleanupEventHandlers(): void {
     // Unsubscribe from all event handlers
@@ -244,16 +364,16 @@ export default class CardExplorerPlugin extends Plugin {
       this.app.vault.offref(ref);
     });
 
-    // Clear the event references array
+    // Clear event reference array
     this.eventRefs = [];
 
     console.log("Card Explorer: Event handlers cleaned up");
   }
 
   /**
-   * Check if a file is a markdown file that should trigger updates
-   * @param file - The file to check
-   * @returns true if the file is a markdown file
+   * Check if file is a Markdown file that should trigger updates
+   * @param file - File to check
+   * @returns true if file is a Markdown file
    */
   private isMarkdownFile(file: TFile): boolean {
     return file.extension === "md";

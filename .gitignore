@@ -200,6 +200,8 @@ vite.config.ts.timestamp-*
 # Obsidian plugin build output
 main.js
 main.js.map
+data.json
+
 *.tsbuildinfo
 
 # Test coverage
