@@ -47,7 +47,20 @@ export const extractNoteMetadata = (app: App, file: TFile): NoteMetadata => {
       cached,
     };
   } catch (error) {
-    console.warn(`Failed to extract metadata for ${file.path}:`, error);
+    // Import error handling utilities dynamically
+    import("../../utils/errorHandling").then(({ handleError, ErrorCategory }) => {
+      handleError(
+        error,
+        ErrorCategory.API,
+        {
+          operation: "extractNoteMetadata",
+          filePath: file.path,
+          fileName: file.basename,
+        },
+        { showNotifications: false }
+      ); // Don't show notifications for metadata errors
+    });
+
     return {
       frontmatter: null,
       tags: [],
@@ -82,7 +95,20 @@ export const extractContentPreview = async (app: App, file: TFile): Promise<Cont
       success: true,
     };
   } catch (error) {
-    console.warn(`Failed to extract content preview for ${file.path}:`, error);
+    // Import error handling utilities dynamically
+    import("../../utils/errorHandling").then(({ handleError, ErrorCategory }) => {
+      handleError(
+        error,
+        ErrorCategory.API,
+        {
+          operation: "extractContentPreview",
+          filePath: file.path,
+          fileName: file.basename,
+        },
+        { showNotifications: false }
+      ); // Don't show notifications for preview errors
+    });
+
     return {
       preview: file.basename, // Fallback to filename
       success: false,

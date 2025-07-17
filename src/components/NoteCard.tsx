@@ -1,7 +1,9 @@
 import type React from "react";
+import { useCallback } from "react";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
+import { ErrorCategory, handleError, safeSync } from "../utils/errorHandling";
 
 interface NoteCardProps {
   note: NoteData;
@@ -22,49 +24,100 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   /**
    * Handle clicking on the note card to open it in the active pane
    */
-  const handleNoteClick = () => {
-    // Open the note in the active pane using Obsidian's workspace API
-    plugin.app.workspace.getLeaf().openFile(note.file);
-  };
+  const handleNoteClick = useCallback(() => {
+    try {
+      // Open the note in the active pane using Obsidian's workspace API
+      plugin.app.workspace.getLeaf().openFile(note.file);
+    } catch (error) {
+      handleError(error, ErrorCategory.API, {
+        operation: "openFile",
+        notePath: note.path,
+        noteTitle: note.title,
+      });
+    }
+  }, [plugin.app.workspace, note.file, note.path, note.title]);
 
   /**
    * Handle pin toggle button click
    * Prevents event bubbling to avoid opening the note
    */
-  const handlePinToggle = (event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent note click event
-    togglePin(note.path);
-  };
+  const handlePinToggle = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation(); // Prevent note click event
+
+      try {
+        togglePin(note.path);
+      } catch (error) {
+        handleError(error, ErrorCategory.DATA, {
+          operation: "togglePin",
+          notePath: note.path,
+          noteTitle: note.title,
+          currentPinState: isPinned,
+        });
+      }
+    },
+    [togglePin, note.path, note.title, isPinned]
+  );
 
   /**
-   * Format the last modified date for display
+   * Format the last modified date for display with error handling
    */
-  const formatDate = (date: Date): string => {
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+  const formatDate = useCallback(
+    (date: Date): string => {
+      return safeSync(
+        () => {
+          const now = new Date();
+          const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
 
-    if (diffInHours < 24) {
-      // Show time for today
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    } else if (diffInHours < 24 * 7) {
-      // Show day of week for this week
-      return date.toLocaleDateString([], { weekday: "short" });
-    } else {
-      // Show date for older notes
-      return date.toLocaleDateString([], { month: "short", day: "numeric" });
-    }
-  };
+          if (diffInHours < 24) {
+            // Show time for today
+            return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          } else if (diffInHours < 24 * 7) {
+            // Show day of week for this week
+            return date.toLocaleDateString([], { weekday: "short" });
+          } else {
+            // Show date for older notes
+            return date.toLocaleDateString([], { month: "short", day: "numeric" });
+          }
+        },
+        "Invalid date", // Fallback value
+        ErrorCategory.DATA,
+        {
+          operation: "formatDate",
+          date: date.toString(),
+          notePath: note.path,
+        }
+      );
+    },
+    [note.path]
+  );
+
+  /**
+   * Safe keyboard event handler
+   */
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      try {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleNoteClick();
+        }
+      } catch (error) {
+        handleError(error, ErrorCategory.UI, {
+          operation: "handleKeyDown",
+          key: e.key,
+          notePath: note.path,
+        });
+      }
+    },
+    [handleNoteClick, note.path]
+  );
 
   return (
     <div
       className={`note-card ${isPinned ? "pinned" : ""}`}
       onClick={handleNoteClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          handleNoteClick();
-        }
-      }}
+      onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
       aria-label={`Open note: ${note.title}`}
