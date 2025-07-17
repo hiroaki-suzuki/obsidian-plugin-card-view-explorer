@@ -1,6 +1,7 @@
 import type { App } from "obsidian";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
+import type CardExplorerPlugin from "../main";
 import type { FilterState, NoteData, SortConfig } from "../types";
 import { applyFilters } from "./filters";
 import { loadNotesFromVault } from "./noteProcessing";
@@ -54,6 +55,16 @@ export interface CardExplorerState {
    * @param filePath - Full path to the note file
    */
   togglePin: (filePath: string) => void;
+  /**
+   * Initialize store from plugin data
+   * @param plugin - Plugin instance with data
+   */
+  initializeFromPluginData: (plugin: CardExplorerPlugin) => void;
+  /**
+   * Save current pin states to plugin data
+   * @param plugin - Plugin instance to save data to
+   */
+  savePinStatesToPlugin: (plugin: CardExplorerPlugin) => Promise<void>;
   /**
    * Set loading state for UI feedback
    * @param loading - Whether the store is in loading state
@@ -226,6 +237,54 @@ export const useCardExplorerStore = create<CardExplorerState>()(
     },
 
     /**
+     * Initialize store from plugin data
+     * Loads saved pin states, filters, and sort config from plugin data
+     */
+    initializeFromPluginData: (plugin: CardExplorerPlugin) => {
+      const { data } = plugin;
+
+      // Initialize pinned notes from plugin data
+      const pinnedNotes = new Set(data.pinnedNotes || []);
+
+      // Initialize filters from plugin data (use last filters if available)
+      const filters = data.lastFilters || createDefaultFilters();
+
+      // Initialize sort config from plugin data
+      const sortConfig = data.sortConfig || createDefaultSortConfig();
+
+      // Update store state
+      set({
+        pinnedNotes,
+        filters,
+        sortConfig,
+      });
+
+      // Recompute filtered notes with loaded state
+      const state = get();
+      const filteredNotes = recomputeFilteredNotes(state.notes, filters, sortConfig, pinnedNotes);
+      set({ filteredNotes });
+    },
+
+    /**
+     * Save current pin states to plugin data
+     * Persists current pin states, filters, and sort config to plugin data file
+     */
+    savePinStatesToPlugin: async (plugin: CardExplorerPlugin) => {
+      const state = get();
+
+      // Update plugin data with current state
+      plugin.data = {
+        ...plugin.data,
+        pinnedNotes: Array.from(state.pinnedNotes),
+        lastFilters: state.filters,
+        sortConfig: state.sortConfig,
+      };
+
+      // Save to disk
+      await plugin.savePluginData();
+    },
+
+    /**
      * Set loading state for UI feedback during async operations
      */
     setLoading: (loading: boolean) => set({ isLoading: loading }),
@@ -240,12 +299,20 @@ export const useCardExplorerStore = create<CardExplorerState>()(
      * Loads all notes from vault and updates store state
      */
     refreshNotes: async (app: App) => {
+      // Import error handling utilities dynamically
+      const { withRetry, handleError, ErrorCategory } = await import("../utils/errorHandling");
+
       try {
         // Set loading state
         set({ isLoading: true, error: null });
 
-        // Load notes from vault
-        const notes = await loadNotesFromVault(app);
+        // Load notes from vault with retry mechanism
+        const notes = await withRetry(() => loadNotesFromVault(app), {
+          maxRetries: 3,
+          baseDelay: 1000,
+          category: ErrorCategory.API,
+          context: { operation: "loadNotesFromVault", notesCount: get().notes.length },
+        });
 
         // Update store with new notes (this will trigger recomputation)
         const state = get();
@@ -263,10 +330,16 @@ export const useCardExplorerStore = create<CardExplorerState>()(
         // Clear loading state
         set({ isLoading: false });
       } catch (error) {
-        console.error("Failed to refresh notes:", error);
+        // Handle error with comprehensive error handling
+        const errorInfo = handleError(error, ErrorCategory.API, {
+          operation: "refreshNotes",
+          notesCount: get().notes.length,
+          hasExistingNotes: get().notes.length > 0,
+        });
+
         set({
           isLoading: false,
-          error: error instanceof Error ? error.message : "Failed to load notes",
+          error: errorInfo.message,
         });
       }
     },

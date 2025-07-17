@@ -9,6 +9,8 @@ import { CardView } from "./CardView";
 // Mock the store
 const mockRefreshNotes = vi.fn();
 const mockSetError = vi.fn();
+const mockInitializeFromPluginData = vi.fn();
+const mockSavePinStatesToPlugin = vi.fn();
 
 vi.mock("../store/cardExplorerStore", () => ({
   useCardExplorerStore: vi.fn(),
@@ -73,6 +75,9 @@ describe("CardView", () => {
       error: null,
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
+      initializeFromPluginData: mockInitializeFromPluginData,
+      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+      pinnedNotes: new Set(),
     });
   });
 
@@ -104,6 +109,9 @@ describe("CardView", () => {
       error: null,
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
+      initializeFromPluginData: mockInitializeFromPluginData,
+      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+      pinnedNotes: new Set(),
     });
 
     render(<CardView plugin={mockPlugin} />);
@@ -120,6 +128,9 @@ describe("CardView", () => {
       error: "Failed to load notes",
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
+      initializeFromPluginData: mockInitializeFromPluginData,
+      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+      pinnedNotes: new Set(),
     });
 
     render(<CardView plugin={mockPlugin} />);
@@ -160,6 +171,9 @@ describe("CardView", () => {
       error: null,
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
+      initializeFromPluginData: mockInitializeFromPluginData,
+      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+      pinnedNotes: new Set(),
     });
 
     render(<CardView plugin={mockPlugin} />);
@@ -197,6 +211,9 @@ describe("CardView", () => {
       error: null,
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
+      initializeFromPluginData: mockInitializeFromPluginData,
+      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+      pinnedNotes: new Set(),
     });
 
     render(<CardView plugin={mockPlugin} />);
@@ -212,6 +229,9 @@ describe("CardView", () => {
       error: null,
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
+      initializeFromPluginData: mockInitializeFromPluginData,
+      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+      pinnedNotes: new Set(),
     });
 
     render(<CardView plugin={mockPlugin} />);

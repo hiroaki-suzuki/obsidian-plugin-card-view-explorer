@@ -16,15 +16,32 @@ interface CardViewProps {
  * logs those errors, and displays a fallback UI instead of crashing.
  */
 class CardViewErrorBoundary extends React.Component<
-  { children: React.ReactNode; onError?: (error: Error, errorInfo: React.ErrorInfo) => void },
-  { hasError: boolean; error: Error | null }
+  {
+    children: React.ReactNode;
+    onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+    fallbackComponent?: React.ComponentType<{ error: Error; retry: () => void }>;
+  },
+  {
+    hasError: boolean;
+    error: Error | null;
+    errorId: string | null;
+    retryCount: number;
+  }
 > {
+  private maxRetries = 3;
+
   constructor(props: {
     children: React.ReactNode;
     onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+    fallbackComponent?: React.ComponentType<{ error: Error; retry: () => void }>;
   }) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = {
+      hasError: false,
+      error: null,
+      errorId: null,
+      retryCount: 0,
+    };
   }
 
   static getDerivedStateFromError(error: Error) {
@@ -33,35 +50,111 @@ class CardViewErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log error for debugging
-    console.error("Card Explorer Error Boundary caught an error:", error, errorInfo);
+    // Import error handling utilities dynamically to avoid circular dependencies
+    import("../utils/errorHandling").then(({ handleError, ErrorCategory }) => {
+      const handledError = handleError(error, ErrorCategory.UI, {
+        componentStack: (errorInfo as any).componentStack || "No component stack available",
+        errorBoundary: "CardViewErrorBoundary",
+        retryCount: this.state.retryCount,
+      });
+
+      this.setState({ errorId: handledError.details || "unknown" });
+    });
 
     // Call optional error handler
     this.props.onError?.(error, errorInfo);
   }
 
+  handleRetry = () => {
+    if (this.state.retryCount < this.maxRetries) {
+      this.setState({
+        hasError: false,
+        error: null,
+        errorId: null,
+        retryCount: this.state.retryCount + 1,
+      });
+    } else {
+      // Max retries reached, show permanent error state
+      console.error("Card Explorer: Max retries reached for error boundary");
+    }
+  };
+
   render() {
-    if (this.state.hasError) {
+    if (this.state.hasError && this.state.error) {
+      // Use custom fallback component if provided
+      if (this.props.fallbackComponent) {
+        const FallbackComponent = this.props.fallbackComponent;
+        return <FallbackComponent error={this.state.error} retry={this.handleRetry} />;
+      }
+
+      // Default fallback UI
+      const canRetry = this.state.retryCount < this.maxRetries;
+
       return (
         <div className="card-view-error-boundary">
           <div className="error-content">
             <div className="error-icon">⚠️</div>
             <h3>Something went wrong</h3>
             <p>The Card Explorer encountered an unexpected error.</p>
+
+            {this.state.retryCount > 0 && (
+              <p className="retry-info">
+                Retry attempt {this.state.retryCount} of {this.maxRetries}
+              </p>
+            )}
+
             <details className="error-details">
               <summary>Error Details</summary>
-              <pre>{this.state.error?.message}</pre>
-              <pre>{this.state.error?.stack}</pre>
+              <div className="error-info">
+                <p>
+                  <strong>Message:</strong> {this.state.error.message}
+                </p>
+                {this.state.errorId && (
+                  <p>
+                    <strong>Error ID:</strong> {this.state.errorId}
+                  </p>
+                )}
+                <p>
+                  <strong>Timestamp:</strong> {new Date().toLocaleString()}
+                </p>
+              </div>
+              <pre className="error-stack">{this.state.error.stack}</pre>
             </details>
-            <button
-              type="button"
-              className="error-retry-button"
-              onClick={() => {
-                this.setState({ hasError: false, error: null });
-              }}
-            >
-              Try Again
-            </button>
+
+            <div className="error-actions">
+              {canRetry ? (
+                <button type="button" className="error-retry-button" onClick={this.handleRetry}>
+                  Try Again ({this.maxRetries - this.state.retryCount} attempts left)
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="error-reload-button"
+                  onClick={() => window.location.reload()}
+                >
+                  Reload Plugin
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="error-report-button"
+                onClick={() => {
+                  // Copy error details to clipboard for reporting
+                  const errorReport = {
+                    message: this.state.error?.message,
+                    stack: this.state.error?.stack,
+                    errorId: this.state.errorId,
+                    timestamp: new Date().toISOString(),
+                    retryCount: this.state.retryCount,
+                  };
+                  navigator.clipboard.writeText(JSON.stringify(errorReport, null, 2));
+                  console.log("Error report copied to clipboard");
+                }}
+              >
+                Copy Error Report
+              </button>
+            </div>
           </div>
         </div>
       );
@@ -84,7 +177,25 @@ class CardViewErrorBoundary extends React.Component<
  * - Computed available tags and folders for filtering
  */
 export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
-  const { notes, filteredNotes, isLoading, error, refreshNotes, setError } = useCardExplorerStore();
+  const {
+    notes,
+    filteredNotes,
+    isLoading,
+    error,
+    refreshNotes,
+    setError,
+    initializeFromPluginData,
+    savePinStatesToPlugin,
+    pinnedNotes,
+  } = useCardExplorerStore();
+
+  /**
+   * Initialize store from plugin data when component mounts
+   * This loads saved pin states, filters, and sort configuration
+   */
+  useEffect(() => {
+    initializeFromPluginData(plugin);
+  }, [plugin, initializeFromPluginData]);
 
   /**
    * Load notes when component mounts
@@ -111,6 +222,37 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
       isMounted = false;
     };
   }, [plugin.app, refreshNotes, setError]);
+
+  /**
+   * Auto-save pin states when they change
+   * Debounced to avoid excessive saves during rapid changes
+   */
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const saveWithDelay = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(async () => {
+        try {
+          await savePinStatesToPlugin(plugin);
+        } catch (err) {
+          // Import error handling utilities dynamically
+          import("../utils/errorHandling").then(({ handleError, ErrorCategory }) => {
+            handleError(err, ErrorCategory.DATA, {
+              operation: "savePinStates",
+              pinCount: pinnedNotes.size,
+            });
+          });
+        }
+      }, 500); // 500ms debounce
+    };
+
+    saveWithDelay();
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [pinnedNotes.size, savePinStatesToPlugin, plugin]); // Use pinnedNotes.size to avoid Set reference issues
 
   /**
    * Compute available tags from all notes for filter dropdown
