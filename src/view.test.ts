@@ -1,4 +1,4 @@
-/** biome-ignore-all lint/complexity/noUselessConstructor: <explanation> */
+/** biome-ignore-all lint/complexity/noUselessConstructor: test mocking requires constructor */
 import type { WorkspaceLeaf } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type CardExplorerPlugin from "./main";
