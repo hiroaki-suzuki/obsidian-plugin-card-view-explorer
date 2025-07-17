@@ -136,12 +136,12 @@ describe("CardExplorerPlugin", () => {
   });
 
   describe("event handlers", () => {
-    let createHandler: Function;
-    let deleteHandler: Function;
-    let modifyHandler: Function;
-    let _renameHandler: Function;
-    let metadataHandler: Function;
-    let resolvedHandler: Function;
+    let createHandler: (...args: any[]) => void;
+    let deleteHandler: (...args: any[]) => void;
+    let modifyHandler: (...args: any[]) => void;
+    let _renameHandler: (...args: any[]) => void;
+    let metadataHandler: (...args: any[]) => void;
+    let resolvedHandler: (...args: any[]) => void;
 
     beforeEach(async () => {
       // Mock the debounced refresh function
