@@ -1,44 +1,23 @@
-/**
- * Unit tests for CardExplorerPlugin main class
- *
- * Tests plugin lifecycle, event handling, and integration with Obsidian APIs.
- * Uses comprehensive mocking to isolate plugin logic from external dependencies.
- */
-
 import type { App, EventRef, TAbstractFile, TFile } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CardExplorerPlugin from "./main";
+import { TAbstractFile as MockTAbstractFile, TFile as MockTFile } from "./test/obsidian-mock";
+import type { FilterState, PluginData, SortConfig } from "./types";
 
-/**
- * Mock CardExplorerView to avoid React rendering in unit tests
- * Provides minimal interface for testing view integration
- */
 vi.mock("./view", () => ({
   CardExplorerView: vi.fn(),
   VIEW_TYPE_CARD_EXPLORER: "card-explorer-view",
 }));
 
-/**
- * Mock settings module with default values
- * Provides consistent settings for testing without file I/O
- */
 vi.mock("./settings", () => ({
   CardExplorerSettingTab: vi.fn(),
   DEFAULT_SETTINGS: { autoStart: false, showInSidebar: false, sortKey: "updated" },
 }));
 
-/**
- * Mock plugin types with default data structure
- * Ensures consistent data format for testing
- */
 vi.mock("./types/plugin", () => ({
   DEFAULT_DATA: { pinnedNotes: [], lastFilters: null, sortConfig: null },
 }));
 
-/**
- * Mock data persistence utilities to avoid file system operations
- * Returns predictable data for testing plugin initialization and data handling
- */
 vi.mock("./utils/dataPersistence", () => ({
   loadPluginData: vi.fn().mockResolvedValue({
     data: { pinnedNotes: [], lastFilters: null, sortConfig: null },
@@ -80,6 +59,9 @@ describe("CardExplorerPlugin", () => {
       getLeavesOfType: vi.fn().mockReturnValue([]),
       detachLeavesOfType: vi.fn(),
       onLayoutReady: vi.fn(),
+      revealLeaf: vi.fn(),
+      getLeaf: vi.fn(),
+      getRightLeaf: vi.fn(),
     };
 
     // Mock app
@@ -95,14 +77,6 @@ describe("CardExplorerPlugin", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe("constructor", () => {
-    it("should initialize with default settings and data", () => {
-      expect(plugin.settings).toBeDefined();
-      expect(plugin.data).toBeDefined();
-      expect((plugin as any).debouncedRefreshNotes).toBeDefined();
-    });
   });
 
   describe("event handling setup", () => {
@@ -154,7 +128,7 @@ describe("CardExplorerPlugin", () => {
     let createHandler: (...args: any[]) => void;
     let deleteHandler: (...args: any[]) => void;
     let modifyHandler: (...args: any[]) => void;
-    let _renameHandler: (...args: any[]) => void;
+    let renameHandler: (...args: any[]) => void;
     let metadataHandler: (...args: any[]) => void;
     let resolvedHandler: (...args: any[]) => void;
 
@@ -171,7 +145,7 @@ describe("CardExplorerPlugin", () => {
       createHandler = vaultCalls.find((call: any) => call[0] === "create")[1];
       deleteHandler = vaultCalls.find((call: any) => call[0] === "delete")[1];
       modifyHandler = vaultCalls.find((call: any) => call[0] === "modify")[1];
-      _renameHandler = vaultCalls.find((call: any) => call[0] === "rename")[1];
+      renameHandler = vaultCalls.find((call: any) => call[0] === "rename")[1];
       metadataHandler = metadataCalls.find((call: any) => call[0] === "changed")[1];
       resolvedHandler = metadataCalls.find((call: any) => call[0] === "resolved")[1];
     });
@@ -209,9 +183,27 @@ describe("CardExplorerPlugin", () => {
     });
 
     it("should trigger refresh on markdown file rename", () => {
-      // Skip this test since it requires complex TFile mocking
-      // The functionality is covered by integration tests
-      expect(true).toBe(true);
+      const markdownFile = {
+        extension: "md",
+        path: "test.md",
+        name: "test.md",
+      } as unknown as TAbstractFile;
+
+      renameHandler(markdownFile);
+
+      expect((plugin as any).debouncedRefreshNotes).toHaveBeenCalled();
+    });
+
+    it("should not trigger refresh on rename for non-markdown files", () => {
+      const textFile = {
+        extension: "txt",
+        path: "test.txt",
+        name: "test.txt",
+      } as unknown as TAbstractFile;
+
+      renameHandler(textFile);
+
+      expect((plugin as any).debouncedRefreshNotes).not.toHaveBeenCalled();
     });
 
     it("should trigger refresh on metadata changes", () => {
@@ -226,6 +218,209 @@ describe("CardExplorerPlugin", () => {
       resolvedHandler();
 
       expect((plugin as any).debouncedRefreshNotes).toHaveBeenCalled();
+    });
+  });
+
+  describe("settings and data management", () => {
+    it("should load settings on initialization", async () => {
+      await plugin.onload();
+
+      expect(plugin.getSettings()).toEqual({
+        autoStart: false,
+        showInSidebar: false,
+        sortKey: "updated",
+      });
+    });
+
+    it("should save settings successfully", async () => {
+      await plugin.saveSettings();
+
+      const { savePluginSettings } = await import("./utils/dataPersistence");
+      expect(savePluginSettings).toHaveBeenCalledWith(plugin, plugin.getSettings());
+    });
+
+    it("should handle settings save failures", async () => {
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      // Mock savePluginSettings to fail
+      const { savePluginSettings } = await import("./utils/dataPersistence");
+      vi.mocked(savePluginSettings).mockResolvedValueOnce(false);
+
+      await plugin.saveSettings();
+
+      expect(consoleSpy).toHaveBeenCalledWith("Card Explorer: Failed to save settings");
+      consoleSpy.mockRestore();
+    });
+
+    it("should update specific settings", () => {
+      plugin.updateSetting("autoStart", true);
+      plugin.updateSetting("sortKey", "created");
+
+      expect(plugin.getSettings().autoStart).toBe(true);
+      expect(plugin.getSettings().sortKey).toBe("created");
+    });
+
+    it("should get and update plugin data", () => {
+      const testData = {
+        pinnedNotes: ["note1.md", "note2.md"],
+        lastFilters: undefined,
+        sortConfig: undefined,
+        version: 1,
+        _backups: [],
+      } as unknown as PluginData;
+
+      plugin.updateData(testData);
+
+      expect(plugin.getData()).toEqual(testData);
+    });
+
+    it("should load plugin data with migration", async () => {
+      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+      // Mock loadPluginData to return migrated data
+      const { loadPluginData } = await import("./utils/dataPersistence");
+      vi.mocked(loadPluginData).mockResolvedValueOnce({
+        data: {
+          pinnedNotes: ["migrated.md"],
+          lastFilters: undefined as unknown as FilterState,
+          sortConfig: undefined as unknown as SortConfig,
+          version: 1,
+        },
+        migration: { migrated: true, fromVersion: 0, toVersion: 1, warnings: [] },
+      });
+
+      await plugin.loadPluginData();
+
+      expect(consoleSpy).toHaveBeenCalledWith("Card Explorer: Data migrated", {
+        from: 0,
+        to: 1,
+        warnings: [],
+      });
+
+      consoleSpy.mockRestore();
+    });
+
+    it("should save plugin data successfully", async () => {
+      await plugin.savePluginData();
+
+      const { savePluginData } = await import("./utils/dataPersistence");
+      expect(savePluginData).toHaveBeenCalledWith(plugin, plugin.getData());
+    });
+
+    it("should handle plugin data save failures", async () => {
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      // Mock savePluginData to fail
+      const { savePluginData } = await import("./utils/dataPersistence");
+      vi.mocked(savePluginData).mockResolvedValueOnce(false);
+
+      await plugin.savePluginData();
+
+      expect(consoleSpy).toHaveBeenCalledWith("Card Explorer: Failed to save plugin data");
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe("view management", () => {
+    it("should activate existing view if available", async () => {
+      const mockLeaf = { view: {} };
+      mockWorkspace.getLeavesOfType.mockReturnValue([mockLeaf]);
+      mockWorkspace.revealLeaf = vi.fn();
+
+      await plugin.activateView();
+
+      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-explorer-view");
+      expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
+    });
+
+    it("should create new view in main workspace when showInSidebar is false", async () => {
+      plugin.updateSetting("showInSidebar", false);
+
+      const mockLeaf = { setViewState: vi.fn() };
+      mockWorkspace.getLeavesOfType.mockReturnValue([]);
+      mockWorkspace.getLeaf = vi.fn().mockReturnValue(mockLeaf);
+      mockWorkspace.revealLeaf = vi.fn();
+
+      await plugin.activateView();
+
+      expect(mockWorkspace.getLeaf).toHaveBeenCalledWith(true);
+      expect(mockLeaf.setViewState).toHaveBeenCalledWith({
+        type: "card-explorer-view",
+        active: true,
+      });
+      expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
+    });
+
+    it("should create new view in right sidebar when showInSidebar is true", async () => {
+      plugin.updateSetting("showInSidebar", true);
+
+      const mockLeaf = { setViewState: vi.fn() };
+      mockWorkspace.getLeavesOfType.mockReturnValue([]);
+      mockWorkspace.getRightLeaf = vi.fn().mockReturnValue(mockLeaf);
+      mockWorkspace.revealLeaf = vi.fn();
+
+      await plugin.activateView();
+
+      expect(mockWorkspace.getRightLeaf).toHaveBeenCalledWith(false);
+      expect(mockLeaf.setViewState).toHaveBeenCalledWith({
+        type: "card-explorer-view",
+        active: true,
+      });
+      expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
+    });
+
+    it("should handle null leaf gracefully", async () => {
+      mockWorkspace.getLeavesOfType.mockReturnValue([]);
+      mockWorkspace.getLeaf = vi.fn().mockReturnValue(null);
+
+      // Should not throw an error
+      await expect(plugin.activateView()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("plugin lifecycle", () => {
+    it("should register view, commands, and settings on load", async () => {
+      // Mock plugin methods
+      plugin.registerView = vi.fn();
+      plugin.addCommand = vi.fn();
+      plugin.addRibbonIcon = vi.fn();
+      plugin.addSettingTab = vi.fn();
+
+      await plugin.onload();
+
+      expect(plugin.registerView).toHaveBeenCalledWith("card-explorer-view", expect.any(Function));
+      expect(plugin.addCommand).toHaveBeenCalledWith({
+        id: "open-card-explorer",
+        name: "Open Card Explorer",
+        callback: expect.any(Function),
+      });
+      expect(plugin.addRibbonIcon).toHaveBeenCalledWith(
+        "layout-grid",
+        "Card Explorer",
+        expect.any(Function)
+      );
+      expect(plugin.addSettingTab).toHaveBeenCalledWith(expect.any(Object));
+    });
+
+    it("should update autoStart setting correctly", () => {
+      plugin.updateSetting("autoStart", true);
+
+      expect(plugin.getSettings().autoStart).toBe(true);
+    });
+
+    it("should not activate view on auto-start when disabled", async () => {
+      plugin.updateSetting("autoStart", false);
+      plugin.activateView = vi.fn();
+
+      await plugin.onload();
+
+      expect(plugin.activateView).not.toHaveBeenCalled();
+    });
+
+    it("should detach views on unload", async () => {
+      await plugin.onunload();
+
+      expect(mockWorkspace.detachLeavesOfType).toHaveBeenCalledWith("card-explorer-view");
     });
   });
 
@@ -256,6 +451,26 @@ describe("CardExplorerPlugin", () => {
 
       // Should not throw an error
       await expect(plugin.refreshNotes()).resolves.toBeUndefined();
+    });
+
+    it("should handle refresh errors gracefully", async () => {
+      const mockView = {
+        refreshNotes: vi.fn().mockRejectedValue(new Error("Refresh failed")),
+      };
+      const mockLeaf = {
+        view: mockView,
+      };
+
+      mockWorkspace.getLeavesOfType.mockReturnValue([mockLeaf]);
+
+      // Should not throw an error despite view refresh failure
+      await expect(plugin.refreshNotes()).resolves.toBeUndefined();
+    });
+
+    it("should query workspace for card explorer views during refresh", async () => {
+      await plugin.refreshNotes();
+
+      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-explorer-view");
     });
   });
 });

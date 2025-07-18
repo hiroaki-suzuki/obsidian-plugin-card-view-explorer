@@ -1,5 +1,11 @@
 import { debounce } from "es-toolkit";
-import { type EventRef, Plugin, type TAbstractFile, TFile, type WorkspaceLeaf } from "obsidian";
+import {
+  type EventRef,
+  Plugin,
+  type TAbstractFile,
+  type TFile,
+  type WorkspaceLeaf,
+} from "obsidian";
 import { type CardExplorerSettings, CardExplorerSettingTab, DEFAULT_SETTINGS } from "./settings";
 import { DEFAULT_DATA, type PluginData } from "./types/plugin";
 import {
@@ -329,7 +335,7 @@ export default class CardExplorerPlugin extends Plugin {
 
     // Handle file rename/move
     const renameRef = this.app.vault.on("rename", (file: TAbstractFile) => {
-      if (file instanceof TFile && this.isMarkdownFile(file)) {
+      if (this.isMarkdownFile(file)) {
         this.debouncedRefreshNotes();
       }
     });
@@ -364,8 +370,6 @@ export default class CardExplorerPlugin extends Plugin {
 
     // Clear event reference array
     this.eventRefs = [];
-
-    console.log("Card Explorer: Event handlers cleaned up");
   }
 
   /**

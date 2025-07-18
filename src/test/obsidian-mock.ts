@@ -106,3 +106,33 @@ export class Setting {
  * Used for testing notification functionality
  */
 export class Notice {}
+
+/**
+ * Mock implementation of Obsidian's TFile class
+ * Used for testing file operations
+ */
+export class TFile {
+  extension: string;
+  path: string;
+  name: string;
+
+  constructor(extension: string, path: string, name?: string) {
+    this.extension = extension;
+    this.path = path;
+    this.name = name || path.split('/').pop() || '';
+  }
+}
+
+/**
+ * Mock implementation of Obsidian's TAbstractFile class
+ * Base class for file system objects
+ */
+export class TAbstractFile {
+  path: string;
+  name: string;
+
+  constructor(path: string, name?: string) {
+    this.path = path;
+    this.name = name || path.split('/').pop() || '';
+  }
+}
