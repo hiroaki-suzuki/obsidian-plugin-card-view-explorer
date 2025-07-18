@@ -5,7 +5,7 @@
  * Uses comprehensive mocking to isolate plugin logic from external dependencies.
  */
 
-import type { App, EventRef, TFile } from "obsidian";
+import type { App, EventRef, TAbstractFile, TFile } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CardExplorerPlugin from "./main";
 
@@ -203,7 +203,7 @@ describe("CardExplorerPlugin", () => {
     it("should trigger refresh on markdown file modification", () => {
       const markdownFile = { extension: "md", path: "test.md" } as TFile;
 
-      modifyHandler(markdownFile);
+      modifyHandler(markdownFile as TAbstractFile);
 
       expect((plugin as any).debouncedRefreshNotes).toHaveBeenCalled();
     });

@@ -304,36 +304,32 @@ export default class CardExplorerPlugin extends Plugin {
     // Subscribe to vault events for file changes
 
     // Handle file creation
-    const createRef = (this.app.vault as any).on("create", (file: TFile) => {
+    const createRef = this.app.vault.on("create", (file: TAbstractFile) => {
       if (this.isMarkdownFile(file)) {
-        console.log("Card Explorer: File created:", file.path);
         this.debouncedRefreshNotes();
       }
     });
     this.eventRefs.push(createRef);
 
     // Handle file deletion
-    const deleteRef = (this.app.vault as any).on("delete", (file: TFile) => {
+    const deleteRef = this.app.vault.on("delete", (file: TAbstractFile) => {
       if (this.isMarkdownFile(file)) {
-        console.log("Card Explorer: File deleted:", file.path);
         this.debouncedRefreshNotes();
       }
     });
     this.eventRefs.push(deleteRef);
 
     // Handle file modification (content changes)
-    const modifyRef = (this.app.vault as any).on("modify", (file: TFile) => {
+    const modifyRef = this.app.vault.on("modify", (file: TAbstractFile) => {
       if (this.isMarkdownFile(file)) {
-        console.log("Card Explorer: File modified:", file.path);
         this.debouncedRefreshNotes();
       }
     });
     this.eventRefs.push(modifyRef);
 
     // Handle file rename/move
-    const renameRef = this.app.vault.on("rename", (file: TAbstractFile, oldPath: string) => {
+    const renameRef = this.app.vault.on("rename", (file: TAbstractFile) => {
       if (file instanceof TFile && this.isMarkdownFile(file)) {
-        console.log("Card Explorer: File renamed:", oldPath, "->", file.path);
         this.debouncedRefreshNotes();
       }
     });
@@ -344,7 +340,6 @@ export default class CardExplorerPlugin extends Plugin {
     // Handle metadata cache changes (frontmatter, tags, etc.)
     const metadataRef = this.app.metadataCache.on("changed", (file: TFile) => {
       if (this.isMarkdownFile(file)) {
-        console.log("Card Explorer: Metadata changed:", file.path);
         this.debouncedRefreshNotes();
       }
     });
@@ -352,12 +347,9 @@ export default class CardExplorerPlugin extends Plugin {
 
     // Handle metadata cache resolution (when cache is fully loaded)
     const resolvedRef = this.app.metadataCache.on("resolved", () => {
-      console.log("Card Explorer: Metadata cache resolved");
       this.debouncedRefreshNotes();
     });
     this.eventRefs.push(resolvedRef);
-
-    console.log("Card Explorer: Event handlers set up successfully");
   }
 
   /**
@@ -381,7 +373,7 @@ export default class CardExplorerPlugin extends Plugin {
    * @param file - File to check
    * @returns true if file is a Markdown file
    */
-  private isMarkdownFile(file: TFile): boolean {
-    return file.extension === "md";
+  private isMarkdownFile(file: TAbstractFile): boolean {
+    return "extension" in file && file.extension === "md";
   }
 }

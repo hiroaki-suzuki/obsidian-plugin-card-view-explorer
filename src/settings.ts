@@ -5,7 +5,7 @@ import type CardExplorerPlugin from "./main";
  * Interface defining all configurable settings for the Card Explorer plugin
  *
  * These settings can be changed in Obsidian's settings screen and control plugin behavior.
- * Settings are persisted in the settings.json file.
+ * Settings are persisted in the data.json file.
  *
  * This interface is used throughout the plugin to ensure type safety.
  */
@@ -73,7 +73,7 @@ export const DEFAULT_SETTINGS: CardExplorerSettings = {
  */
 export class CardExplorerSettingTab extends PluginSettingTab {
   /** Reference to plugin instance - used for reading and writing settings */
-  plugin: CardExplorerPlugin;
+  private readonly plugin: CardExplorerPlugin;
 
   /**
    * Create new settings tab instance
@@ -108,6 +108,18 @@ export class CardExplorerSettingTab extends PluginSettingTab {
 
     // Sort key setting
     // Configure which frontmatter field to use for sorting notes
+    this.addSortKeySetting(containerEl, settings);
+
+    // Auto-start setting
+    // Configure whether to automatically open Card Explorer when Obsidian starts
+    this.addAutoStartSetting(containerEl, settings);
+
+    // Sidebar display setting
+    // Configure whether to display Card Explorer in sidebar instead of main area
+    this.addSidebarDisplaySetting(containerEl, settings);
+  }
+
+  private addSortKeySetting(containerEl: HTMLElement, settings: CardExplorerSettings) {
     new Setting(containerEl)
       .setName("Sort key")
       .setDesc("Frontmatter field to use for sorting (fallback to file modification time)")
@@ -122,9 +134,9 @@ export class CardExplorerSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+  }
 
-    // Auto-start setting
-    // Configure whether to automatically open Card Explorer when Obsidian starts
+  private addAutoStartSetting(containerEl: HTMLElement, settings: CardExplorerSettings) {
     new Setting(containerEl)
       .setName("Auto-start")
       .setDesc("Automatically open Card Explorer when Obsidian starts")
@@ -135,9 +147,9 @@ export class CardExplorerSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+  }
 
-    // Sidebar display setting
-    // Configure whether to display Card Explorer in sidebar instead of main area
+  private addSidebarDisplaySetting(containerEl: HTMLElement, settings: CardExplorerSettings) {
     new Setting(containerEl)
       .setName("Show in sidebar")
       .setDesc("Display Card Explorer in the sidebar instead of main area")
