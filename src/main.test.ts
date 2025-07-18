@@ -10,15 +10,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CardExplorerPlugin from "./main";
 
 /**
- * Mock debounce utility to avoid timing issues in tests
- * Returns function immediately without delay for predictable test behavior
- */
-vi.mock("./utils/debounce", () => ({
-  debounceAsync: vi.fn((fn) => fn),
-  DEFAULT_REFRESH_DEBOUNCE_DELAY: 300,
-}));
-
-/**
  * Mock CardExplorerView to avoid React rendering in unit tests
  * Provides minimal interface for testing view integration
  */

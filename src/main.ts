@@ -1,3 +1,4 @@
+import { debounce } from "es-toolkit";
 import { type EventRef, Plugin, type TAbstractFile, TFile, type WorkspaceLeaf } from "obsidian";
 import { type CardExplorerSettings, CardExplorerSettingTab, DEFAULT_SETTINGS } from "./settings";
 import { DEFAULT_DATA, type PluginData } from "./types/plugin";
@@ -7,8 +8,13 @@ import {
   savePluginData,
   savePluginSettings,
 } from "./utils/dataPersistence";
-import { DEFAULT_REFRESH_DEBOUNCE_DELAY, debounceAsync } from "./utils/debounce";
 import { CardExplorerView, VIEW_TYPE_CARD_EXPLORER } from "./view";
+
+/**
+ * Default debounce delay for note refresh operations (in milliseconds)
+ * This prevents excessive refreshes when multiple files change rapidly
+ */
+const DEFAULT_REFRESH_DEBOUNCE_DELAY = 300;
 
 /**
  * Main Card Explorer plugin class
@@ -58,7 +64,7 @@ export default class CardExplorerPlugin extends Plugin {
    * (create, delete, modify, rename) occur in a short time period
    * Executed with DEFAULT_REFRESH_DEBOUNCE_DELAY (300ms) delay
    */
-  private debouncedRefreshNotes: () => Promise<void>;
+  private debouncedRefreshNotes: () => void;
 
   /**
    * Constructor: Initialize plugin and set up debounced update function
@@ -69,9 +75,9 @@ export default class CardExplorerPlugin extends Plugin {
     super(app, manifest);
 
     // Initialize debounced update function
-    this.debouncedRefreshNotes = debounceAsync(async () => {
+    this.debouncedRefreshNotes = debounce(async () => {
       await this.refreshNotes();
-    }, DEFAULT_REFRESH_DEBOUNCE_DELAY) as unknown as () => Promise<void>;
+    }, DEFAULT_REFRESH_DEBOUNCE_DELAY);
   }
 
   /**
