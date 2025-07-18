@@ -9,6 +9,11 @@
    CardView Container Styles
    ========================================================================== */
 
+.card-explorer-container {
+  height: 100%;
+  width: 100%;
+}
+
 .card-view-container {
   display: flex;
   flex-direction: column;

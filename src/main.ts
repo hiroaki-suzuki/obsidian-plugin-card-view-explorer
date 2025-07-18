@@ -70,7 +70,7 @@ export default class CardExplorerPlugin extends Plugin {
    * (create, delete, modify, rename) occur in a short time period
    * Executed with DEFAULT_REFRESH_DEBOUNCE_DELAY (300ms) delay
    */
-  private debouncedRefreshNotes: () => void;
+  private readonly debouncedRefreshNotes: () => void;
 
   /**
    * Constructor: Initialize plugin and set up debounced update function
