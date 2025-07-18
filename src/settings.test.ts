@@ -12,6 +12,9 @@ const mockContainerEl = {
   })),
 };
 
+// Store references to mock settings for testing
+const mockSettings: any[] = [];
+
 // Mock Obsidian imports
 vi.mock("obsidian", () => ({
   PluginSettingTab: class MockPluginSettingTab {
@@ -29,9 +32,13 @@ vi.mock("obsidian", () => ({
     private containerEl: any;
     private name = "";
     private desc = "";
+    private textOnChange: ((value: string) => void) | null = null;
+    private toggleOnChange: ((value: boolean) => void) | null = null;
 
     constructor(containerEl: any) {
       this.containerEl = containerEl;
+      // Store this setting instance for testing
+      mockSettings.push(this);
     }
 
     setName(name: string) {
@@ -48,7 +55,10 @@ vi.mock("obsidian", () => ({
       const mockText = {
         setPlaceholder: vi.fn().mockReturnThis(),
         setValue: vi.fn().mockReturnThis(),
-        onChange: vi.fn().mockReturnThis(),
+        onChange: vi.fn().mockImplementation((handler) => {
+          this.textOnChange = handler;
+          return mockText;
+        }),
       };
       callback(mockText);
       return this;
@@ -57,10 +67,26 @@ vi.mock("obsidian", () => ({
     addToggle(callback: (toggle: any) => void) {
       const mockToggle = {
         setValue: vi.fn().mockReturnThis(),
-        onChange: vi.fn().mockReturnThis(),
+        onChange: vi.fn().mockImplementation((handler) => {
+          this.toggleOnChange = handler;
+          return mockToggle;
+        }),
       };
       callback(mockToggle);
       return this;
+    }
+
+    // Helper methods to trigger onChange callbacks in tests
+    triggerTextChange(value: string) {
+      if (this.textOnChange) {
+        return this.textOnChange(value);
+      }
+    }
+
+    triggerToggleChange(value: boolean) {
+      if (this.toggleOnChange) {
+        return this.toggleOnChange(value);
+      }
     }
   },
 }));
@@ -72,13 +98,15 @@ const mockApp = {
   },
 };
 
+const defaultSettings = { ...DEFAULT_SETTINGS };
+
 const mockPlugin = {
   app: mockApp,
   settings: { ...DEFAULT_SETTINGS },
   saveSettings: vi.fn(),
-  getSettings: vi.fn(() => mockPlugin.settings),
+  getSettings: vi.fn(() => defaultSettings),
   updateSetting: vi.fn((key: string, value: any) => {
-    (mockPlugin.settings as any)[key] = value;
+    (defaultSettings as any)[key] = value;
   }),
 } as unknown as CardExplorerPlugin;
 
@@ -87,15 +115,8 @@ describe("CardExplorerSettingTab", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPlugin.settings = { ...DEFAULT_SETTINGS };
+    mockSettings.length = 0; // Clear mock settings array
     settingTab = new CardExplorerSettingTab(mockApp as any, mockPlugin);
-  });
-
-  describe("Constructor", () => {
-    it("should initialize with app and plugin", () => {
-      expect(settingTab.app).toBe(mockApp);
-      expect(settingTab.plugin).toBe(mockPlugin);
-    });
   });
 
   describe("display", () => {
@@ -125,56 +146,58 @@ describe("CardExplorerSettingTab", () => {
   });
 
   describe("Settings Integration", () => {
-    it("should use plugin settings values", () => {
-      // Update plugin settings
-      mockPlugin.settings = {
-        sortKey: "created",
-        autoStart: true,
-        showInSidebar: true,
-      };
+    it("should call plugin.updateSetting and plugin.saveSettings when sort key changes", async () => {
+      // Mock updateSetting method
+      mockPlugin.updateSetting = vi.fn();
 
-      settingTab = new CardExplorerSettingTab(mockApp as any, mockPlugin);
-
-      expect(settingTab.plugin.settings.sortKey).toBe("created");
-      expect(settingTab.plugin.settings.autoStart).toBe(true);
-      expect(settingTab.plugin.settings.showInSidebar).toBe(true);
-    });
-
-    it("should call saveSettings when settings change", async () => {
       settingTab.display();
 
-      // Verify that saveSettings is available
-      expect(mockPlugin.saveSettings).toBeDefined();
-      expect(typeof mockPlugin.saveSettings).toBe("function");
-    });
-  });
+      // Find the sort key setting (first setting created)
+      const sortKeySetting = mockSettings[0];
+      expect(sortKeySetting).toBeDefined();
 
-  describe("Setting Validation", () => {
-    it("should handle empty sort key by using default", () => {
-      // This would be tested in the actual onChange handler
-      // but we can verify the default behavior
-      const emptyKey = "";
-      const expectedKey = emptyKey || "updated";
+      // Simulate user changing sort key
+      await sortKeySetting.triggerTextChange("created");
 
-      expect(expectedKey).toBe("updated");
+      // Verify that updateSetting and saveSettings were called
+      expect(mockPlugin.updateSetting).toHaveBeenCalledWith("sortKey", "created");
+      expect(mockPlugin.saveSettings).toHaveBeenCalled();
     });
 
-    it("should handle valid sort key", () => {
-      const validKey = "created";
-      const expectedKey = validKey || "updated";
+    it("should call plugin.updateSetting and plugin.saveSettings when auto-start changes", async () => {
+      // Mock updateSetting method
+      mockPlugin.updateSetting = vi.fn();
 
-      expect(expectedKey).toBe("created");
+      settingTab.display();
+
+      // Find the auto-start setting (second setting created)
+      const autoStartSetting = mockSettings[1];
+      expect(autoStartSetting).toBeDefined();
+
+      // Simulate user changing auto-start toggle
+      await autoStartSetting.triggerToggleChange(true);
+
+      // Verify that updateSetting and saveSettings were called
+      expect(mockPlugin.updateSetting).toHaveBeenCalledWith("autoStart", true);
+      expect(mockPlugin.saveSettings).toHaveBeenCalled();
     });
-  });
 
-  describe("Settings Types", () => {
-    it("should have correct TypeScript interface", () => {
-      // This is a compile-time check, but we can verify the structure
-      const settings = mockPlugin.settings;
+    it("should use default value when sort key is empty", async () => {
+      // Mock updateSetting method
+      mockPlugin.updateSetting = vi.fn();
 
-      expect(typeof settings.sortKey).toBe("string");
-      expect(typeof settings.autoStart).toBe("boolean");
-      expect(typeof settings.showInSidebar).toBe("boolean");
+      settingTab.display();
+
+      // Find the sort key setting (first setting created)
+      const sortKeySetting = mockSettings[0];
+      expect(sortKeySetting).toBeDefined();
+
+      // Simulate user entering empty sort key
+      await sortKeySetting.triggerTextChange("");
+
+      // Verify that updateSetting was called with default value
+      expect(mockPlugin.updateSetting).toHaveBeenCalledWith("sortKey", "updated");
+      expect(mockPlugin.saveSettings).toHaveBeenCalled();
     });
   });
 });
