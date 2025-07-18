@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useState } from "react";
-import { ErrorCategory, ErrorSeverity } from "../utils/errorHandling";
+import { ErrorCategory } from "../utils/errorHandling";
 
 /**
  * Props for ErrorFallback component
@@ -20,8 +20,6 @@ interface ErrorFallbackProps {
   retryText?: string;
   /** Error category for styling and behavior */
   category?: ErrorCategory;
-  /** Error severity for styling */
-  severity?: ErrorSeverity;
   /** Additional context information */
   context?: Record<string, any>;
 }
@@ -39,8 +37,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
   showDetails = true,
   showRetry = true,
   retryText = "Try Again",
-  category = ErrorCategory.UNKNOWN,
-  severity = ErrorSeverity.MEDIUM,
+  category = ErrorCategory.GENERAL,
   context,
 }) => {
   const [showDebugInfo, setShowDebugInfo] = useState(false);
@@ -51,38 +48,23 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
    */
   const getErrorIcon = useCallback(() => {
     switch (category) {
-      case ErrorCategory.NETWORK:
-        return "🌐";
-      case ErrorCategory.PERMISSION:
-        return "🔒";
       case ErrorCategory.DATA:
         return "💾";
       case ErrorCategory.API:
         return "🔌";
-      case ErrorCategory.VALIDATION:
-        return "✏️";
+      case ErrorCategory.UI:
+        return "🖥️";
       default:
         return "⚠️";
     }
   }, [category]);
 
   /**
-   * Get CSS class for error severity
+   * Get CSS class for error category
    */
-  const getSeverityClass = useCallback(() => {
-    switch (severity) {
-      case ErrorSeverity.CRITICAL:
-        return "error-critical";
-      case ErrorSeverity.HIGH:
-        return "error-high";
-      case ErrorSeverity.MEDIUM:
-        return "error-medium";
-      case ErrorSeverity.LOW:
-        return "error-low";
-      default:
-        return "error-medium";
-    }
-  }, [severity]);
+  const getCategoryClass = useCallback(() => {
+    return `error-${category}`;
+  }, [category]);
 
   /**
    * Copy error report to clipboard
@@ -97,7 +79,6 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
       },
       context,
       category,
-      severity,
       userAgent: navigator.userAgent,
       url: window.location.href,
     };
@@ -111,7 +92,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
       // Fallback: log the report to console
       console.log("Error Report:", report);
     }
-  }, [error, context, category, severity]);
+  }, [error, context, category]);
 
   /**
    * Get user-friendly error message
@@ -121,30 +102,24 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
 
     // Provide category-specific default messages
     switch (category) {
-      case ErrorCategory.NETWORK:
-        return "Network connection failed. Please check your internet connection.";
-      case ErrorCategory.PERMISSION:
-        return "Permission denied. Please check file access permissions.";
       case ErrorCategory.DATA:
         return "Data processing failed. Your information may be temporarily unavailable.";
       case ErrorCategory.API:
         return "Failed to communicate with Obsidian. Please try refreshing.";
-      case ErrorCategory.VALIDATION:
-        return "Invalid input detected. Please check your settings.";
+      case ErrorCategory.UI:
+        return "Interface error occurred. Please try refreshing the view.";
       default:
         return error.message || "An unexpected error occurred.";
     }
   }, [message, category, error.message]);
 
   return (
-    <div className={`error-fallback ${getSeverityClass()}`}>
+    <div className={`error-fallback ${getCategoryClass()}`}>
       <div className="error-content">
         {/* Error Icon and Title */}
         <div className="error-header">
           <div className="error-icon">{getErrorIcon()}</div>
-          <h3 className="error-title">
-            {severity === ErrorSeverity.CRITICAL ? "Critical Error" : "Something went wrong"}
-          </h3>
+          <h3 className="error-title">Something went wrong</h3>
         </div>
 
         {/* Error Message */}
@@ -197,9 +172,6 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
                   <strong>Category:</strong> {category}
                 </div>
                 <div className="error-info-item">
-                  <strong>Severity:</strong> {severity}
-                </div>
-                <div className="error-info-item">
                   <strong>Time:</strong> {new Date().toLocaleString()}
                 </div>
               </div>
@@ -223,20 +195,6 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
         <div className="error-suggestions">
           <h4>Suggested Actions:</h4>
           <ul>
-            {category === ErrorCategory.NETWORK && (
-              <>
-                <li>Check your internet connection</li>
-                <li>Try refreshing the page</li>
-                <li>Wait a moment and try again</li>
-              </>
-            )}
-            {category === ErrorCategory.PERMISSION && (
-              <>
-                <li>Check file permissions in your vault</li>
-                <li>Ensure Obsidian has necessary access rights</li>
-                <li>Try restarting Obsidian</li>
-              </>
-            )}
             {category === ErrorCategory.DATA && (
               <>
                 <li>Try refreshing your notes</li>
@@ -251,7 +209,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
                 <li>Check if other plugins are interfering</li>
               </>
             )}
-            {(category === ErrorCategory.UNKNOWN || category === ErrorCategory.UI) && (
+            {(category === ErrorCategory.GENERAL || category === ErrorCategory.UI) && (
               <>
                 <li>Try refreshing the view</li>
                 <li>Restart the plugin if the problem persists</li>

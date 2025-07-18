@@ -3,7 +3,7 @@ import type { FilterState, PluginData, PluginSettings, SortConfig } from "../typ
 /**
  * Validates if a value is a non-empty object (not null, not array, not primitive)
  * Used as a foundation check for all complex object validations
- * 
+ *
  * @param data - The value to check
  * @returns True if the value is a valid object, false otherwise
  */
@@ -15,7 +15,7 @@ function isValidObject(data: any): boolean {
 /**
  * Type guard that validates if an array contains only strings
  * Essential for validating filter arrays like tags, folders, etc.
- * 
+ *
  * @param arr - The value to check
  * @returns True if the value is an array of strings, false otherwise
  */
@@ -26,7 +26,7 @@ function isStringArray(arr: any): arr is string[] {
 /**
  * Validates if a date value is valid (Date object or parseable date string)
  * Used for validating date range filters in the filter system
- * 
+ *
  * @param value - The value to check (can be Date object or string)
  * @returns True if the value represents a valid date, false otherwise
  */
@@ -47,7 +47,7 @@ function isValidDateValue(value: any): boolean {
 /**
  * Type guard that validates if an object conforms to the FilterState interface
  * Ensures all filter properties are correctly typed and valid for the filtering system
- * 
+ *
  * @param data - The object to validate
  * @returns True if the object is a valid FilterState, false otherwise
  */
@@ -97,7 +97,7 @@ function validateFilterState(data: any): data is FilterState {
 /**
  * Type guard that validates if an object conforms to the SortConfig interface
  * Ensures sort configuration has valid key and order for the sorting system
- * 
+ *
  * @param data - The object to validate
  * @returns True if the object is a valid SortConfig, false otherwise
  */
@@ -122,7 +122,7 @@ function validateSortConfig(data: any): data is SortConfig {
 /**
  * Type guard that validates if an object conforms to the PluginSettings interface
  * Ensures plugin settings have correct types for safe usage throughout the application
- * 
+ *
  * @param data - The object to validate
  * @returns True if the object is a valid PluginSettings, false otherwise
  */
@@ -132,19 +132,19 @@ export function validatePluginSettings(data: any): data is PluginSettings {
   }
 
   return (
-    typeof data.sortKey === "string" &&      // Default sort field for notes
-    typeof data.autoStart === "boolean" &&   // Whether to auto-open the view on startup
-    typeof data.showInSidebar === "boolean"  // Whether to display the view in sidebar vs main area
+    typeof data.sortKey === "string" && // Default sort field for notes
+    typeof data.autoStart === "boolean" && // Whether to auto-open the view on startup
+    typeof data.showInSidebar === "boolean" // Whether to display the view in sidebar vs main area
   );
 }
 
 /**
  * Validates a backup data object (subset of PluginData without _backups to avoid recursion)
  * Used internally to validate backup entries without infinite recursion
- * 
+ *
  * @param data - The backup data object to validate
  * @returns True if the backup data is valid, false otherwise
- * 
+ *
  * @internal
  * This function validates the core data structure that gets backed up,
  * excluding the _backups array itself to prevent recursive validation
@@ -155,19 +155,19 @@ function validateBackupData(data: any): boolean {
   }
 
   return (
-    isStringArray(data.pinnedNotes) &&      // Array of pinned note file paths
+    isStringArray(data.pinnedNotes) && // Array of pinned note file paths
     validateFilterState(data.lastFilters) && // Last used filter configuration
-    validateSortConfig(data.sortConfig)      // Sort configuration
+    validateSortConfig(data.sortConfig) // Sort configuration
   );
 }
 
 /**
  * Validates a single backup object structure
  * Ensures backup entries have proper metadata and valid data
- * 
+ *
  * @param backup - The backup object to validate
  * @returns True if the backup object is valid, false otherwise
- * 
+ *
  * @internal
  * Each backup contains timestamp, version, and the actual data snapshot
  */
@@ -178,8 +178,8 @@ function validateBackup(backup: any): boolean {
 
   return (
     typeof backup.timestamp === "number" && // Unix timestamp when backup was created
-    typeof backup.version === "number" &&   // Data format version for migration purposes
-    validateBackupData(backup.data)         // The actual backed up data
+    typeof backup.version === "number" && // Data format version for migration purposes
+    validateBackupData(backup.data) // The actual backed up data
   );
 }
 
@@ -187,7 +187,7 @@ function validateBackup(backup: any): boolean {
  * Type guard that validates if an object conforms to the PluginData interface
  * Validates the complete plugin data structure including backups and metadata
  * This is the main validation function for data loaded from disk
- * 
+ *
  * @param data - The object to validate
  * @returns True if the object is a valid PluginData, false otherwise
  */
@@ -197,7 +197,7 @@ export function validatePluginData(data: any): data is PluginData {
   }
 
   // Check required properties that must always be present
-  
+
   // Array of file paths for notes that are pinned to the top
   if (!isStringArray(data.pinnedNotes)) {
     return false;
