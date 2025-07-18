@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { ErrorCategory, ErrorSeverity, getErrorLog, getErrorStats } from "../utils/errorHandling";
+import { ErrorCategory, ErrorSeverity } from "../utils/errorHandling";
 
 /**
  * Props for ErrorFallback component
@@ -87,9 +87,6 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
    * Copy error report to clipboard
    */
   const copyErrorReport = useCallback(async () => {
-    const errorStats = getErrorStats();
-    const recentErrors = getErrorLog().slice(0, 5); // Last 5 errors
-
     const report = {
       timestamp: new Date().toISOString(),
       error: {
@@ -100,13 +97,6 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
       context,
       category,
       severity,
-      stats: errorStats,
-      recentErrors: recentErrors.map((e) => ({
-        message: e.message,
-        category: e.category,
-        severity: e.severity,
-        timestamp: new Date(e.timestamp).toISOString(),
-      })),
       userAgent: navigator.userAgent,
       url: window.location.href,
     };
@@ -225,11 +215,6 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
               <h4>Stack Trace</h4>
               <pre className="error-stack">{error.stack || "No stack trace available"}</pre>
             </div>
-
-            <div className="error-info-section">
-              <h4>Recent Error Statistics</h4>
-              <ErrorStats />
-            </div>
           </div>
         )}
 
@@ -272,63 +257,6 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
                 <li>Report the issue if it continues</li>
               </>
             )}
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/**
- * Error Statistics Component
- * Shows recent error statistics for debugging
- */
-const ErrorStats: React.FC = () => {
-  const [stats, setStats] = useState(getErrorStats());
-
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setStats(getErrorStats());
-    }, 5000); // Update every 5 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="error-stats">
-      <div className="stats-grid">
-        <div className="stat-item">
-          <strong>Total Errors:</strong> {stats.total}
-        </div>
-        <div className="stat-item">
-          <strong>Recent (1h):</strong> {stats.recent}
-        </div>
-      </div>
-
-      <div className="stats-breakdown">
-        <div className="stats-section">
-          <strong>By Category:</strong>
-          <ul>
-            {Object.entries(stats.byCategory)
-              .filter(([, count]) => count > 0)
-              .map(([category, count]) => (
-                <li key={category}>
-                  {category}: {count}
-                </li>
-              ))}
-          </ul>
-        </div>
-
-        <div className="stats-section">
-          <strong>By Severity:</strong>
-          <ul>
-            {Object.entries(stats.bySeverity)
-              .filter(([, count]) => count > 0)
-              .map(([severity, count]) => (
-                <li key={severity}>
-                  {severity}: {count}
-                </li>
-              ))}
           </ul>
         </div>
       </div>

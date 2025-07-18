@@ -3,7 +3,6 @@ import type { PluginData, PluginSettings } from "../types";
 import { DEFAULT_DATA, DEFAULT_SETTINGS } from "../types/plugin";
 import { CURRENT_DATA_VERSION } from "./dataMigration";
 import {
-  clearPluginData,
   loadPluginData,
   loadPluginSettings,
   savePluginData,
@@ -44,7 +43,7 @@ describe("Data Persistence", () => {
       expect(result.migration.toVersion).toBe(CURRENT_DATA_VERSION);
     });
 
-    it("should load valid data without migration", async () => {
+    it("should load valid current version data without migration", async () => {
       const mockPlugin = createMockPlugin();
       const validData = {
         ...DEFAULT_DATA,
@@ -59,7 +58,25 @@ describe("Data Persistence", () => {
       expect(result.migration.migrated).toBe(false);
     });
 
-    it("should handle load errors gracefully", async () => {
+    it("should handle data without version info and migrate from version 0", async () => {
+      const mockPlugin = createMockPlugin();
+      const dataWithoutVersion = {
+        pinnedNotes: ["note1.md"],
+        lastFilters: DEFAULT_DATA.lastFilters,
+        sortConfig: DEFAULT_DATA.sortConfig,
+        // No version field - should default to 0 and migrate
+      };
+      mockPlugin.loadData.mockResolvedValue(dataWithoutVersion);
+
+      const result = await loadPluginData(mockPlugin);
+
+      expect(result.data.pinnedNotes).toEqual(["note1.md"]);
+      expect(result.migration.migrated).toBe(true);
+      expect(result.migration.fromVersion).toBe(0);
+      expect(result.migration.toVersion).toBe(CURRENT_DATA_VERSION);
+    });
+
+    it("should handle load errors gracefully with fallback to defaults", async () => {
       const mockPlugin = createMockPlugin();
       mockPlugin.loadData.mockRejectedValue(new Error("Load failed"));
 
@@ -126,7 +143,7 @@ describe("Data Persistence", () => {
       expect(result).toEqual(DEFAULT_SETTINGS);
     });
 
-    it("should load valid settings", async () => {
+    it("should load valid settings from settings property", async () => {
       const mockPlugin = createMockPlugin();
       const testSettings: PluginSettings = {
         sortKey: "created",
@@ -140,12 +157,12 @@ describe("Data Persistence", () => {
       expect(result).toEqual(testSettings);
     });
 
-    it("should merge settings with defaults", async () => {
+    it("should merge partial settings with defaults", async () => {
       const mockPlugin = createMockPlugin();
       const partialSettings = {
         sortKey: "created",
         autoStart: true,
-        showInSidebar: false,
+        showInSidebar: false, // Include all required fields for validation to pass
       };
       mockPlugin.loadData.mockResolvedValue({ settings: partialSettings });
 
@@ -169,6 +186,20 @@ describe("Data Persistence", () => {
       const result = await loadPluginSettings(mockPlugin);
 
       expect(result).toEqual(DEFAULT_SETTINGS);
+    });
+
+    it("should load settings from root level when no settings property exists", async () => {
+      const mockPlugin = createMockPlugin();
+      const rootLevelSettings: PluginSettings = {
+        sortKey: "modified",
+        autoStart: false,
+        showInSidebar: true,
+      };
+      mockPlugin.loadData.mockResolvedValue(rootLevelSettings);
+
+      const result = await loadPluginSettings(mockPlugin);
+
+      expect(result).toEqual(rootLevelSettings);
     });
 
     it("should handle load errors gracefully", async () => {
@@ -251,24 +282,131 @@ describe("Data Persistence", () => {
     });
   });
 
-  describe("clearPluginData", () => {
-    it("should clear data successfully", async () => {
+  describe("Edge Cases and Error Scenarios", () => {
+    it("should handle corrupted data that fails validation after migration", async () => {
       const mockPlugin = createMockPlugin();
-      mockPlugin.saveData.mockResolvedValue(undefined);
 
-      const result = await clearPluginData(mockPlugin);
+      // Create data that will migrate but then fail validation
+      const corruptedData = {
+        pinnedNotes: ["note1.md"],
+        lastFilters: {
+          folders: [],
+          tags: [],
+          filename: "",
+          dateRange: null,
+          excludeFolders: [],
+          excludeTags: [],
+          excludeFilenames: [],
+        },
+        sortConfig: {
+          key: "invalid-key", // This will cause validation to fail
+          order: "invalid-order", // This will cause validation to fail
+        },
+        version: 0, // Old version to trigger migration
+      };
 
-      expect(result).toBe(true);
-      expect(mockPlugin.saveData).toHaveBeenCalledWith({});
+      mockPlugin.loadData.mockResolvedValue(corruptedData);
+
+      const result = await loadPluginData(mockPlugin);
+
+      // Should fall back to defaults when validation fails
+      expect(result.data).toEqual(DEFAULT_DATA);
+      expect(result.migration.migrated).toBe(true);
+      expect(result.migration.warnings).toContain(
+        "Data validation failed after migration, using defaults"
+      );
     });
 
-    it("should handle clear errors gracefully", async () => {
+    it("should handle plugin with existing backup data", async () => {
       const mockPlugin = createMockPlugin();
-      mockPlugin.saveData.mockRejectedValue(new Error("Clear failed"));
 
-      const result = await clearPluginData(mockPlugin);
+      // Create data with existing backups
+      const dataWithBackups = {
+        ...DEFAULT_DATA,
+        pinnedNotes: ["note1.md"],
+        version: CURRENT_DATA_VERSION,
+        _backups: [
+          {
+            timestamp: Date.now() - 1000,
+            version: 0,
+            data: { ...DEFAULT_DATA, pinnedNotes: ["old-note.md"] },
+          },
+        ],
+      };
+
+      mockPlugin.loadData.mockResolvedValue(dataWithBackups);
+
+      const result = await loadPluginData(mockPlugin);
+
+      expect(result.data.pinnedNotes).toEqual(["note1.md"]);
+      expect(result.migration.migrated).toBe(false);
+    });
+
+    it("should handle empty settings object gracefully", async () => {
+      const mockPlugin = createMockPlugin();
+      mockPlugin.loadData.mockResolvedValue({ settings: {} });
+
+      const result = await loadPluginSettings(mockPlugin);
+
+      // Should return defaults when settings object is empty
+      expect(result).toEqual(DEFAULT_SETTINGS);
+    });
+
+    it("should handle null settings gracefully", async () => {
+      const mockPlugin = createMockPlugin();
+      mockPlugin.loadData.mockResolvedValue({ settings: null });
+
+      const result = await loadPluginSettings(mockPlugin);
+
+      // Should return defaults when settings is null
+      expect(result).toEqual(DEFAULT_SETTINGS);
+    });
+
+    it("should handle backup creation failure during save", async () => {
+      const mockPlugin = createMockPlugin();
+
+      // Mock loadData to return invalid data that will cause backup creation to fail
+      mockPlugin.loadData.mockResolvedValue("invalid-data-structure");
+      mockPlugin.saveData.mockResolvedValue(undefined);
+
+      const result = await savePluginData(mockPlugin, DEFAULT_DATA);
+
+      // Should still succeed even if backup creation fails
+      expect(result).toBe(true);
+      expect(mockPlugin.saveData).toHaveBeenCalledWith({
+        ...DEFAULT_DATA,
+        version: CURRENT_DATA_VERSION,
+      });
+    });
+
+    it("should handle console fallback when error handling module fails to import", async () => {
+      const mockPlugin = createMockPlugin();
+      mockPlugin.loadData.mockRejectedValue(new Error("Load failed"));
+
+      // Spy on console.error to verify fallback behavior
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const result = await loadPluginData(mockPlugin);
+
+      expect(result.data).toEqual(DEFAULT_DATA);
+      expect(result.migration.warnings).toContain("Failed to load data, using defaults");
+
+      consoleSpy.mockRestore();
+    });
+
+    it("should handle console fallback when error handling module fails to import during save", async () => {
+      const mockPlugin = createMockPlugin();
+      mockPlugin.loadData.mockResolvedValue({});
+      mockPlugin.saveData.mockRejectedValue(new Error("Save failed"));
+
+      // Spy on console.error to verify fallback behavior
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const result = await savePluginData(mockPlugin, DEFAULT_DATA);
 
       expect(result).toBe(false);
+
+      consoleSpy.mockRestore();
     });
   });
 
