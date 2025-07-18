@@ -1,21 +1,50 @@
 import type { FilterState, PluginData, PluginSettings, SortConfig } from "../types";
 
 /**
+ * Validates if a value is a non-empty object
+ */
+function isValidObject(data: any): boolean {
+  return data !== null && typeof data === "object" && !Array.isArray(data);
+}
+
+/**
+ * Validates if an array contains only strings
+ */
+function isStringArray(arr: any): arr is string[] {
+  return Array.isArray(arr) && arr.every((item: any) => typeof item === "string");
+}
+
+/**
+ * Validates if a date value is valid (Date object or valid date string)
+ */
+function isValidDateValue(value: any): boolean {
+  if (value instanceof Date) {
+    return true;
+  }
+  if (typeof value === "string") {
+    return !Number.isNaN(Date.parse(value));
+  }
+  return false;
+}
+
+/**
  * Validates if an object conforms to the FilterState interface
  */
 function validateFilterState(data: any): data is FilterState {
-  if (!data || typeof data !== "object") {
+  if (!isValidObject(data)) {
     return false;
   }
 
-  // Check array properties
-  const arrayProps = ["folders", "tags", "excludeFolders", "excludeTags", "excludeFilenames"];
+  // Check required array properties
+  const arrayProps = [
+    "folders",
+    "tags",
+    "excludeFolders",
+    "excludeTags",
+    "excludeFilenames",
+  ] as const;
   for (const prop of arrayProps) {
-    if (!Array.isArray(data[prop])) {
-      return false;
-    }
-    // Ensure all array elements are strings
-    if (!data[prop].every((item: any) => typeof item === "string")) {
+    if (!isStringArray(data[prop])) {
       return false;
     }
   }
@@ -27,19 +56,13 @@ function validateFilterState(data: any): data is FilterState {
 
   // Check dateRange property
   if (data.dateRange !== null) {
-    if (typeof data.dateRange !== "object") {
+    if (!isValidObject(data.dateRange)) {
       return false;
     }
     if (!["within", "after"].includes(data.dateRange.type)) {
       return false;
     }
-    // Validate date value - can be Date object or valid date string
-    const dateValue = data.dateRange.value;
-    if (!(dateValue instanceof Date) && typeof dateValue !== "string") {
-      return false;
-    }
-    // If it's a string, check if it's a valid date string
-    if (typeof dateValue === "string" && Number.isNaN(Date.parse(dateValue))) {
+    if (!isValidDateValue(data.dateRange.value)) {
       return false;
     }
   }
@@ -51,7 +74,7 @@ function validateFilterState(data: any): data is FilterState {
  * Validates if an object conforms to the SortConfig interface
  */
 function validateSortConfig(data: any): data is SortConfig {
-  if (!data || typeof data !== "object") {
+  if (!isValidObject(data)) {
     return false;
   }
 
@@ -70,47 +93,64 @@ function validateSortConfig(data: any): data is SortConfig {
  * Validates if an object conforms to the PluginSettings interface
  */
 export function validatePluginSettings(data: any): data is PluginSettings {
-  if (!data || typeof data !== "object") {
+  if (!isValidObject(data)) {
     return false;
   }
 
-  if (typeof data.sortKey !== "string") {
+  return (
+    typeof data.sortKey === "string" &&
+    typeof data.autoStart === "boolean" &&
+    typeof data.showInSidebar === "boolean"
+  );
+}
+
+/**
+ * Validates a backup data object (subset of PluginData without _backups to avoid recursion)
+ */
+function validateBackupData(data: any): boolean {
+  if (!isValidObject(data)) {
     return false;
   }
 
-  if (typeof data.autoStart !== "boolean") {
+  return (
+    isStringArray(data.pinnedNotes) &&
+    validateFilterState(data.lastFilters) &&
+    validateSortConfig(data.sortConfig)
+  );
+}
+
+/**
+ * Validates a single backup object
+ */
+function validateBackup(backup: any): boolean {
+  if (!isValidObject(backup)) {
     return false;
   }
 
-  if (typeof data.showInSidebar !== "boolean") {
-    return false;
-  }
-
-  return true;
+  return (
+    typeof backup.timestamp === "number" &&
+    typeof backup.version === "number" &&
+    validateBackupData(backup.data)
+  );
 }
 
 /**
  * Validates if an object conforms to the PluginData interface
  */
 export function validatePluginData(data: any): data is PluginData {
-  if (!data || typeof data !== "object") {
+  if (!isValidObject(data)) {
     return false;
   }
 
-  // Check pinnedNotes array
-  if (!Array.isArray(data.pinnedNotes)) {
-    return false;
-  }
-  if (!data.pinnedNotes.every((item: any) => typeof item === "string")) {
+  // Check required properties
+  if (!isStringArray(data.pinnedNotes)) {
     return false;
   }
 
-  // Check lastFilters
   if (!validateFilterState(data.lastFilters)) {
     return false;
   }
 
-  // Check sortConfig
   if (!validateSortConfig(data.sortConfig)) {
     return false;
   }
@@ -125,32 +165,8 @@ export function validatePluginData(data: any): data is PluginData {
     if (!Array.isArray(data._backups)) {
       return false;
     }
-    // Validate backup objects according to DataBackup interface
-    for (const backup of data._backups) {
-      if (!backup || typeof backup !== "object") {
-        return false;
-      }
-      // timestamp should be a number
-      if (typeof backup.timestamp !== "number") {
-        return false;
-      }
-      // version should be a number
-      if (typeof backup.version !== "number") {
-        return false;
-      }
-      // data should be a valid PluginData object (but skip _backups to avoid recursion)
-      if (!backup.data || typeof backup.data !== "object") {
-        return false;
-      }
-      // Validate core PluginData properties without _backups
-      if (
-        !Array.isArray(backup.data.pinnedNotes) ||
-        !backup.data.pinnedNotes.every((item: any) => typeof item === "string") ||
-        !validateFilterState(backup.data.lastFilters) ||
-        !validateSortConfig(backup.data.sortConfig)
-      ) {
-        return false;
-      }
+    if (!data._backups.every(validateBackup)) {
+      return false;
     }
   }
 
