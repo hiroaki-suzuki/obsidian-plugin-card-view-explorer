@@ -241,7 +241,7 @@ export const useCardExplorerStore = create<CardExplorerState>()(
      * Loads saved pin states, filters, and sort config from plugin data
      */
     initializeFromPluginData: (plugin: CardExplorerPlugin) => {
-      const { data } = plugin;
+      const data = plugin.getData();
 
       // Initialize pinned notes from plugin data
       const pinnedNotes = new Set(data.pinnedNotes || []);
@@ -273,12 +273,13 @@ export const useCardExplorerStore = create<CardExplorerState>()(
       const state = get();
 
       // Update plugin data with current state
-      plugin.data = {
-        ...plugin.data,
+      const currentData = plugin.getData();
+      plugin.updateData({
+        ...currentData,
         pinnedNotes: Array.from(state.pinnedNotes),
         lastFilters: state.filters,
         sortConfig: state.sortConfig,
-      };
+      });
 
       // Save to disk
       await plugin.savePluginData();
