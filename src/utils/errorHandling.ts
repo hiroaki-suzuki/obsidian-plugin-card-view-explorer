@@ -55,7 +55,7 @@ export interface ErrorInfo {
 /**
  * Error handler configuration
  */
-export interface ErrorHandlerConfig {
+interface ErrorHandlerConfig {
   /** Whether to show user notifications */
   showNotifications: boolean;
   /** Whether to log to console */
@@ -67,8 +67,17 @@ export interface ErrorHandlerConfig {
 }
 
 /**
- * Default error handler configuration
+ * Retry operation options
  */
+export interface RetryOptions {
+  maxRetries?: number;
+  baseDelay?: number;
+  maxDelay?: number;
+  category?: ErrorCategory;
+  context?: Record<string, any>;
+}
+
+// Constants
 const DEFAULT_ERROR_CONFIG: ErrorHandlerConfig = {
   showNotifications: true,
   logToConsole: true,
@@ -76,37 +85,55 @@ const DEFAULT_ERROR_CONFIG: ErrorHandlerConfig = {
   retryDelay: 1000,
 };
 
-/**
- * Error log entry for debugging
- */
+const MAX_ERROR_LOG_SIZE = 100;
+const NOTIFICATION_DURATIONS = {
+  [ErrorSeverity.CRITICAL]: 10000,
+  [ErrorSeverity.HIGH]: 7000,
+  [ErrorSeverity.MEDIUM]: 5000,
+  [ErrorSeverity.LOW]: 3000,
+} as const;
+
+const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
+  maxRetries: 3,
+  baseDelay: 1000,
+  maxDelay: 10000,
+  category: ErrorCategory.UNKNOWN,
+  context: {},
+};
+
+// Internal types
 interface ErrorLogEntry extends ErrorInfo {
-  /** Unique error ID */
   id: string;
 }
 
-/**
- * In-memory error log (last 100 errors)
- */
+// Internal state
 const errorLog: ErrorLogEntry[] = [];
-const MAX_ERROR_LOG_SIZE = 100;
+
+// Internal utility functions
 
 /**
- * Generate unique error ID
+ * Generates a unique error identifier for tracking purposes
+ *
+ * @returns A unique error ID string with timestamp and random component
  */
 function generateErrorId(): string {
   return `err_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 }
 
 /**
- * Add error to log
+ * Adds an error to the internal error log with automatic size management
+ *
+ * @param error - The error information to log
+ * @returns The generated error ID for tracking
  */
 function addToErrorLog(error: ErrorInfo): string {
   const id = generateErrorId();
   const entry: ErrorLogEntry = { ...error, id };
 
+  // Add to beginning of array (most recent first)
   errorLog.unshift(entry);
 
-  // Keep only the most recent errors
+  // Maintain maximum log size by removing oldest entries
   if (errorLog.length > MAX_ERROR_LOG_SIZE) {
     errorLog.splice(MAX_ERROR_LOG_SIZE);
   }
@@ -115,50 +142,114 @@ function addToErrorLog(error: ErrorInfo): string {
 }
 
 /**
- * Convert unknown error to structured ErrorInfo
+ * Automatically categorizes and assigns severity to errors based on message content
+ * Uses pattern matching to identify common error types
+ *
+ * @param message - The error message to analyze
+ * @returns Object containing the determined category and severity
+ */
+function categorizeErrorByMessage(message: string): {
+  category: ErrorCategory;
+  severity: ErrorSeverity;
+} {
+  const lowerMessage = message.toLowerCase();
+
+  // Network-related errors are typically high severity
+  if (lowerMessage.includes("network")) {
+    return { category: ErrorCategory.NETWORK, severity: ErrorSeverity.HIGH };
+  }
+  // Permission errors prevent functionality and are high severity
+  if (lowerMessage.includes("permission")) {
+    return { category: ErrorCategory.PERMISSION, severity: ErrorSeverity.HIGH };
+  }
+  // Validation errors are usually user-fixable and medium severity
+  if (lowerMessage.includes("validation")) {
+    return { category: ErrorCategory.VALIDATION, severity: ErrorSeverity.MEDIUM };
+  }
+
+  // Default to unknown category with medium severity
+  return { category: ErrorCategory.UNKNOWN, severity: ErrorSeverity.MEDIUM };
+}
+
+/**
+ * Extracts error information from various error types (Error objects, strings, objects)
+ * Handles edge cases like circular references and non-serializable objects
+ *
+ * @param error - The error value to extract information from
+ * @returns Object containing extracted message, details, and stack trace
+ */
+function extractErrorDetails(error: unknown): {
+  message: string;
+  details?: string;
+  stack?: string;
+} {
+  // Standard Error objects have message, stack, and toString() method
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      details: error.toString(),
+      stack: error.stack,
+    };
+  }
+
+  // String errors are used as-is
+  if (typeof error === "string") {
+    return {
+      message: error,
+      details: error,
+    };
+  }
+
+  // Handle object-like errors (may come from APIs or custom error objects)
+  if (error && typeof error === "object") {
+    try {
+      const message = (error as any).message || "Unknown error";
+      let details: string;
+      try {
+        // Attempt to serialize the object for debugging
+        details = JSON.stringify(error);
+      } catch {
+        // Handle circular references or non-serializable content
+        details = "[Object with circular reference or non-serializable content]";
+      }
+      return { message, details };
+    } catch {
+      // Fallback if object access fails
+      return { message: "Unknown error" };
+    }
+  }
+
+  // Fallback for all other types (null, undefined, numbers, etc.)
+  return { message: "An unexpected error occurred" };
+}
+
+/**
+ * Normalizes any error type into a structured ErrorInfo object
+ * Applies automatic categorization and creates user-friendly messages
+ *
+ * @param error - The error to normalize
+ * @param category - Optional category override (auto-detection takes precedence)
+ * @param context - Additional context information for debugging
+ * @returns Structured ErrorInfo object
  */
 function normalizeError(
   error: unknown,
   category: ErrorCategory = ErrorCategory.UNKNOWN,
   context?: Record<string, any>
 ): ErrorInfo {
-  let message = "An unexpected error occurred";
-  let details: string | undefined;
-  let stack: string | undefined;
-  let severity = ErrorSeverity.MEDIUM;
+  const { message, details, stack } = extractErrorDetails(error);
 
-  if (error instanceof Error) {
-    message = error.message;
-    details = error.toString();
-    stack = error.stack;
-
-    // Categorize based on error message
-    if (error.message.toLowerCase().includes("network")) {
-      category = ErrorCategory.NETWORK;
-      severity = ErrorSeverity.HIGH;
-    } else if (error.message.toLowerCase().includes("permission")) {
-      category = ErrorCategory.PERMISSION;
-      severity = ErrorSeverity.HIGH;
-    } else if (error.message.toLowerCase().includes("validation")) {
-      category = ErrorCategory.VALIDATION;
-      severity = ErrorSeverity.MEDIUM;
-    }
-  } else if (typeof error === "string") {
-    message = error;
-    details = error;
-  } else if (error && typeof error === "object") {
-    try {
-      message = (error as any).message || "Unknown error";
-    } catch (_accessError) {
-      message = "Unknown error";
-    }
-    try {
-      details = JSON.stringify(error);
-    } catch (_jsonError) {
-      // Handle circular references or other JSON.stringify errors
-      details = "[Object with circular reference or non-serializable content]";
-    }
+  // Auto-categorize based on message content
+  // Auto-detection takes precedence over provided category
+  const autoCategory = categorizeErrorByMessage(message);
+  if (autoCategory.category !== ErrorCategory.UNKNOWN) {
+    category = autoCategory.category;
+  } else if (category === ErrorCategory.UNKNOWN) {
+    // Use auto-detected category even if it's UNKNOWN
+    category = autoCategory.category;
   }
+
+  const severity = autoCategory.severity;
 
   return {
     message: getUserFriendlyMessage(message, category),
@@ -173,78 +264,141 @@ function normalizeError(
 }
 
 /**
- * Convert technical error messages to user-friendly messages
+ * Converts technical error messages into user-friendly explanations
+ * Provides actionable guidance based on error category and content
+ *
+ * @param message - The original technical error message
+ * @param category - The categorized error type
+ * @returns User-friendly error message with actionable guidance
  */
 function getUserFriendlyMessage(message: string, category: ErrorCategory): string {
   const lowerMessage = message.toLowerCase();
 
-  // Network errors
-  if (category === ErrorCategory.NETWORK || lowerMessage.includes("network")) {
-    return "Network connection failed. Please check your connection and try again.";
-  }
+  switch (category) {
+    case ErrorCategory.NETWORK:
+      return "Network connection failed. Please check your connection and try again.";
 
-  // Permission errors
-  if (category === ErrorCategory.PERMISSION || lowerMessage.includes("permission")) {
-    return "Permission denied. Please check file permissions and try again.";
-  }
+    case ErrorCategory.PERMISSION:
+      return "Permission denied. Please check file permissions and try again.";
 
-  // API errors
-  if (category === ErrorCategory.API) {
-    if (lowerMessage.includes("vault")) {
-      return "Failed to access vault. Please ensure Obsidian is running properly.";
-    }
-    if (lowerMessage.includes("metadata")) {
-      return "Failed to read note metadata. Some notes may not display correctly.";
-    }
-    return "Failed to communicate with Obsidian. Please try refreshing.";
-  }
+    case ErrorCategory.API:
+      // Provide specific guidance for different API failures
+      if (lowerMessage.includes("vault")) {
+        return "Failed to access vault. Please ensure Obsidian is running properly.";
+      }
+      if (lowerMessage.includes("metadata")) {
+        return "Failed to read note metadata. Some notes may not display correctly.";
+      }
+      return "Failed to communicate with Obsidian. Please try refreshing.";
 
-  // Data errors
-  if (category === ErrorCategory.DATA) {
-    if (lowerMessage.includes("corrupt")) {
-      return "Data corruption detected. Attempting to recover from backup.";
-    }
-    if (lowerMessage.includes("validation")) {
-      return "Invalid data detected. Using default values.";
-    }
-    return "Data processing failed. Please try refreshing your notes.";
-  }
+    case ErrorCategory.DATA:
+      // Different messages for different data issues
+      if (lowerMessage.includes("corrupt")) {
+        return "Data corruption detected. Attempting to recover from backup.";
+      }
+      if (lowerMessage.includes("validation")) {
+        return "Invalid input detected. Please check your settings and try again.";
+      }
+      return "Data processing failed. Please try refreshing your notes.";
 
-  // UI errors
-  if (category === ErrorCategory.UI) {
-    return "Interface error occurred. Please try refreshing the view.";
-  }
+    case ErrorCategory.UI:
+      return "Interface error occurred. Please try refreshing the view.";
 
-  // Validation errors
-  if (category === ErrorCategory.VALIDATION) {
-    return "Invalid input detected. Please check your settings and try again.";
-  }
+    case ErrorCategory.VALIDATION:
+      return "Invalid input detected. Please check your settings and try again.";
 
-  // Return original message if no specific handling
-  return message;
+    default:
+      // Fallback pattern matching for uncategorized errors
+      if (lowerMessage.includes("network")) {
+        return "Network connection failed. Please check your connection and try again.";
+      }
+      if (lowerMessage.includes("permission")) {
+        return "Permission denied. Please check file permissions and try again.";
+      }
+      // Return original message if no user-friendly alternative exists
+      return message;
+  }
 }
 
 /**
- * Determine if an error is recoverable
+ * Determines if an error is recoverable through retry mechanisms
+ * Some errors (like corrupted backups or permanent permission denials) should not be retried
+ *
+ * @param category - The error category
+ * @param message - The error message to analyze
+ * @returns True if the error might be recoverable through retry, false otherwise
  */
 function isRecoverableError(category: ErrorCategory, message: string): boolean {
   const lowerMessage = message.toLowerCase();
 
-  // Non-recoverable errors
-  if (lowerMessage.includes("corrupt") && lowerMessage.includes("backup")) {
-    return false; // Corruption with no backup
-  }
+  // Define patterns for non-recoverable errors that should not be retried
+  const nonRecoverablePatterns = [
+    // Corrupted backup files cannot be recovered through retry
+    () => lowerMessage.includes("corrupt") && lowerMessage.includes("backup"),
+    // Permission denied errors typically require user intervention
+    () => category === ErrorCategory.PERMISSION && lowerMessage.includes("denied"),
+  ];
 
-  if (category === ErrorCategory.PERMISSION && lowerMessage.includes("denied")) {
-    return false; // Permission denied usually requires manual intervention
-  }
-
-  // Most other errors are recoverable
-  return true;
+  // Error is recoverable if it doesn't match any non-recoverable patterns
+  return !nonRecoverablePatterns.some((pattern) => pattern());
 }
 
 /**
- * Main error handler function
+ * Maps error severity to appropriate console log level
+ *
+ * @param severity - The error severity level
+ * @returns Console log method name to use
+ */
+function getLogLevel(severity: ErrorSeverity): "error" | "warn" | "info" {
+  switch (severity) {
+    case ErrorSeverity.CRITICAL:
+    case ErrorSeverity.HIGH:
+      return "error"; // Use console.error for high-priority issues
+    case ErrorSeverity.MEDIUM:
+      return "warn"; // Use console.warn for medium-priority issues
+    case ErrorSeverity.LOW:
+      return "info"; // Use console.info for low-priority issues
+    default:
+      return "warn"; // Default to warning level
+  }
+}
+
+/**
+ * Determines whether an error should trigger a user notification
+ * Filters out low-severity and validation errors to avoid notification spam
+ *
+ * @param errorInfo - The error information
+ * @returns True if a notification should be shown to the user
+ */
+function shouldShowNotification(errorInfo: ErrorInfo): boolean {
+  return (
+    errorInfo.severity !== ErrorSeverity.LOW && // Don't show notifications for low-severity issues
+    errorInfo.category !== ErrorCategory.VALIDATION // Don't show notifications for validation errors
+  );
+}
+
+/**
+ * Displays an error notification to the user using Obsidian's Notice system
+ * Duration is based on error severity (more severe errors stay visible longer)
+ *
+ * @param errorInfo - The error information to display
+ */
+function showErrorNotification(errorInfo: ErrorInfo): void {
+  // Get duration based on severity, with fallback to medium duration
+  const duration =
+    NOTIFICATION_DURATIONS[errorInfo.severity] || NOTIFICATION_DURATIONS[ErrorSeverity.MEDIUM];
+  new Notice(`Card Explorer: ${errorInfo.message}`, duration);
+}
+
+/**
+ * Main error handler function that processes, logs, and displays errors
+ * Provides centralized error handling with automatic categorization and user notifications
+ *
+ * @param error - The error to handle (can be Error object, string, or any value)
+ * @param category - Optional error category (auto-detection takes precedence)
+ * @param context - Additional context information for debugging
+ * @param config - Configuration overrides for error handling behavior
+ * @returns Structured ErrorInfo object with processed error details
  */
 export function handleError(
   error: unknown,
@@ -252,13 +406,12 @@ export function handleError(
   context?: Record<string, any>,
   config: Partial<ErrorHandlerConfig> = {}
 ): ErrorInfo {
+  // Merge provided config with defaults
   const finalConfig = { ...DEFAULT_ERROR_CONFIG, ...config };
   const errorInfo = normalizeError(error, category, context);
-
-  // Add to error log
   const errorId = addToErrorLog(errorInfo);
 
-  // Console logging
+  // Console logging with appropriate log level
   if (finalConfig.logToConsole) {
     const logLevel = getLogLevel(errorInfo.severity);
     console[logLevel](`Card Explorer Error [${errorId}]:`, {
@@ -271,7 +424,7 @@ export function handleError(
     });
   }
 
-  // User notifications
+  // Show user notifications based on severity and category
   if (finalConfig.showNotifications && shouldShowNotification(errorInfo)) {
     showErrorNotification(errorInfo);
   }
@@ -280,125 +433,68 @@ export function handleError(
 }
 
 /**
- * Get appropriate console log level for error severity
- */
-function getLogLevel(severity: ErrorSeverity): "error" | "warn" | "info" {
-  switch (severity) {
-    case ErrorSeverity.CRITICAL:
-    case ErrorSeverity.HIGH:
-      return "error";
-    case ErrorSeverity.MEDIUM:
-      return "warn";
-    case ErrorSeverity.LOW:
-      return "info";
-    default:
-      return "warn";
-  }
-}
-
-/**
- * Determine if error should show user notification
- */
-function shouldShowNotification(errorInfo: ErrorInfo): boolean {
-  // Don't show notifications for low severity errors
-  if (errorInfo.severity === ErrorSeverity.LOW) {
-    return false;
-  }
-
-  // Don't show notifications for validation errors (usually handled in UI)
-  if (errorInfo.category === ErrorCategory.VALIDATION) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Show error notification to user
- */
-function showErrorNotification(errorInfo: ErrorInfo): void {
-  const duration = getNotificationDuration(errorInfo.severity);
-  new Notice(`Card Explorer: ${errorInfo.message}`, duration);
-}
-
-/**
- * Get notification duration based on severity
- */
-function getNotificationDuration(severity: ErrorSeverity): number {
-  switch (severity) {
-    case ErrorSeverity.CRITICAL:
-      return 10000; // 10 seconds
-    case ErrorSeverity.HIGH:
-      return 7000; // 7 seconds
-    case ErrorSeverity.MEDIUM:
-      return 5000; // 5 seconds
-    case ErrorSeverity.LOW:
-      return 3000; // 3 seconds
-    default:
-      return 5000;
-  }
-}
-
-/**
- * Retry mechanism with exponential backoff
+ * Retry mechanism with exponential backoff for failed operations
+ * Automatically retries recoverable errors with increasing delays
+ *
+ * @param operation - The async operation to retry
+ * @param options - Retry configuration options
+ * @returns The result of the successful operation
+ * @throws The last error if all retry attempts fail
  */
 export async function withRetry<T>(
   operation: () => Promise<T>,
-  options: {
-    maxRetries?: number;
-    baseDelay?: number;
-    maxDelay?: number;
-    category?: ErrorCategory;
-    context?: Record<string, any>;
-  } = {}
+  options: RetryOptions = {}
 ): Promise<T> {
-  const {
-    maxRetries = 3,
-    baseDelay = 1000,
-    maxDelay = 10000,
-    category = ErrorCategory.UNKNOWN,
-    context,
-  } = options;
-
+  const config = { ...DEFAULT_RETRY_OPTIONS, ...options };
   let lastError: unknown;
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  // Attempt operation up to maxRetries + 1 times (initial attempt + retries)
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
     try {
       return await operation();
     } catch (error) {
       lastError = error;
 
-      // Don't retry on last attempt
-      if (attempt === maxRetries) {
+      // Don't retry on the last attempt
+      if (attempt === config.maxRetries) {
         break;
       }
 
-      // Don't retry non-recoverable errors
-      const errorInfo = normalizeError(error, category, context);
+      // Check if error is recoverable before retrying
+      const errorInfo = normalizeError(error, config.category, config.context);
       if (!errorInfo.recoverable) {
-        break;
+        break; // Exit early for non-recoverable errors
       }
 
-      // Calculate delay with exponential backoff
-      const delay = Math.min(baseDelay * 2 ** attempt, maxDelay);
+      // Calculate exponential backoff delay with maximum cap
+      const delay = Math.min(config.baseDelay * 2 ** attempt, config.maxDelay);
 
-      // Log retry attempt
-      console.warn(`Card Explorer: Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`, {
-        error: errorInfo.message,
-        context,
-      });
+      console.warn(
+        `Card Explorer: Retry attempt ${attempt + 1}/${config.maxRetries} after ${delay}ms`,
+        {
+          error: errorInfo.message,
+          context: config.context,
+        }
+      );
 
-      // Wait before retry
+      // Wait before next retry attempt
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
-  // All retries failed, handle the error
+  // All retry attempts failed, throw the last error
   throw lastError;
 }
 
 /**
- * Safe sync operation wrapper
+ * Safe wrapper for synchronous operations that provides error handling with fallback
+ * Prevents crashes by catching errors and returning a fallback value
+ *
+ * @param operation - The synchronous operation to execute safely
+ * @param fallback - Value to return if the operation fails
+ * @param category - Error category for proper handling and logging
+ * @param context - Additional context for error debugging
+ * @returns The operation result on success, or fallback value on error
  */
 export function safeSync<T>(
   operation: () => T,
@@ -412,4 +508,47 @@ export function safeSync<T>(
     handleError(error, category, context);
     return fallback;
   }
+}
+
+/**
+ * Safe wrapper for asynchronous operations that provides error handling with fallback
+ * Prevents promise rejections by catching errors and returning a fallback value
+ *
+ * @param operation - The asynchronous operation to execute safely
+ * @param fallback - Value to return if the operation fails
+ * @param category - Error category for proper handling and logging
+ * @param context - Additional context for error debugging
+ * @returns The operation result on success, or fallback value on error
+ */
+export async function safeAsync<T>(
+  operation: () => Promise<T>,
+  fallback: T,
+  category: ErrorCategory = ErrorCategory.UNKNOWN,
+  context?: Record<string, any>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    handleError(error, category, context);
+    return fallback;
+  }
+}
+
+/**
+ * Retrieves recent error logs for debugging purposes
+ * Returns errors in chronological order (most recent first)
+ *
+ * @param limit - Maximum number of errors to return (default: 10)
+ * @returns Array of recent ErrorInfo objects without internal IDs
+ */
+export function getErrorLogs(limit = 10): ErrorInfo[] {
+  return errorLog.slice(0, limit).map(({ id, ...errorInfo }) => errorInfo);
+}
+
+/**
+ * Clears all stored error logs from memory
+ * Useful for resetting error history during testing or maintenance
+ */
+export function clearErrorLogs(): void {
+  errorLog.length = 0;
 }
