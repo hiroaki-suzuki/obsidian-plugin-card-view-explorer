@@ -1,5 +1,6 @@
 import type { PluginData, PluginSettings } from "../types";
 import { DEFAULT_DATA, DEFAULT_SETTINGS } from "../types/plugin";
+import { attemptDataRecovery, createDataBackup } from "./dataBackup";
 import {
   CURRENT_DATA_VERSION,
   type MigrationResult,
@@ -11,21 +12,10 @@ import { validatePluginData, validatePluginSettings } from "./validation";
 /**
  * Data persistence utilities for Card Explorer plugin
  *
- * Handles saving/loading of plugin data and settings with validation,
- * migration, backup, and recovery mechanisms.
+ * Handles saving/loading of plugin data and settings with validation
+ * and migration. Backup and recovery functionality is handled by
+ * the dataBackup module.
  */
-
-/**
- * Backup entry for data recovery
- */
-export interface DataBackup {
-  /** Timestamp when backup was created */
-  timestamp: number;
-  /** Data version at time of backup */
-  version: number;
-  /** Backed up data */
-  data: PluginData;
-}
 
 /**
  * Load plugin data with validation and migration
@@ -73,26 +63,34 @@ export async function loadPluginData(plugin: {
 
     return { data: migratedData, migration };
   } catch (error) {
-    // Import error handling utilities dynamically
-    const { handleError, ErrorCategory } = await import("./errorHandling");
-
-    handleError(error, ErrorCategory.DATA, {
-      operation: "loadPluginData",
-      hasExistingData: false,
-    });
+    // Try to use error handling utilities if available
+    try {
+      const { handleError, ErrorCategory } = await import("./errorHandling");
+      handleError(error, ErrorCategory.DATA, {
+        operation: "loadPluginData",
+        hasExistingData: false,
+      });
+    } catch (_importError) {
+      // Fallback for test environments where error handling might not be available
+      console.error("Card Explorer: Failed to load plugin data:", error);
+    }
 
     // Try to recover from backup
-    const recoveredData = await attemptDataRecovery(plugin);
-    if (recoveredData) {
-      return {
-        data: recoveredData,
-        migration: {
-          migrated: true,
-          fromVersion: 0,
-          toVersion: CURRENT_DATA_VERSION,
-          warnings: ["Recovered from backup due to data loading error"],
-        },
-      };
+    try {
+      const recoveredData = await attemptDataRecovery(plugin);
+      if (recoveredData) {
+        return {
+          data: recoveredData,
+          migration: {
+            migrated: true,
+            fromVersion: 0,
+            toVersion: CURRENT_DATA_VERSION,
+            warnings: ["Recovered from backup due to data loading error"],
+          },
+        };
+      }
+    } catch (recoveryError) {
+      console.warn("Card Explorer: Failed to recover from backup:", recoveryError);
     }
 
     // Fall back to defaults
@@ -126,7 +124,7 @@ export async function savePluginData(
     }
 
     // Create backup before saving new data
-    await createDataBackup(plugin, data);
+    await createDataBackup(plugin);
 
     // Add version info and save
     const versionedData: VersionedPluginData = {
@@ -137,13 +135,17 @@ export async function savePluginData(
     await plugin.saveData(versionedData);
     return true;
   } catch (error) {
-    // Import error handling utilities dynamically
-    const { handleError, ErrorCategory } = await import("./errorHandling");
-
-    handleError(error, ErrorCategory.DATA, {
-      operation: "savePluginData",
-      dataSize: JSON.stringify(data).length,
-    });
+    // Try to use error handling utilities if available
+    try {
+      const { handleError, ErrorCategory } = await import("./errorHandling");
+      handleError(error, ErrorCategory.DATA, {
+        operation: "savePluginData",
+        dataSize: JSON.stringify(data).length,
+      });
+    } catch (_importError) {
+      // Fallback for test environments where error handling might not be available
+      console.error("Card Explorer: Failed to save plugin data:", error);
+    }
     return false;
   }
 }
@@ -208,75 +210,6 @@ export async function savePluginSettings(
   } catch (error) {
     console.error("Card Explorer: Failed to save plugin settings:", error);
     return false;
-  }
-}
-
-/**
- * Create a backup of current data before making changes
- *
- * @param plugin - Plugin instance
- * @param newData - New data that will be saved
- */
-async function createDataBackup(
-  plugin: { loadData(): Promise<any> },
-  _newData: PluginData
-): Promise<void> {
-  try {
-    const existingData = await plugin.loadData();
-
-    if (existingData && Object.keys(existingData).length > 0) {
-      const backup: DataBackup = {
-        timestamp: Date.now(),
-        version: existingData.version || 0,
-        data: existingData,
-      };
-
-      // Store backup in a separate field (we'll keep last 3 backups)
-      const backups = existingData._backups || [];
-      backups.unshift(backup);
-
-      // Keep only the 3 most recent backups
-      if (backups.length > 3) {
-        backups.splice(3);
-      }
-
-      // Note: We don't save backups immediately to avoid infinite recursion
-      // They'll be saved with the next data save operation
-    }
-  } catch (error) {
-    console.warn("Card Explorer: Failed to create data backup:", error);
-  }
-}
-
-/**
- * Attempt to recover data from backup
- *
- * @param plugin - Plugin instance
- * @returns Promise resolving to recovered data or null
- */
-async function attemptDataRecovery(plugin: {
-  loadData(): Promise<any>;
-}): Promise<PluginData | null> {
-  try {
-    const rawData = await plugin.loadData();
-    const backups = rawData?._backups as DataBackup[] | undefined;
-
-    if (!backups || !Array.isArray(backups) || backups.length === 0) {
-      return null;
-    }
-
-    // Try to recover from the most recent valid backup
-    for (const backup of backups) {
-      if (backup.data && validatePluginData(backup.data)) {
-        console.log("Card Explorer: Recovered data from backup", new Date(backup.timestamp));
-        return backup.data;
-      }
-    }
-
-    return null;
-  } catch (error) {
-    console.error("Card Explorer: Failed to recover from backup:", error);
-    return null;
   }
 }
 
