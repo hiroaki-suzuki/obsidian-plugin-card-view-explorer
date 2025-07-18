@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import React from "react";
+import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
@@ -273,5 +273,124 @@ describe("NoteCard", () => {
 
     const pinButton = screen.getByRole("button", { name: "Pin note" });
     expect(pinButton).toHaveAttribute("aria-label", "Pin note");
+  });
+
+  it("should display tags with overflow indicator when more than 3 tags", () => {
+    const noteWithManyTags = {
+      ...mockNote,
+      tags: ["tag1", "tag2", "tag3", "tag4", "tag5"],
+    };
+
+    render(<NoteCard note={noteWithManyTags} plugin={mockPlugin} />);
+
+    // Should show first 3 tags
+    expect(screen.getByText("#tag1")).toBeInTheDocument();
+    expect(screen.getByText("#tag2")).toBeInTheDocument();
+    expect(screen.getByText("#tag3")).toBeInTheDocument();
+
+    // Should show overflow indicator
+    expect(screen.getByText("+2")).toBeInTheDocument();
+
+    // Should not show 4th and 5th tags directly
+    expect(screen.queryByText("#tag4")).not.toBeInTheDocument();
+    expect(screen.queryByText("#tag5")).not.toBeInTheDocument();
+  });
+
+  it("should handle openFile error gracefully", () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const mockOpenFile = vi.fn(() => {
+      throw new Error("Failed to open file");
+    });
+    const mockGetLeaf = vi.fn(() => ({ openFile: mockOpenFile }));
+    const pluginWithError = {
+      ...mockPlugin,
+      app: {
+        workspace: {
+          getLeaf: mockGetLeaf,
+        },
+      },
+    } as any;
+
+    render(<NoteCard note={mockNote} plugin={pluginWithError} />);
+
+    const noteCard = screen.getByRole("button", { name: /Open note: Test Note/ });
+    fireEvent.click(noteCard);
+
+    expect(mockOpenFile).toHaveBeenCalledWith(mockNote.file);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("should handle togglePin error gracefully", () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const mockTogglePinWithError = vi.fn(() => {
+      throw new Error("Failed to toggle pin");
+    });
+
+    mockUseCardExplorerStore.mockReturnValue({
+      pinnedNotes: new Set<string>(),
+      togglePin: mockTogglePinWithError,
+    });
+
+    render(<NoteCard note={mockNote} plugin={mockPlugin} />);
+
+    const pinButton = screen.getByRole("button", { name: "Pin note" });
+    fireEvent.click(pinButton);
+
+    expect(mockTogglePinWithError).toHaveBeenCalledWith(mockNote.path);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("should handle keyboard event error gracefully", () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Mock handleNoteClick to throw an error
+    const mockOpenFile = vi.fn(() => {
+      throw new Error("Failed to open file via keyboard");
+    });
+    const mockGetLeaf = vi.fn(() => ({ openFile: mockOpenFile }));
+    const pluginWithError = {
+      ...mockPlugin,
+      app: {
+        workspace: {
+          getLeaf: mockGetLeaf,
+        },
+      },
+    } as any;
+
+    render(<NoteCard note={mockNote} plugin={pluginWithError} />);
+
+    const noteCard = screen.getByRole("button", { name: /Open note: Test Note/ });
+
+    // Test both Enter and Space keys to cover the keyboard event handler
+    fireEvent.keyDown(noteCard, { key: "Enter" });
+    expect(mockOpenFile).toHaveBeenCalledWith(mockNote.file);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    // Reset mocks to test space key
+    mockOpenFile.mockClear();
+    consoleErrorSpy.mockClear();
+
+    fireEvent.keyDown(noteCard, { key: " " });
+    expect(mockOpenFile).toHaveBeenCalledWith(mockNote.file);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("should handle invalid date gracefully", () => {
+    const noteWithInvalidDate = {
+      ...mockNote,
+      lastModified: new Date("invalid-date"),
+    };
+
+    render(<NoteCard note={noteWithInvalidDate} plugin={mockPlugin} />);
+
+    // Should fallback to "Invalid date" text
+    expect(screen.getByText("Invalid date")).toBeInTheDocument();
   });
 });
