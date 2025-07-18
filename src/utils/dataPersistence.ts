@@ -18,14 +18,66 @@ import { validatePluginData, validatePluginSettings } from "./validation";
  */
 
 /**
+ * Plugin interface for data operations
+ */
+interface PluginDataOperations {
+  loadData(): Promise<any>;
+  saveData(data: any): Promise<void>;
+}
+
+/**
+ * Plugin interface for read-only operations
+ */
+interface PluginReadOnlyOperations {
+  loadData(): Promise<any>;
+}
+
+/**
+ * Error messages for consistent logging
+ */
+const ERROR_MESSAGES = {
+  LOAD_FAILED: "Failed to load plugin data",
+  SAVE_FAILED: "Failed to save plugin data",
+  INVALID_DATA: "Cannot save invalid plugin data",
+  INVALID_SETTINGS: "Cannot save invalid plugin settings",
+  VALIDATION_FAILED: "Data validation failed after migration, using defaults",
+  SETTINGS_INVALID: "Invalid settings data, using defaults",
+  RECOVERY_FAILED: "Failed to recover from backup",
+  BACKUP_RECOVERY: "Recovered from backup due to data loading error",
+  FALLBACK_DEFAULTS: "Failed to load data, using defaults",
+  SETTINGS_LOAD_FAILED: "Failed to load plugin settings",
+  SETTINGS_SAVE_FAILED: "Failed to save plugin settings",
+} as const;
+
+/**
+ * Handle errors with consistent logging and optional error handling utilities
+ */
+async function handleDataError(
+  error: unknown,
+  operation: string,
+  context?: Record<string, any>
+): Promise<void> {
+  try {
+    const { handleError, ErrorCategory } = await import("./errorHandling");
+    handleError(error, ErrorCategory.DATA, {
+      operation,
+      ...context,
+    });
+  } catch {
+    // Fallback for test environments where error handling might not be available
+    console.error(`Card Explorer: ${operation} failed:`, error);
+  }
+}
+
+/**
  * Load plugin data with validation and migration
  *
  * @param plugin - Plugin instance with loadData method
  * @returns Promise resolving to validated plugin data and migration info
  */
-export async function loadPluginData(plugin: {
-  loadData(): Promise<any>;
-}): Promise<{ data: PluginData; migration: MigrationResult }> {
+export async function loadPluginData(
+  plugin: PluginReadOnlyOperations
+): Promise<{ data: PluginData; migration: MigrationResult }> {
   try {
     const rawData = await plugin.loadData();
 
@@ -49,31 +101,21 @@ export async function loadPluginData(plugin: {
 
     // Validate migrated data
     if (!validatePluginData(migratedData)) {
-      console.warn("Card Explorer: Migrated data failed validation, using defaults");
+      console.warn(`Card Explorer: ${ERROR_MESSAGES.VALIDATION_FAILED}`);
       return {
         data: DEFAULT_DATA,
         migration: {
           migrated: true,
           fromVersion: dataVersion,
           toVersion: CURRENT_DATA_VERSION,
-          warnings: ["Data validation failed after migration, using defaults"],
+          warnings: [ERROR_MESSAGES.VALIDATION_FAILED],
         },
       };
     }
 
     return { data: migratedData, migration };
   } catch (error) {
-    // Try to use error handling utilities if available
-    try {
-      const { handleError, ErrorCategory } = await import("./errorHandling");
-      handleError(error, ErrorCategory.DATA, {
-        operation: "loadPluginData",
-        hasExistingData: false,
-      });
-    } catch (_importError) {
-      // Fallback for test environments where error handling might not be available
-      console.error("Card Explorer: Failed to load plugin data:", error);
-    }
+    await handleDataError(error, "loadPluginData", { hasExistingData: false });
 
     // Try to recover from backup
     try {
@@ -85,12 +127,12 @@ export async function loadPluginData(plugin: {
             migrated: true,
             fromVersion: 0,
             toVersion: CURRENT_DATA_VERSION,
-            warnings: ["Recovered from backup due to data loading error"],
+            warnings: [ERROR_MESSAGES.BACKUP_RECOVERY],
           },
         };
       }
     } catch (recoveryError) {
-      console.warn("Card Explorer: Failed to recover from backup:", recoveryError);
+      console.warn(`Card Explorer: ${ERROR_MESSAGES.RECOVERY_FAILED}:`, recoveryError);
     }
 
     // Fall back to defaults
@@ -99,7 +141,7 @@ export async function loadPluginData(plugin: {
       migration: {
         migrated: false,
         toVersion: CURRENT_DATA_VERSION,
-        warnings: ["Failed to load data, using defaults"],
+        warnings: [ERROR_MESSAGES.FALLBACK_DEFAULTS],
       },
     };
   }
@@ -113,13 +155,13 @@ export async function loadPluginData(plugin: {
  * @returns Promise resolving to success status
  */
 export async function savePluginData(
-  plugin: { saveData(data: any): Promise<void>; loadData(): Promise<any> },
+  plugin: PluginDataOperations,
   data: PluginData
 ): Promise<boolean> {
   try {
     // Validate data before saving
     if (!validatePluginData(data)) {
-      console.error("Card Explorer: Cannot save invalid plugin data");
+      console.error(`Card Explorer: ${ERROR_MESSAGES.INVALID_DATA}`);
       return false;
     }
 
@@ -135,17 +177,9 @@ export async function savePluginData(
     await plugin.saveData(versionedData);
     return true;
   } catch (error) {
-    // Try to use error handling utilities if available
-    try {
-      const { handleError, ErrorCategory } = await import("./errorHandling");
-      handleError(error, ErrorCategory.DATA, {
-        operation: "savePluginData",
-        dataSize: JSON.stringify(data).length,
-      });
-    } catch (_importError) {
-      // Fallback for test environments where error handling might not be available
-      console.error("Card Explorer: Failed to save plugin data:", error);
-    }
+    await handleDataError(error, "savePluginData", {
+      dataSize: JSON.stringify(data).length,
+    });
     return false;
   }
 }
@@ -156,9 +190,9 @@ export async function savePluginData(
  * @param plugin - Plugin instance with loadData method
  * @returns Promise resolving to validated plugin settings
  */
-export async function loadPluginSettings(plugin: {
-  loadData(): Promise<any>;
-}): Promise<PluginSettings> {
+export async function loadPluginSettings(
+  plugin: PluginReadOnlyOperations
+): Promise<PluginSettings> {
   try {
     const rawData = await plugin.loadData();
 
@@ -169,11 +203,11 @@ export async function loadPluginSettings(plugin: {
     if (validatePluginSettings(settings)) {
       return { ...DEFAULT_SETTINGS, ...settings };
     } else {
-      console.warn("Card Explorer: Invalid settings data, using defaults");
+      console.warn(`Card Explorer: ${ERROR_MESSAGES.SETTINGS_INVALID}`);
       return DEFAULT_SETTINGS;
     }
   } catch (error) {
-    console.error("Card Explorer: Failed to load plugin settings:", error);
+    await handleDataError(error, "loadPluginSettings");
     return DEFAULT_SETTINGS;
   }
 }
@@ -186,13 +220,13 @@ export async function loadPluginSettings(plugin: {
  * @returns Promise resolving to success status
  */
 export async function savePluginSettings(
-  plugin: { saveData(data: any): Promise<void>; loadData(): Promise<any> },
+  plugin: PluginDataOperations,
   settings: PluginSettings
 ): Promise<boolean> {
   try {
     // Validate settings before saving
     if (!validatePluginSettings(settings)) {
-      console.error("Card Explorer: Cannot save invalid plugin settings");
+      console.error(`Card Explorer: ${ERROR_MESSAGES.INVALID_SETTINGS}`);
       return false;
     }
 
@@ -208,7 +242,7 @@ export async function savePluginSettings(
     await plugin.saveData(updatedData);
     return true;
   } catch (error) {
-    console.error("Card Explorer: Failed to save plugin settings:", error);
+    await handleDataError(error, "savePluginSettings");
     return false;
   }
 }
