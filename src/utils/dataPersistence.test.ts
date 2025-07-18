@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PluginData, PluginSettings } from "../types";
 import { DEFAULT_DATA, DEFAULT_SETTINGS } from "../types/plugin";
+import { CURRENT_DATA_VERSION } from "./dataMigration";
 import {
-  CURRENT_DATA_VERSION,
   clearPluginData,
-  getDataMigrationStatus,
   loadPluginData,
   loadPluginSettings,
   savePluginData,
@@ -58,48 +57,6 @@ describe("Data Persistence", () => {
 
       expect(result.data.pinnedNotes).toEqual(["note1.md", "note2.md"]);
       expect(result.migration.migrated).toBe(false);
-    });
-
-    it("should migrate legacy data (version 0)", async () => {
-      const mockPlugin = createMockPlugin();
-      const legacyData = {
-        pinnedNotes: ["note1.md"],
-        // Missing version field indicates version 0
-      };
-      mockPlugin.loadData.mockResolvedValue(legacyData);
-
-      const result = await loadPluginData(mockPlugin);
-
-      expect(result.data.pinnedNotes).toEqual(["note1.md"]);
-      expect(result.migration.migrated).toBe(true);
-      expect(result.migration.fromVersion).toBe(0);
-      expect(result.migration.toVersion).toBe(CURRENT_DATA_VERSION);
-      expect(result.migration.warnings).toContain("Migrated from legacy data format");
-    });
-
-    it("should handle invalid pinnedNotes in legacy data", async () => {
-      const mockPlugin = createMockPlugin();
-      const legacyData = {
-        pinnedNotes: "invalid", // Should be array
-      };
-      mockPlugin.loadData.mockResolvedValue(legacyData);
-
-      const result = await loadPluginData(mockPlugin);
-
-      expect(result.data.pinnedNotes).toEqual(DEFAULT_DATA.pinnedNotes);
-      expect(result.migration.warnings).toContain("Fixed invalid pinnedNotes array");
-    });
-
-    it("should filter non-string values from pinnedNotes", async () => {
-      const mockPlugin = createMockPlugin();
-      const legacyData = {
-        pinnedNotes: ["note1.md", 123, "note2.md", null, "note3.md"],
-      };
-      mockPlugin.loadData.mockResolvedValue(legacyData);
-
-      const result = await loadPluginData(mockPlugin);
-
-      expect(result.data.pinnedNotes).toEqual(["note1.md", "note2.md", "note3.md"]);
     });
 
     it("should handle load errors gracefully", async () => {
@@ -291,41 +248,6 @@ describe("Data Persistence", () => {
       const result = await savePluginSettings(mockPlugin, DEFAULT_SETTINGS);
 
       expect(result).toBe(false);
-    });
-  });
-
-  describe("getDataMigrationStatus", () => {
-    it("should detect no migration needed for current version", async () => {
-      const mockPlugin = createMockPlugin();
-      mockPlugin.loadData.mockResolvedValue({ version: CURRENT_DATA_VERSION });
-
-      const result = await getDataMigrationStatus(mockPlugin);
-
-      expect(result.needsMigration).toBe(false);
-      expect(result.currentVersion).toBe(CURRENT_DATA_VERSION);
-      expect(result.targetVersion).toBe(CURRENT_DATA_VERSION);
-    });
-
-    it("should detect migration needed for legacy data", async () => {
-      const mockPlugin = createMockPlugin();
-      mockPlugin.loadData.mockResolvedValue({}); // No version = version 0
-
-      const result = await getDataMigrationStatus(mockPlugin);
-
-      expect(result.needsMigration).toBe(true);
-      expect(result.currentVersion).toBe(0);
-      expect(result.targetVersion).toBe(CURRENT_DATA_VERSION);
-    });
-
-    it("should handle load errors gracefully", async () => {
-      const mockPlugin = createMockPlugin();
-      mockPlugin.loadData.mockRejectedValue(new Error("Load failed"));
-
-      const result = await getDataMigrationStatus(mockPlugin);
-
-      expect(result.needsMigration).toBe(true);
-      expect(result.currentVersion).toBe(0);
-      expect(result.targetVersion).toBe(CURRENT_DATA_VERSION);
     });
   });
 

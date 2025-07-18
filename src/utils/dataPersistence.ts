@@ -1,6 +1,11 @@
-import type { App } from "obsidian";
 import type { PluginData, PluginSettings } from "../types";
 import { DEFAULT_DATA, DEFAULT_SETTINGS } from "../types/plugin";
+import {
+  CURRENT_DATA_VERSION,
+  type MigrationResult,
+  migratePluginData,
+  type VersionedPluginData,
+} from "./dataMigration";
 import { validatePluginData, validatePluginSettings } from "./validation";
 
 /**
@@ -9,33 +14,6 @@ import { validatePluginData, validatePluginSettings } from "./validation";
  * Handles saving/loading of plugin data and settings with validation,
  * migration, backup, and recovery mechanisms.
  */
-
-/**
- * Current data version for migration handling
- */
-export const CURRENT_DATA_VERSION = 1;
-
-/**
- * Versioned plugin data structure for migration support
- */
-export interface VersionedPluginData extends PluginData {
-  /** Data format version for migration handling */
-  version: number;
-}
-
-/**
- * Migration result information
- */
-export interface MigrationResult {
-  /** Whether migration was performed */
-  migrated: boolean;
-  /** Previous version (if migrated) */
-  fromVersion?: number;
-  /** Current version after migration */
-  toVersion: number;
-  /** Any warnings or issues during migration */
-  warnings?: string[];
-}
 
 /**
  * Backup entry for data recovery
@@ -63,7 +41,6 @@ export async function loadPluginData(plugin: {
 
     // Handle first-time load (no data file exists)
     if (!rawData || Object.keys(rawData).length === 0) {
-      const _defaultData = { ...DEFAULT_DATA, version: CURRENT_DATA_VERSION };
       return {
         data: DEFAULT_DATA,
         migration: {
@@ -75,7 +52,7 @@ export async function loadPluginData(plugin: {
 
     // Check if data has version info
     const versionedData = rawData as Partial<VersionedPluginData>;
-    const dataVersion = versionedData.version || 0; // Default to 0 for legacy data
+    const dataVersion = versionedData.version || 0; // Default to 0 for data without version info
 
     // Perform migration if needed
     const { data: migratedData, migration } = await migratePluginData(versionedData, dataVersion);
@@ -235,56 +212,6 @@ export async function savePluginSettings(
 }
 
 /**
- * Migrate plugin data from older versions
- *
- * @param data - Raw data to migrate
- * @param fromVersion - Current data version
- * @returns Promise resolving to migrated data and migration info
- */
-async function migratePluginData(
-  data: Partial<VersionedPluginData>,
-  fromVersion: number
-): Promise<{ data: PluginData; migration: MigrationResult }> {
-  const warnings: string[] = [];
-  let migratedData = { ...data } as any;
-
-  // Migration from version 0 (legacy data without version)
-  if (fromVersion === 0) {
-    // Ensure all required fields exist with defaults
-    migratedData = {
-      pinnedNotes: data.pinnedNotes || DEFAULT_DATA.pinnedNotes,
-      lastFilters: data.lastFilters || DEFAULT_DATA.lastFilters,
-      sortConfig: data.sortConfig || DEFAULT_DATA.sortConfig,
-    };
-
-    // Validate and fix any legacy data issues
-    if (!Array.isArray(migratedData.pinnedNotes)) {
-      migratedData.pinnedNotes = DEFAULT_DATA.pinnedNotes;
-      warnings.push("Fixed invalid pinnedNotes array");
-    }
-
-    // Ensure pinned notes are all strings
-    migratedData.pinnedNotes = migratedData.pinnedNotes.filter(
-      (path: any) => typeof path === "string"
-    );
-
-    warnings.push("Migrated from legacy data format");
-  }
-
-  // Future migrations would go here
-  // if (fromVersion === 1) { ... }
-
-  const migration: MigrationResult = {
-    migrated: fromVersion !== CURRENT_DATA_VERSION,
-    fromVersion: fromVersion !== CURRENT_DATA_VERSION ? fromVersion : undefined,
-    toVersion: CURRENT_DATA_VERSION,
-    warnings: warnings.length > 0 ? warnings : undefined,
-  };
-
-  return { data: migratedData as PluginData, migration };
-}
-
-/**
  * Create a backup of current data before making changes
  *
  * @param plugin - Plugin instance
@@ -350,33 +277,6 @@ async function attemptDataRecovery(plugin: {
   } catch (error) {
     console.error("Card Explorer: Failed to recover from backup:", error);
     return null;
-  }
-}
-
-/**
- * Get data migration status and information
- *
- * @param plugin - Plugin instance
- * @returns Promise resolving to migration status
- */
-export async function getDataMigrationStatus(plugin: {
-  loadData(): Promise<any>;
-}): Promise<{ needsMigration: boolean; currentVersion: number; targetVersion: number }> {
-  try {
-    const rawData = await plugin.loadData();
-    const currentVersion = rawData?.version || 0;
-
-    return {
-      needsMigration: currentVersion < CURRENT_DATA_VERSION,
-      currentVersion,
-      targetVersion: CURRENT_DATA_VERSION,
-    };
-  } catch (_error) {
-    return {
-      needsMigration: true,
-      currentVersion: 0,
-      targetVersion: CURRENT_DATA_VERSION,
-    };
   }
 }
 
