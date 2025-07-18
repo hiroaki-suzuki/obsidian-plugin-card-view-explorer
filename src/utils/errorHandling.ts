@@ -117,7 +117,7 @@ function addToErrorLog(error: ErrorInfo): string {
 /**
  * Convert unknown error to structured ErrorInfo
  */
-export function normalizeError(
+function normalizeError(
   error: unknown,
   category: ErrorCategory = ErrorCategory.UNKNOWN,
   context?: Record<string, any>
@@ -389,23 +389,6 @@ export async function withRetry<T>(
 }
 
 /**
- * Safe async operation wrapper
- */
-export async function safeAsync<T>(
-  operation: () => Promise<T>,
-  fallback: T,
-  category: ErrorCategory = ErrorCategory.UNKNOWN,
-  context?: Record<string, any>
-): Promise<T> {
-  try {
-    return await operation();
-  } catch (error) {
-    handleError(error, category, context);
-    return fallback;
-  }
-}
-
-/**
  * Safe sync operation wrapper
  */
 export function safeSync<T>(
@@ -420,58 +403,4 @@ export function safeSync<T>(
     handleError(error, category, context);
     return fallback;
   }
-}
-
-/**
- * Get error log for debugging
- */
-export function getErrorLog(): ErrorLogEntry[] {
-  return [...errorLog];
-}
-
-/**
- * Clear error log
- */
-export function clearErrorLog(): void {
-  errorLog.length = 0;
-}
-
-/**
- * Get error statistics
- */
-export function getErrorStats(): {
-  total: number;
-  byCategory: Record<ErrorCategory, number>;
-  bySeverity: Record<ErrorSeverity, number>;
-  recent: number; // Last hour
-} {
-  const now = Date.now();
-  const oneHour = 60 * 60 * 1000;
-
-  const stats = {
-    total: errorLog.length,
-    byCategory: {} as Record<ErrorCategory, number>,
-    bySeverity: {} as Record<ErrorSeverity, number>,
-    recent: 0,
-  };
-
-  // Initialize counters
-  Object.values(ErrorCategory).forEach((cat) => {
-    stats.byCategory[cat] = 0;
-  });
-  Object.values(ErrorSeverity).forEach((sev) => {
-    stats.bySeverity[sev] = 0;
-  });
-
-  // Count errors
-  errorLog.forEach((error) => {
-    stats.byCategory[error.category]++;
-    stats.bySeverity[error.severity]++;
-
-    if (now - error.timestamp < oneHour) {
-      stats.recent++;
-    }
-  });
-
-  return stats;
 }

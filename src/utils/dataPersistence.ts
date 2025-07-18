@@ -212,21 +212,3 @@ export async function savePluginSettings(
     return false;
   }
 }
-
-/**
- * Clear all plugin data (for testing or reset purposes)
- *
- * @param plugin - Plugin instance
- * @returns Promise resolving to success status
- */
-export async function clearPluginData(plugin: {
-  saveData(data: any): Promise<void>;
-}): Promise<boolean> {
-  try {
-    await plugin.saveData({});
-    return true;
-  } catch (error) {
-    console.error("Card Explorer: Failed to clear plugin data:", error);
-    return false;
-  }
-}
