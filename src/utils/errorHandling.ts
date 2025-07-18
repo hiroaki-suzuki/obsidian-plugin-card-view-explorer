@@ -147,8 +147,17 @@ function normalizeError(
     message = error;
     details = error;
   } else if (error && typeof error === "object") {
-    message = (error as any).message || "Unknown error";
-    details = JSON.stringify(error);
+    try {
+      message = (error as any).message || "Unknown error";
+    } catch (_accessError) {
+      message = "Unknown error";
+    }
+    try {
+      details = JSON.stringify(error);
+    } catch (_jsonError) {
+      // Handle circular references or other JSON.stringify errors
+      details = "[Object with circular reference or non-serializable content]";
+    }
   }
 
   return {
