@@ -12,6 +12,7 @@
     "isolatedModules": true,
     "strictNullChecks": true,
     "lib": ["DOM", "ES6"],
+    "types": ["vitest/globals", "@testing-library/jest-dom"],
     "jsx": "react-jsx",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
