@@ -119,7 +119,7 @@ export class TFile {
   constructor(extension: string, path: string, name?: string) {
     this.extension = extension;
     this.path = path;
-    this.name = name || path.split('/').pop() || '';
+    this.name = name || path.split("/").pop() || "";
   }
 }
 
@@ -133,6 +133,6 @@ export class TAbstractFile {
 
   constructor(path: string, name?: string) {
     this.path = path;
-    this.name = name || path.split('/').pop() || '';
+    this.name = name || path.split("/").pop() || "";
   }
 }

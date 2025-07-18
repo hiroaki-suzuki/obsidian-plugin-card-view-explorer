@@ -19,7 +19,7 @@ export const VIEW_TYPE_CARD_EXPLORER = "card-explorer-view";
  */
 export class CardExplorerView extends ItemView {
   /** Reference to the plugin instance - used for settings and API access */
-  plugin: CardExplorerPlugin;
+  private readonly plugin: CardExplorerPlugin;
 
   /** React root DOM element - created using React 18's createRoot API */
   private root: Root | null = null;
@@ -74,13 +74,6 @@ export class CardExplorerView extends ItemView {
     this.containerElement = container.createEl("div", {
       cls: "card-explorer-container",
     });
-
-    // Set up basic container styling
-    // Set full height and width, use flexbox layout
-    this.containerElement.style.height = "100%";
-    this.containerElement.style.width = "100%";
-    this.containerElement.style.display = "flex";
-    this.containerElement.style.flexDirection = "column";
 
     // Create React root and mount main CardView component
     this.root = createRoot(this.containerElement);

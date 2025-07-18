@@ -15,6 +15,7 @@ export default defineConfig({
         "src/**/*.test.tsx",
         "src/**/*.d.ts",
         "src/**/*.css.ts", // Vanilla Extract CSS files
+        "src/types/**/*.ts",
       ],
     },
   },
