@@ -1,227 +1,618 @@
-import type { TFile } from "obsidian";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DATA, DEFAULT_SETTINGS } from "../types";
-import {
-  isMarkdownFile,
-  isSortableValue,
-  isValidFolderPath,
-  isValidTag,
-  sanitizeFilename,
-  validateDateFilter,
-  validateFilterState,
-  validateNoteData,
-  validatePluginData,
-  validatePluginSettings,
-  validateSortConfig,
-} from "./validation";
+import type { FilterState, PluginData, PluginSettings, SortConfig } from "../types";
+import { validatePluginData, validatePluginSettings } from "./validation";
 
-// Mock TFile for testing
-class MockTFile {
-  constructor(
-    public path: string,
-    public extension: string
-  ) {}
-}
+// Helper function to create valid FilterState
+const createValidFilterState = (): FilterState => ({
+  folders: ["folder1", "folder2"],
+  tags: ["tag1", "tag2"],
+  filename: "test",
+  dateRange: {
+    type: "within",
+    value: new Date("2023-01-01"),
+  },
+  excludeFolders: ["exclude1"],
+  excludeTags: ["excludeTag1"],
+  excludeFilenames: ["exclude.md"],
+});
 
-describe("Data Validation Functions", () => {
-  describe("isMarkdownFile", () => {
-    it("should return true for markdown files", () => {
-      const file = new MockTFile("test.md", "md") as unknown as TFile;
-      expect(isMarkdownFile(file)).toBe(true);
-    });
+// Helper function to create valid SortConfig
+const createValidSortConfig = (): SortConfig => ({
+  key: "updated",
+  order: "desc",
+});
 
-    it("should return false for non-markdown files", () => {
-      const file = new MockTFile("test.txt", "txt") as unknown as TFile;
-      expect(isMarkdownFile(file)).toBe(false);
-    });
+// Helper function to create valid PluginSettings
+const createValidPluginSettings = (): PluginSettings => ({
+  sortKey: "updated",
+  autoStart: true,
+  showInSidebar: false,
+});
+
+// Helper function to create valid PluginData
+const createValidPluginData = (): PluginData => ({
+  pinnedNotes: ["note1.md", "note2.md"],
+  lastFilters: createValidFilterState(),
+  sortConfig: createValidSortConfig(),
+  version: 1,
+  _backups: [
+    {
+      timestamp: Date.now(),
+      version: 1,
+      data: {
+        pinnedNotes: ["backup-note.md"],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+      },
+    },
+  ],
+});
+
+describe("validatePluginSettings", () => {
+  it("should validate correct PluginSettings", () => {
+    const validSettings = createValidPluginSettings();
+    expect(validatePluginSettings(validSettings)).toBe(true);
   });
 
-  describe("validateNoteData", () => {
-    const validNoteData = {
-      file: new MockTFile("test.md", "md") as unknown as TFile,
-      title: "Test Note",
-      path: "test.md",
-      preview: "This is a test note\nWith multiple lines\nFor preview",
-      lastModified: new Date(),
-      frontmatter: { title: "Test" },
-      tags: ["test", "note"],
-      folder: "folder",
+  it("should reject null or undefined", () => {
+    expect(validatePluginSettings(null)).toBe(false);
+    expect(validatePluginSettings(undefined)).toBe(false);
+  });
+
+  it("should reject non-object values", () => {
+    expect(validatePluginSettings("string")).toBe(false);
+    expect(validatePluginSettings(123)).toBe(false);
+    expect(validatePluginSettings([])).toBe(false);
+  });
+
+  it("should reject missing sortKey", () => {
+    const settings = { autoStart: true, showInSidebar: false };
+    expect(validatePluginSettings(settings)).toBe(false);
+  });
+
+  it("should reject non-string sortKey", () => {
+    const settings = { sortKey: 123, autoStart: true, showInSidebar: false };
+    expect(validatePluginSettings(settings)).toBe(false);
+  });
+
+  it("should reject missing autoStart", () => {
+    const settings = { sortKey: "updated", showInSidebar: false };
+    expect(validatePluginSettings(settings)).toBe(false);
+  });
+
+  it("should reject non-boolean autoStart", () => {
+    const settings = { sortKey: "updated", autoStart: "true", showInSidebar: false };
+    expect(validatePluginSettings(settings)).toBe(false);
+  });
+
+  it("should reject missing showInSidebar", () => {
+    const settings = { sortKey: "updated", autoStart: true };
+    expect(validatePluginSettings(settings)).toBe(false);
+  });
+
+  it("should reject non-boolean showInSidebar", () => {
+    const settings = { sortKey: "updated", autoStart: true, showInSidebar: "false" };
+    expect(validatePluginSettings(settings)).toBe(false);
+  });
+});
+
+describe("validatePluginData", () => {
+  it("should validate correct PluginData", () => {
+    const validData = createValidPluginData();
+    expect(validatePluginData(validData)).toBe(true);
+  });
+
+  it("should validate PluginData without optional properties", () => {
+    const minimalData = {
+      pinnedNotes: [],
+      lastFilters: createValidFilterState(),
+      sortConfig: createValidSortConfig(),
     };
-
-    it("should validate correct NoteData", () => {
-      expect(validateNoteData(validNoteData)).toBe(true);
-    });
-
-    it("should reject null or undefined", () => {
-      expect(validateNoteData(null)).toBe(false);
-      expect(validateNoteData(undefined)).toBe(false);
-    });
-
-    it("should reject missing required properties", () => {
-      const { file: _file, ...incomplete } = validNoteData;
-      expect(validateNoteData(incomplete)).toBe(false);
-    });
-
-    it("should reject invalid property types", () => {
-      const invalidData = { ...validNoteData, title: 123 };
-      expect(validateNoteData(invalidData)).toBe(false);
-    });
-
-    it("should accept null frontmatter", () => {
-      const dataWithNullFrontmatter = { ...validNoteData, frontmatter: null };
-      expect(validateNoteData(dataWithNullFrontmatter)).toBe(true);
-    });
+    expect(validatePluginData(minimalData)).toBe(true);
   });
 
-  describe("validateFilterState", () => {
-    const validFilterState = {
-      folders: ["folder1", "folder2"],
-      tags: ["tag1", "tag2"],
-      filename: "test",
-      dateRange: null,
-      excludeFolders: [],
-      excludeTags: [],
-      excludeFilenames: [],
-    };
+  it("should reject null or undefined", () => {
+    expect(validatePluginData(null)).toBe(false);
+    expect(validatePluginData(undefined)).toBe(false);
+  });
 
-    it("should validate correct FilterState", () => {
-      expect(validateFilterState(validFilterState)).toBe(true);
-    });
+  it("should reject non-object values", () => {
+    expect(validatePluginData("string")).toBe(false);
+    expect(validatePluginData(123)).toBe(false);
+    expect(validatePluginData([])).toBe(false);
+  });
 
-    it("should validate FilterState with date range", () => {
-      const withDateRange = {
-        ...validFilterState,
-        dateRange: { type: "within" as const, value: new Date() },
+  describe("pinnedNotes validation", () => {
+    it("should reject missing pinnedNotes", () => {
+      const data = {
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
       };
-      expect(validateFilterState(withDateRange)).toBe(true);
+      expect(validatePluginData(data)).toBe(false);
     });
 
-    it("should reject invalid array properties", () => {
-      const invalidData = { ...validFilterState, folders: "not-array" };
-      expect(validateFilterState(invalidData)).toBe(false);
-    });
-
-    it("should reject invalid date range type", () => {
-      const invalidData = {
-        ...validFilterState,
-        dateRange: { type: "invalid", value: new Date() },
+    it("should reject non-array pinnedNotes", () => {
+      const data = {
+        pinnedNotes: "not-array",
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
       };
-      expect(validateFilterState(invalidData)).toBe(false);
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should reject pinnedNotes with non-string elements", () => {
+      const data = {
+        pinnedNotes: ["valid.md", 123, "another.md"],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+      };
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should accept empty pinnedNotes array", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+      };
+      expect(validatePluginData(data)).toBe(true);
     });
   });
 
-  describe("validateSortConfig", () => {
-    it("should validate correct SortConfig", () => {
-      const validConfig = { key: "updated", order: "desc" as const };
-      expect(validateSortConfig(validConfig)).toBe(true);
+  describe("lastFilters validation", () => {
+    it("should reject missing lastFilters", () => {
+      const data = {
+        pinnedNotes: [],
+        sortConfig: createValidSortConfig(),
+      };
+      expect(validatePluginData(data)).toBe(false);
     });
 
-    it("should reject invalid order", () => {
-      const invalidConfig = { key: "updated", order: "invalid" };
-      expect(validateSortConfig(invalidConfig)).toBe(false);
+    it("should reject invalid lastFilters", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: { invalid: "filter" },
+        sortConfig: createValidSortConfig(),
+      };
+      expect(validatePluginData(data)).toBe(false);
     });
   });
 
-  describe("validatePluginSettings", () => {
-    it("should validate default settings", () => {
-      expect(validatePluginSettings(DEFAULT_SETTINGS)).toBe(true);
+  describe("sortConfig validation", () => {
+    it("should reject missing sortConfig", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+      };
+      expect(validatePluginData(data)).toBe(false);
     });
 
-    it("should reject invalid boolean properties", () => {
-      const invalidSettings = { ...DEFAULT_SETTINGS, autoStart: "true" };
-      expect(validatePluginSettings(invalidSettings)).toBe(false);
+    it("should reject invalid sortConfig", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: { invalid: "config" },
+      };
+      expect(validatePluginData(data)).toBe(false);
     });
   });
 
-  describe("validatePluginData", () => {
-    it("should validate default data", () => {
-      expect(validatePluginData(DEFAULT_DATA)).toBe(true);
+  describe("version validation", () => {
+    it("should accept valid version number", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        version: 2,
+      };
+      expect(validatePluginData(data)).toBe(true);
     });
 
-    it("should reject invalid pinnedNotes array", () => {
-      const invalidData = { ...DEFAULT_DATA, pinnedNotes: [123, "valid"] };
-      expect(validatePluginData(invalidData)).toBe(false);
+    it("should reject non-number version", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        version: "1",
+      };
+      expect(validatePluginData(data)).toBe(false);
     });
   });
 
-  describe("isSortableValue", () => {
-    it("should accept valid sortable values", () => {
-      expect(isSortableValue("string")).toBe(true);
-      expect(isSortableValue(123)).toBe(true);
-      expect(isSortableValue(new Date())).toBe(true);
-      expect(isSortableValue(null)).toBe(true);
-      expect(isSortableValue(undefined)).toBe(true);
+  describe("_backups validation", () => {
+    it("should accept valid backups array", () => {
+      const data = createValidPluginData();
+      expect(validatePluginData(data)).toBe(true);
     });
 
-    it("should reject invalid sortable values", () => {
-      expect(isSortableValue({})).toBe(false);
-      expect(isSortableValue([])).toBe(false);
-      expect(isSortableValue(true)).toBe(false);
+    it("should accept empty backups array", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        _backups: [],
+      };
+      expect(validatePluginData(data)).toBe(true);
+    });
+
+    it("should reject non-array _backups", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        _backups: "not-array",
+      };
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should reject backup with missing timestamp", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        _backups: [
+          {
+            version: 1,
+            data: {
+              pinnedNotes: [],
+              lastFilters: createValidFilterState(),
+              sortConfig: createValidSortConfig(),
+            },
+          },
+        ],
+      };
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should reject backup with non-number timestamp", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        _backups: [
+          {
+            timestamp: "not-number",
+            version: 1,
+            data: {
+              pinnedNotes: [],
+              lastFilters: createValidFilterState(),
+              sortConfig: createValidSortConfig(),
+            },
+          },
+        ],
+      };
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should reject backup with missing version", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        _backups: [
+          {
+            timestamp: Date.now(),
+            data: {
+              pinnedNotes: [],
+              lastFilters: createValidFilterState(),
+              sortConfig: createValidSortConfig(),
+            },
+          },
+        ],
+      };
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should reject backup with non-number version", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        _backups: [
+          {
+            timestamp: Date.now(),
+            version: "1",
+            data: {
+              pinnedNotes: [],
+              lastFilters: createValidFilterState(),
+              sortConfig: createValidSortConfig(),
+            },
+          },
+        ],
+      };
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should reject backup with missing data", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        _backups: [
+          {
+            timestamp: Date.now(),
+            version: 1,
+          },
+        ],
+      };
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should reject backup with invalid data.pinnedNotes", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        _backups: [
+          {
+            timestamp: Date.now(),
+            version: 1,
+            data: {
+              pinnedNotes: "not-array",
+              lastFilters: createValidFilterState(),
+              sortConfig: createValidSortConfig(),
+            },
+          },
+        ],
+      };
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should reject backup with invalid data.lastFilters", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        _backups: [
+          {
+            timestamp: Date.now(),
+            version: 1,
+            data: {
+              pinnedNotes: [],
+              lastFilters: { invalid: "filter" },
+              sortConfig: createValidSortConfig(),
+            },
+          },
+        ],
+      };
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should reject backup with invalid data.sortConfig", () => {
+      const data = {
+        pinnedNotes: [],
+        lastFilters: createValidFilterState(),
+        sortConfig: createValidSortConfig(),
+        _backups: [
+          {
+            timestamp: Date.now(),
+            version: 1,
+            data: {
+              pinnedNotes: [],
+              lastFilters: createValidFilterState(),
+              sortConfig: { invalid: "config" },
+            },
+          },
+        ],
+      };
+      expect(validatePluginData(data)).toBe(false);
+    });
+  });
+});
+
+// Tests for internal validateFilterState function (through validatePluginData)
+describe("FilterState validation (via validatePluginData)", () => {
+  const createDataWithFilterState = (filterState: any) => ({
+    pinnedNotes: [],
+    lastFilters: filterState,
+    sortConfig: createValidSortConfig(),
+  });
+
+  it("should reject null filterState", () => {
+    const data = createDataWithFilterState(null);
+    expect(validatePluginData(data)).toBe(false);
+  });
+
+  it("should reject non-object filterState", () => {
+    const data = createDataWithFilterState("not-object");
+    expect(validatePluginData(data)).toBe(false);
+  });
+
+  describe("array properties validation", () => {
+    const arrayProps = ["folders", "tags", "excludeFolders", "excludeTags", "excludeFilenames"];
+
+    arrayProps.forEach((prop) => {
+      it(`should reject missing ${prop}`, () => {
+        const filterState = createValidFilterState();
+        delete (filterState as any)[prop];
+        const data = createDataWithFilterState(filterState);
+        expect(validatePluginData(data)).toBe(false);
+      });
+
+      it(`should reject non-array ${prop}`, () => {
+        const filterState = createValidFilterState();
+        (filterState as any)[prop] = "not-array";
+        const data = createDataWithFilterState(filterState);
+        expect(validatePluginData(data)).toBe(false);
+      });
+
+      it(`should reject ${prop} with non-string elements`, () => {
+        const filterState = createValidFilterState();
+        (filterState as any)[prop] = ["valid", 123, "another"];
+        const data = createDataWithFilterState(filterState);
+        expect(validatePluginData(data)).toBe(false);
+      });
+
+      it(`should accept empty ${prop} array`, () => {
+        const filterState = createValidFilterState();
+        (filterState as any)[prop] = [];
+        const data = createDataWithFilterState(filterState);
+        expect(validatePluginData(data)).toBe(true);
+      });
     });
   });
 
-  describe("validateDateFilter", () => {
-    it("should validate null date range", () => {
-      const result = validateDateFilter(null);
-      expect(result.isValid).toBe(true);
+  describe("filename validation", () => {
+    it("should reject missing filename", () => {
+      const filterState = createValidFilterState();
+      delete (filterState as any).filename;
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(false);
     });
 
-    it("should validate valid date range", () => {
-      const dateRange = { type: "within" as const, value: new Date() };
-      const result = validateDateFilter(dateRange);
-      expect(result.isValid).toBe(true);
+    it("should reject non-string filename", () => {
+      const filterState = createValidFilterState();
+      (filterState as any).filename = 123;
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(false);
     });
 
-    it("should reject invalid date", () => {
-      const dateRange = { type: "within" as const, value: new Date("invalid") };
-      const result = validateDateFilter(dateRange);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toContain("valid date");
+    it("should accept empty string filename", () => {
+      const filterState = createValidFilterState();
+      filterState.filename = "";
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(true);
     });
   });
 
-  describe("sanitizeFilename", () => {
-    it("should remove invalid characters", () => {
-      const result = sanitizeFilename('test<>:"/\\|?*file');
-      expect(result).toBe("testfile");
+  describe("dateRange validation", () => {
+    it("should accept null dateRange", () => {
+      const filterState = createValidFilterState();
+      filterState.dateRange = null;
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(true);
     });
 
-    it("should trim whitespace", () => {
-      const result = sanitizeFilename("  test file  ");
-      expect(result).toBe("test file");
+    it("should reject non-object dateRange (when not null)", () => {
+      const filterState = createValidFilterState();
+      (filterState as any).dateRange = "not-object";
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(false);
     });
 
-    it("should handle non-string input", () => {
-      expect(sanitizeFilename(123 as any)).toBe("");
+    it("should reject dateRange with invalid type", () => {
+      const filterState = createValidFilterState();
+      (filterState as any).dateRange = {
+        type: "invalid",
+        value: new Date(),
+      };
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should accept dateRange with 'within' type", () => {
+      const filterState = createValidFilterState();
+      filterState.dateRange = {
+        type: "within",
+        value: new Date(),
+      };
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(true);
+    });
+
+    it("should accept dateRange with 'after' type", () => {
+      const filterState = createValidFilterState();
+      filterState.dateRange = {
+        type: "after",
+        value: new Date(),
+      };
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(true);
+    });
+
+    it("should accept dateRange with Date object value", () => {
+      const filterState = createValidFilterState();
+      filterState.dateRange = {
+        type: "within",
+        value: new Date("2023-01-01"),
+      };
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(true);
+    });
+
+    it("should accept dateRange with valid date string value", () => {
+      const filterState = createValidFilterState();
+      (filterState as any).dateRange = {
+        type: "within",
+        value: "2023-01-01",
+      };
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(true);
+    });
+
+    it("should reject dateRange with invalid date string value", () => {
+      const filterState = createValidFilterState();
+      (filterState as any).dateRange = {
+        type: "within",
+        value: "invalid-date",
+      };
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(false);
+    });
+
+    it("should reject dateRange with non-Date, non-string value", () => {
+      const filterState = createValidFilterState();
+      (filterState as any).dateRange = {
+        type: "within",
+        value: 123,
+      };
+      const data = createDataWithFilterState(filterState);
+      expect(validatePluginData(data)).toBe(false);
     });
   });
+});
 
-  describe("isValidFolderPath", () => {
-    it("should accept valid folder paths", () => {
-      expect(isValidFolderPath("")).toBe(true);
-      expect(isValidFolderPath("folder")).toBe(true);
-      expect(isValidFolderPath("folder/subfolder")).toBe(true);
-    });
-
-    it("should reject invalid characters", () => {
-      expect(isValidFolderPath("folder<>")).toBe(false);
-      expect(isValidFolderPath("folder|test")).toBe(false);
-    });
+// Tests for internal validateSortConfig function (through validatePluginData)
+describe("SortConfig validation (via validatePluginData)", () => {
+  const createDataWithSortConfig = (sortConfig: any) => ({
+    pinnedNotes: [],
+    lastFilters: createValidFilterState(),
+    sortConfig,
   });
 
-  describe("isValidTag", () => {
-    it("should accept valid tags", () => {
-      expect(isValidTag("test")).toBe(true);
-      expect(isValidTag("test-tag")).toBe(true);
-      expect(isValidTag("test_tag")).toBe(true);
-      expect(isValidTag("test123")).toBe(true);
-    });
+  it("should reject null sortConfig", () => {
+    const data = createDataWithSortConfig(null);
+    expect(validatePluginData(data)).toBe(false);
+  });
 
-    it("should reject invalid tags", () => {
-      expect(isValidTag("")).toBe(false);
-      expect(isValidTag("test tag")).toBe(false);
-      expect(isValidTag("test@tag")).toBe(false);
-      expect(isValidTag(123 as any)).toBe(false);
-    });
+  it("should reject non-object sortConfig", () => {
+    const data = createDataWithSortConfig("not-object");
+    expect(validatePluginData(data)).toBe(false);
+  });
+
+  it("should reject missing key", () => {
+    const sortConfig = { order: "desc" };
+    const data = createDataWithSortConfig(sortConfig);
+    expect(validatePluginData(data)).toBe(false);
+  });
+
+  it("should reject non-string key", () => {
+    const sortConfig = { key: 123, order: "desc" };
+    const data = createDataWithSortConfig(sortConfig);
+    expect(validatePluginData(data)).toBe(false);
+  });
+
+  it("should reject missing order", () => {
+    const sortConfig = { key: "updated" };
+    const data = createDataWithSortConfig(sortConfig);
+    expect(validatePluginData(data)).toBe(false);
+  });
+
+  it("should reject invalid order", () => {
+    const sortConfig = { key: "updated", order: "invalid" };
+    const data = createDataWithSortConfig(sortConfig);
+    expect(validatePluginData(data)).toBe(false);
+  });
+
+  it("should accept 'asc' order", () => {
+    const sortConfig = { key: "updated", order: "asc" };
+    const data = createDataWithSortConfig(sortConfig);
+    expect(validatePluginData(data)).toBe(true);
+  });
+
+  it("should accept 'desc' order", () => {
+    const sortConfig = { key: "updated", order: "desc" };
+    const data = createDataWithSortConfig(sortConfig);
+    expect(validatePluginData(data)).toBe(true);
   });
 });
