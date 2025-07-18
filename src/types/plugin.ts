@@ -1,4 +1,5 @@
 import type { Plugin } from "obsidian";
+import type { DataBackup } from "../utils/dataBackup";
 import type { FilterState } from "./filter";
 import type { SortConfig } from "./sort";
 
@@ -25,6 +26,10 @@ export interface PluginData {
   lastFilters: FilterState;
   /** Last used sort configuration */
   sortConfig: SortConfig;
+  /** Data version for migration and backup purposes */
+  version?: number;
+  /** Internal backup storage (managed by backup system) */
+  _backups?: DataBackup[];
 }
 
 /**
