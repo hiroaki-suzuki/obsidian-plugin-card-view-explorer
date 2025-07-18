@@ -76,6 +76,10 @@ const mockPlugin = {
   app: mockApp,
   settings: { ...DEFAULT_SETTINGS },
   saveSettings: vi.fn(),
+  getSettings: vi.fn(() => mockPlugin.settings),
+  updateSetting: vi.fn((key: string, value: any) => {
+    (mockPlugin.settings as any)[key] = value;
+  }),
 } as unknown as CardExplorerPlugin;
 
 describe("CardExplorerSettingTab", () => {
