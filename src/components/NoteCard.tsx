@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
+import { formatRelativeDate } from "../utils/dateUtils";
 import { ErrorCategory, handleError, safeSync } from "../utils/errorHandling";
 
 interface NoteCardProps {
@@ -65,21 +66,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   const formatDate = useCallback(
     (date: Date): string => {
       return safeSync(
-        () => {
-          const now = new Date();
-          const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-
-          if (diffInHours < 24) {
-            // Show time for today
-            return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-          } else if (diffInHours < 24 * 7) {
-            // Show day of week for this week
-            return date.toLocaleDateString([], { weekday: "short" });
-          } else {
-            // Show date for older notes
-            return date.toLocaleDateString([], { month: "short", day: "numeric" });
-          }
-        },
+        () => formatRelativeDate(date),
         "Invalid date", // Fallback value
         ErrorCategory.DATA,
         {
