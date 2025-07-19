@@ -7,15 +7,30 @@ import { formatRelativeDate, getDisplayDate } from "../utils/dateUtils";
 import { ErrorCategory, handleError, safeSync } from "../utils/errorHandling";
 
 interface NoteCardProps {
+  /** Note data to display in the card */
   note: NoteData;
+  /** Plugin instance for accessing Obsidian APIs */
   plugin: CardExplorerPlugin;
 }
 
 /**
- * Individual note card component
+ * NoteCard Component
  *
- * Displays a single note with title, preview, date, and pin toggle.
- * Handles click events to open notes and integrates with Zustand store for pin state.
+ * Displays an individual note as an interactive card with comprehensive metadata.
+ * Provides one-click access to notes and pin management functionality.
+ *
+ * Features:
+ * - Click to open note in Obsidian workspace
+ * - Pin/unpin notes with visual indicators
+ * - Display tags (maximum 3 visible + count)
+ * - Show relative dates with fallback to absolute dates
+ * - Keyboard accessibility (Enter/Space to open)
+ * - Comprehensive error handling for all interactions
+ *
+ * Design decisions:
+ * - Uses Obsidian's workspace API for seamless note opening
+ * - Integrates with Zustand store for pin state management
+ * - Implements defensive error handling for all user interactions
  */
 export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   const { pinnedNotes, togglePin } = useCardExplorerStore();
@@ -23,11 +38,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   const isPinned = pinnedNotes.has(note.path);
 
   /**
-   * Handle clicking on the note card to open it in the active pane
+   * Handles note card click to open the note in Obsidian's active pane.
+   * Uses getLeaf() to respect user's current workspace layout.
    */
   const handleNoteClick = useCallback(() => {
     try {
-      // Open the note in the active pane using Obsidian's workspace API
+      // getLeaf() returns the active leaf to maintain user's workspace context
       plugin.app.workspace.getLeaf().openFile(note.file);
     } catch (error) {
       handleError(error, ErrorCategory.API, {
@@ -39,12 +55,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   }, [plugin.app.workspace, note.file, note.path, note.title]);
 
   /**
-   * Handle pin toggle button click
-   * Prevents event bubbling to avoid opening the note
+   * Handles pin toggle button click while preventing event bubbling.
+   * Event propagation must be stopped to avoid triggering note opening.
    */
   const handlePinToggle = useCallback(
     (event: React.MouseEvent) => {
-      event.stopPropagation(); // Prevent note click event
+      event.stopPropagation(); // Essential to prevent handleNoteClick from firing
 
       try {
         togglePin(note.path);
@@ -61,12 +77,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   );
 
   /**
-   * Get the display date for this note (frontmatter 'updated' field or file modification time)
+   * Get the display date prioritizing frontmatter 'updated' field over file modification time.
    */
   const displayDate = getDisplayDate(note);
 
   /**
-   * Format the display date for display with error handling
+   * Formats display date with defensive error handling to prevent UI crashes.
    */
   const formatDate = useCallback(
     (date: Date): string => {
@@ -85,13 +101,14 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   );
 
   /**
-   * Safe keyboard event handler
+   * Handles keyboard accessibility for note opening.
+   * Supports standard accessibility patterns (Enter and Space keys).
    */
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       try {
         if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
+          e.preventDefault(); // Prevent default scrolling behavior for Space
           handleNoteClick();
         }
       } catch (error) {
@@ -136,7 +153,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
         {note.preview}
       </div>
 
-      {/* Tags if available */}
+      {/* Tags with overflow handling - show max 3 tags + count indicator */}
       {note.tags.length > 0 && (
         <div className="note-card-tags">
           {note.tags.slice(0, 3).map((tag) => (
