@@ -5,6 +5,11 @@ import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
 import { CardView } from "./CardView";
 
+// Mock Obsidian's setIcon function
+vi.mock("obsidian", () => ({
+  setIcon: vi.fn(),
+}));
+
 // Mock the store
 const mockRefreshNotes = vi.fn();
 const mockSetError = vi.fn();
