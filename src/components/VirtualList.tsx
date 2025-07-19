@@ -32,19 +32,22 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
   const [retryCount, setRetryCount] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
 
-  // Enhanced retry function with exponential backoff
-  const _handleRetry = useCallback(async () => {
+  /**
+   * Enhanced retry mechanism with exponential backoff to prevent overwhelming failed services.
+   * Implements progressive delays: 0ms → 1s → 2s → 4s → 5s (capped).
+   */
+  const handleRetry = useCallback(async () => {
     if (isRetrying) return;
 
     setIsRetrying(true);
     setRetryCount((prev) => prev + 1);
 
     try {
-      // Clear any existing errors
+      // Clear any existing errors before retry attempt
       resetError();
       setError(null);
 
-      // Add delay for retry attempts (exponential backoff)
+      // Exponential backoff prevents overwhelming failed services
       if (retryCount > 0) {
         const delay = Math.min(1000 * 2 ** (retryCount - 1), 5000);
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -70,7 +73,9 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
     }
   }, [isRetrying, retryCount, resetError, setError, refreshNotes, plugin.app, captureError]);
 
-  // Reset retry count when notes successfully load
+  /**
+   * Reset retry count when notes successfully load to prevent unnecessary delays on future retries.
+   */
   useEffect(() => {
     if (filteredNotes.length > 0 && !error && !componentError) {
       setRetryCount(0);
@@ -78,8 +83,8 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
   }, [filteredNotes.length, error, componentError]);
 
   /**
-   * Render individual note card item
-   * Called by Virtuoso for each visible item
+   * Renders individual note card for Virtuoso's item content callback.
+   * Memoized to prevent unnecessary re-renders during virtual scrolling.
    */
   const renderNoteCard = React.useCallback(
     (index: number) => {
@@ -117,7 +122,7 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
       <div className="virtual-list-container">
         <ErrorFallback
           error={componentError}
-          onRetry={_handleRetry}
+          onRetry={handleRetry}
           category={ErrorCategory.UI}
           context={{
             component: "VirtualList",
@@ -138,7 +143,7 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
       <div className="virtual-list-container">
         <ErrorFallback
           error={new Error(error)}
-          onRetry={_handleRetry}
+          onRetry={handleRetry}
           category={ErrorCategory.API}
           context={{
             component: "VirtualList",
@@ -190,7 +195,7 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
         className="virtual-list"
         style={{ height: "100%" }}
         components={{
-          // Custom components for better styling control
+          // Custom styling wrappers for consistent visual hierarchy
           List: React.forwardRef<HTMLDivElement>((props, ref) => (
             <div ref={ref} {...props} className="virtual-list-content" />
           )),
@@ -200,13 +205,13 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
             </div>
           ),
         }}
-        // Performance optimizations
-        overscan={5} // Render 5 extra items outside viewport
-        increaseViewportBy={200} // Increase viewport by 200px for smoother scrolling
-        // Handle dynamic heights
-        defaultItemHeight={120} // Estimated item height for better initial rendering
-        // Scroll behavior
-        followOutput="smooth" // Smooth scrolling when new items are added
+        // Performance optimizations for smooth scrolling with large datasets
+        overscan={5} // Pre-render 5 items outside viewport to reduce flickering
+        increaseViewportBy={200} // Larger render window for smoother scrolling
+        // Dynamic height estimation - critical for variable card content
+        defaultItemHeight={120} // Conservative estimate based on typical card height
+        // Smooth scroll behavior when new items are dynamically added
+        followOutput="smooth"
       />
 
       {/* Results summary */}
