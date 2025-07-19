@@ -102,12 +102,12 @@ interface CardExplorerState {
   notes: NoteData[];
   filteredNotes: NoteData[];
   pinnedNotes: Set<string>;
-  
+
   // UI State
   filters: FilterState;
   sortConfig: SortConfig;
   isLoading: boolean;
-  
+
   // Actions
   setNotes: (notes: NoteData[]) => void;
   updateFilters: (filters: Partial<FilterState>) => void;
@@ -133,7 +133,7 @@ const useCardExplorerStore = create<CardExplorerState>()(
     },
     sortConfig: { key: 'updated', order: 'desc' },
     isLoading: false,
-    
+
     // Actions
     setNotes: (notes) => set({ notes }),
     updateFilters: (newFilters) => set((state) => ({
@@ -275,7 +275,6 @@ interface CardExplorerPlugin extends Plugin {
 1. **API Errors**: Obsidian API failures (vault access, metadata cache)
 2. **Data Errors**: Invalid frontmatter, missing files, corrupted data.json
 3. **UI Errors**: React component errors, rendering failures
-4. **Performance Errors**: Memory issues with large note collections
 
 ### Error Handling Strategy
 
@@ -329,11 +328,7 @@ function validateNoteData(data: any): data is NoteData {
 - **View Integration**: Test view lifecycle and workspace integration
 - **Data Persistence**: Test settings and pin state persistence
 
-### Performance Testing
 
-- **Large Note Collections**: Test with 1000+ notes
-- **Virtual Scrolling**: Verify smooth scrolling performance
-- **Memory Usage**: Monitor memory consumption during extended use
 
 ### Testing Tools
 
