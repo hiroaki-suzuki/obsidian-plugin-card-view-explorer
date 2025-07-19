@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import { CardViewErrorBoundary } from "./CardViewErrorBoundary";
+import { ErrorDisplay } from "./ErrorDisplay";
 import { FilterPanel } from "./FilterPanel";
 import { VirtualList } from "./VirtualList";
 
@@ -158,23 +159,13 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
    */
   if (error && !isLoading) {
     return (
-      <div className="card-view-container">
-        <div className="card-view-error">
-          <div className="error-content">
-            <div className="error-icon">⚠️</div>
-            <h3>Error Loading Card Explorer</h3>
-            <p>{error}</p>
-            <div className="error-actions">
-              <button type="button" className="error-retry-button" onClick={handleRetry}>
-                Retry
-              </button>
-              <button type="button" className="error-clear-button" onClick={() => setError(null)}>
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ErrorDisplay
+        error={error}
+        onRetry={handleRetry}
+        onDismiss={() => setError(null)}
+        title="Error Loading Card Explorer"
+        isRetrying={isLoading}
+      />
     );
   }
 
