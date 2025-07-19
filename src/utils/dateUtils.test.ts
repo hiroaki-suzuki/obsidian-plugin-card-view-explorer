@@ -24,32 +24,25 @@ describe("dateUtils", () => {
       expect(result).toMatch(/^\d{1,2}:\d{2}(\s?(AM|PM))?$/);
     });
 
-    it("should format dates from this week with day of week", () => {
-      // 2 days ago (Saturday)
+    it("should format dates older than 24 hours with full date including year", () => {
+      // 2 days ago
       const date = new Date("2024-01-13T12:00:00.000Z");
       const result = formatRelativeDate(date);
-      expect(result).toBe("Sat");
+      expect(result).toMatch(/^2024\/1\/13$|^1\/13\/2024$/); // Different locales may format differently
     });
 
-    it("should format older dates with month and day", () => {
-      // 10 days ago
-      const date = new Date("2024-01-05T12:00:00.000Z");
-      const result = formatRelativeDate(date);
-      expect(result).toBe("Jan 5");
-    });
-
-    it("should handle exactly 24 hours ago", () => {
-      // Exactly 24 hours ago
+    it("should handle exactly 24 hours ago with full date", () => {
+      // Exactly 24 hours ago - should show date, not time
       const date = new Date("2024-01-14T12:00:00.000Z");
       const result = formatRelativeDate(date);
-      expect(result).toBe("Sun"); // Should show day of week, not time
+      expect(result).toMatch(/^2024\/1\/14$|^1\/14\/2024$/); // Should show full date with year, not time
     });
 
-    it("should handle exactly 7 days ago", () => {
-      // Exactly 7 days ago
-      const date = new Date("2024-01-08T12:00:00.000Z");
+    it("should format dates from different years with full date", () => {
+      // From previous year
+      const date = new Date("2023-01-08T12:00:00.000Z");
       const result = formatRelativeDate(date);
-      expect(result).toBe("Jan 8"); // Should show month and day
+      expect(result).toMatch(/^2023\/1\/8$|^1\/8\/2023$/); // Different locales may format differently
     });
 
     it("should handle invalid dates", () => {
@@ -78,22 +71,29 @@ describe("dateUtils", () => {
       vi.setSystemTime(new Date("2024-03-10T12:00:00.000Z")); // During DST change
       const date = new Date("2024-03-09T12:00:00.000Z");
       const result = formatRelativeDate(date);
-      expect(result).toBe("Sat"); // Should still work correctly
+      expect(result).toMatch(/^2024\/3\/9$|^3\/9\/2024$/); // Should show full date with year
     });
 
-    it("should handle leap year dates", () => {
+    it("should handle leap year dates correctly", () => {
       vi.setSystemTime(new Date("2024-02-29T12:00:00.000Z")); // Leap year
       const date = new Date("2024-02-28T12:00:00.000Z");
       const result = formatRelativeDate(date);
-      expect(result).toBe("Wed");
+      expect(result).toMatch(/^2024\/2\/28$|^2\/28\/2024$/); // Should show full date with year
     });
 
-    it("should handle year boundaries", () => {
+    it("should handle cross-year date boundaries correctly", () => {
       vi.setSystemTime(new Date("2024-01-01T12:00:00.000Z")); // New Year's Day
       const date = new Date("2023-12-31T12:00:00.000Z"); // Yesterday, previous year
       const result = formatRelativeDate(date);
-      // This is exactly 24 hours ago, so should show day of week, not month/day
-      expect(result).toBe("Sun");
+      // Should show full date with correct year
+      expect(result).toMatch(/^2023\/12\/31$|^12\/31\/2023$/); // Different locales may format differently
+    });
+
+    it("should handle very old dates consistently", () => {
+      vi.setSystemTime(new Date("2024-01-15T12:00:00.000Z"));
+      const date = new Date("2020-05-10T12:00:00.000Z"); // 4 years ago
+      const result = formatRelativeDate(date);
+      expect(result).toMatch(/^2020\/5\/10$|^5\/10\/2020$/); // Should show full date with year
     });
   });
 
