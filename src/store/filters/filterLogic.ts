@@ -152,7 +152,7 @@ export const matchesDateRangeCriteria = (
   if (!dateRange) return true;
 
   const noteDate = note.lastModified;
-  const filterDate = dateRange.value;
+  const filterDate = dateRange.value instanceof Date ? dateRange.value : new Date(dateRange.value);
   const now = new Date();
 
   if (dateRange.type === "within") {

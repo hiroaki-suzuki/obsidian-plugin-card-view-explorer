@@ -12,7 +12,7 @@ export interface FilterState {
   /** Date range filter configuration */
   dateRange: {
     type: "within" | "after";
-    value: Date;
+    value: Date | string;
   } | null;
   /** Folders to exclude from results */
   excludeFolders: string[];

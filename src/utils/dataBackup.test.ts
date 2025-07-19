@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type { PluginData } from "../types";
 import { DEFAULT_DATA } from "../types/plugin";
 import {
@@ -10,7 +10,7 @@ import {
 } from "./dataBackup";
 
 describe("dataBackup", () => {
-  let mockPlugin: BackupPlugin & { saveData: vi.Mock; loadData: vi.Mock };
+  let mockPlugin: BackupPlugin & { saveData: Mock; loadData: Mock };
   let validPluginData: PluginData;
   let invalidPluginData: any;
 

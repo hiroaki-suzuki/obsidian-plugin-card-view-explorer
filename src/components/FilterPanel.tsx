@@ -246,8 +246,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
           <div className="active-date-filter">
             Active:{" "}
             {filters.dateRange.type === "within"
-              ? `Within ${Math.ceil((Date.now() - filters.dateRange.value.getTime()) / (1000 * 60 * 60 * 24))} days`
-              : `After ${filters.dateRange.value.toLocaleDateString()}`}
+              ? `Within ${Math.ceil((Date.now() - (filters.dateRange.value instanceof Date ? filters.dateRange.value.getTime() : new Date(filters.dateRange.value).getTime())) / (1000 * 60 * 60 * 24))} days`
+              : `After ${(filters.dateRange.value instanceof Date ? filters.dateRange.value : new Date(filters.dateRange.value)).toLocaleDateString()}`}
             <button
               type="button"
               onClick={() => updateFilters({ dateRange: null })}
