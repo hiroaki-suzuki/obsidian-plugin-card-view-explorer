@@ -66,16 +66,6 @@ Obsidian Card Explorer is an Obsidian plugin that provides a visual card-based i
 
 ### Requirement 6
 
-**User Story:** As an Obsidian user, I want the Card Explorer to perform well with large numbers of notes, so that the interface remains responsive.
-
-#### Acceptance Criteria
-
-1. WHEN displaying large numbers of cards THEN the system SHALL implement virtual scrolling using react-virtuoso
-2. WHEN loading note metadata THEN the system SHALL use Obsidian's metadataCache for efficient access
-3. WHEN the view updates THEN the system SHALL maintain smooth scrolling performance
-
-### Requirement 7
-
 **User Story:** As an Obsidian user, I want to customize certain aspects of the Card Explorer, so that it fits my workflow preferences.
 
 #### Acceptance Criteria
