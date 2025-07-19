@@ -5,6 +5,7 @@ import { useCardExplorerStore } from "../store/cardExplorerStore";
 import { CardViewErrorBoundary } from "./CardViewErrorBoundary";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { FilterPanel } from "./FilterPanel";
+import { FullPageLoading, LoadingSpinner } from "./LoadingSpinner";
 import { VirtualList } from "./VirtualList";
 
 interface CardViewProps {
@@ -173,17 +174,7 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
    * Render global loading state
    */
   if (isLoading && notes.length === 0) {
-    return (
-      <div className="card-view-container">
-        <div className="card-view-loading">
-          <div className="loading-content">
-            <div className="loading-spinner" />
-            <h3>Loading Card Explorer</h3>
-            <p>Loading your notes...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <FullPageLoading title="Loading Card Explorer" message="Loading your notes..." />;
   }
 
   /**
@@ -217,8 +208,11 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
             {/* Loading overlay for refresh operations */}
             {isLoading && (
               <div className="card-view-loading-overlay">
-                <div className="loading-spinner" />
-                <span>Refreshing notes...</span>
+                <LoadingSpinner
+                  title=""
+                  message="Refreshing notes..."
+                  className="overlay-loading"
+                />
               </div>
             )}
 
