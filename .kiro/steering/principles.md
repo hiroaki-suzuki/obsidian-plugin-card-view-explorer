@@ -44,16 +44,20 @@ state.filters.tags.push(newTag);
 - **Lazy Loading**: Load data on demand when possible
 
 ### 4. Error Resilience
-- **Multiple Error Boundaries**: Component-level and global error handling
-- **Graceful Degradation**: Provide fallbacks for all failure modes
-- **User-Friendly Messages**: Convert technical errors to actionable messages
-- **Retry Mechanisms**: Allow users to recover from errors
+- **Categorized Error Handling**: API, DATA, UI, and GENERAL error categories with specific handling
+- **Multiple Error Boundaries**: Component-level React error boundaries and global error state
+- **Graceful Degradation**: Provide fallbacks for all failure modes with default values
+- **User-Friendly Messages**: Convert technical errors to actionable messages based on error patterns
+- **Retry Mechanisms**: Exponential backoff retry logic for transient failures
+- **Automatic Recovery**: Backup and recovery systems for data corruption scenarios
 
 ### 5. Testability
-- **Unit Tests**: Test individual functions and components
-- **Integration Tests**: Test store interactions and data flow
-- **Mock External Dependencies**: Mock Obsidian APIs for isolated testing
-- **High Coverage**: Aim for >90% test coverage on critical paths
+- **Comprehensive Unit Tests**: Test individual functions and components (all major modules have .test.ts files)
+- **Integration Tests**: Test store interactions and data flow (integration.test.ts)
+- **Component Tests**: React component testing with @testing-library/react
+- **Mock External Dependencies**: Mock Obsidian APIs for isolated testing (obsidian-mock.ts)
+- **High Coverage**: Aim for >90% test coverage on critical paths with v8 coverage provider
+- **Error Scenario Testing**: Test all error conditions and recovery mechanisms
 
 ## Code Organization Principles
 
@@ -222,10 +226,24 @@ describe('FilterPanel', () => {
 - **Dependency Audit**: Regularly review and minimize dependencies
 - **Build Optimization**: Use ESBuild optimizations
 
-## Security Guidelines
+## Data Reliability Guidelines
+
+### Data Validation
+- **Runtime Validation**: Validate all plugin data and settings at load/save operations
+- **Type Guards**: Use type guards for external data from Obsidian APIs
+- **Schema Validation**: Comprehensive validation functions for all data structures
+- **Fallback Values**: Provide safe defaults when validation fails
+
+### Data Migration & Backup
+- **Versioned Data**: All plugin data includes version information for migration
+- **Automatic Migration**: Seamless migration between plugin versions
+- **Backup System**: Automatic backup creation before data modifications
+- **Recovery Mechanisms**: Automatic recovery from backup on data corruption
+
+### Security Guidelines
 
 ### Data Handling
-- **Input Validation**: Validate all external data
+- **Input Validation**: Validate all external data with comprehensive validation functions
 - **Sanitization**: Sanitize user inputs and file content
 - **Error Information**: Don't expose sensitive information in errors
 - **File Access**: Respect Obsidian's file access patterns

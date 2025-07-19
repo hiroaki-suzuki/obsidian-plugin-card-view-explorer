@@ -18,11 +18,19 @@ obsidian-plugin-card-explorer/
 │   ├── view.tsx                    # Card explorer React view
 │   ├── components/                 # React components
 │   │   ├── CardView.tsx            # Main container component
+│   │   ├── CardView.test.tsx       # CardView component tests
+│   │   ├── CardViewErrorBoundary.tsx # Error boundary wrapper
+│   │   ├── CardViewErrorBoundary.test.tsx # Error boundary tests
+│   │   ├── ErrorFallback.tsx       # Error display component
 │   │   ├── FilterPanel.tsx         # Filter controls
+│   │   ├── FilterPanel.test.tsx    # FilterPanel component tests
 │   │   ├── NoteCard.tsx            # Individual note card
-│   │   └── VirtualList.tsx         # Virtualized list wrapper
+│   │   ├── NoteCard.test.tsx       # NoteCard component tests
+│   │   ├── VirtualList.tsx         # Virtualized list wrapper
+│   │   └── VirtualList.test.tsx    # VirtualList component tests
 │   ├── store/                      # State management (Zustand)
 │   │   ├── cardExplorerStore.ts    # Main store
+│   │   ├── cardExplorerStore.test.ts # Store tests
 │   │   ├── filters/                # Filter logic
 │   │   ├── noteProcessing/         # Note loading & metadata
 │   │   ├── selectors/              # State selectors
@@ -35,7 +43,25 @@ obsidian-plugin-card-explorer/
 │   │   ├── sort.ts                 # Sort configuration
 │   │   └── plugin.ts               # Plugin interfaces
 │   ├── utils/                      # Utility functions
-│   └── test/                       # Test utilities
+│   │   ├── dataBackup.ts           # Data backup system
+│   │   ├── dataBackup.test.ts      # Backup system tests
+│   │   ├── dataMigration.ts        # Data migration utilities
+│   │   ├── dataMigration.test.ts   # Migration tests
+│   │   ├── dataPersistence.ts      # Data loading/saving
+│   │   ├── dataPersistence.test.ts # Persistence tests
+│   │   ├── dateUtils.ts            # Date formatting utilities
+│   │   ├── dateUtils.test.ts       # Date utility tests
+│   │   ├── errorHandling.ts        # Error handling system
+│   │   ├── errorHandling.test.ts   # Error handling tests
+│   │   ├── validation.ts           # Data validation
+│   │   └── validation.test.ts      # Validation tests
+│   ├── test/                       # Test utilities
+│   │   ├── obsidian-mock.ts        # Obsidian API mocks
+│   │   └── setup.ts                # Test setup configuration
+│   ├── integration.test.ts         # Integration tests
+│   ├── main.test.ts                # Main plugin tests
+│   ├── settings.test.ts            # Settings tests
+│   └── view.test.ts                # View tests
 ├── .gitignore                      # Git ignore rules
 ├── LICENSE                         # MIT License
 ├── README.md                       # Project overview
@@ -92,7 +118,9 @@ obsidian-plugin-card-explorer/
 - **Selective Re-renders**: Minimize React component updates
 
 ## Testing Strategy
-- **Unit Tests**: Individual functions and components
-- **Integration Tests**: Store interactions and data flow
-- **Coverage Reports**: Comprehensive test coverage tracking
-- **Mock Obsidian APIs**: Test utilities for Obsidian integration
+- **Unit Tests**: Individual functions and components (all major modules have .test.ts files)
+- **Integration Tests**: Store interactions and data flow (integration.test.ts)
+- **Component Tests**: React component testing with @testing-library/react
+- **Coverage Reports**: Comprehensive test coverage tracking with v8 provider
+- **Mock Obsidian APIs**: Test utilities for Obsidian integration (obsidian-mock.ts)
+- **Test Setup**: Centralized test configuration (setup.ts) with jsdom environment

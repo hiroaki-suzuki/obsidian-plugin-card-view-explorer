@@ -125,27 +125,45 @@ const actionName = (params) => {
 Always wrap components that might fail:
 
 ```typescript
-class ComponentErrorBoundary extends React.Component {
-  constructor(props) {
+// CardViewErrorBoundary.tsx - Actual implementation
+interface CardViewErrorBoundaryProps {
+  children: React.ReactNode;
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+}
+
+interface CardViewErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class CardViewErrorBoundary extends React.Component<
+  CardViewErrorBoundaryProps,
+  CardViewErrorBoundaryState
+> {
+  constructor(props: CardViewErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error): CardViewErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error, errorInfo) {
-    console.error("Component Error:", error, errorInfo);
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("Card Explorer Error Boundary:", error, errorInfo);
     this.props.onError?.(error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
-      return <ErrorFallback error={this.state.error} onRetry={...} />;
+      return <ErrorFallback error={this.state.error} onRetry={this.handleRetry} />;
     }
     return this.props.children;
   }
+
+  private handleRetry = () => {
+    this.setState({ hasError: false, error: null });
+  };
 }
 ```
 
@@ -360,39 +378,136 @@ const useDebounced = (value, delay) => {
 
 ## Error Handling Patterns
 
-### Graceful Degradation
-Always provide fallbacks for failures:
+### Comprehensive Error Handling Pattern
+Use centralized error handling with categories and retry logic:
 
 ```typescript
-const loadData = async () => {
-  try {
-    const data = await fetchData();
-    return data;
-  } catch (error) {
-    console.error('Failed to load data:', error);
-    // Return empty/default data instead of throwing
-    return [];
+// errorHandling.ts - Actual implementation
+export enum ErrorCategory {
+  API = "api",
+  DATA = "data",
+  UI = "ui",
+  GENERAL = "general",
+}
+
+export function handleError(
+  error: unknown,
+  category: ErrorCategory = ErrorCategory.GENERAL,
+  context?: Record<string, any>
+): ErrorInfo {
+  const { message, details } = extractErrorInfo(error);
+
+  const errorInfo: ErrorInfo = {
+    message: getUserFriendlyMessage(message, category),
+    details,
+    category,
+    timestamp: Date.now(),
+    context,
+  };
+
+  // Console logging and user notifications based on category
+  console.error(`Card Explorer Error:`, errorInfo);
+
+  if (category !== ErrorCategory.UI) {
+    new Notice(`Card Explorer: ${errorInfo.message}`, 5000);
   }
-};
-```
 
-### User-Friendly Error Messages
-Convert technical errors to user-friendly messages:
+  return errorInfo;
+}
 
-```typescript
-const handleError = (error: unknown) => {
-  let message = 'An unexpected error occurred';
+// Retry with exponential backoff
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: RetryOptions = {}
+): Promise<T> {
+  const config = { ...DEFAULT_RETRY_OPTIONS, ...options };
+  let lastError: unknown;
 
-  if (error instanceof Error) {
-    if (error.message.includes('network')) {
-      message = 'Network connection failed. Please check your connection.';
-    } else if (error.message.includes('permission')) {
-      message = 'Permission denied. Please check file permissions.';
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === config.maxRetries || !isRetryable(extractErrorInfo(error).message)) {
+        break;
+      }
+
+      const delay = Math.min(config.baseDelay * 2 ** attempt, config.maxDelay);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
-  setError(message);
-};
+  throw lastError;
+}
+```
+
+### Data Persistence Pattern
+Handle data loading/saving with validation, migration, and backup:
+
+```typescript
+// dataPersistence.ts - Actual implementation
+export async function loadPluginData(
+  plugin: PluginReadOnlyOperations
+): Promise<{ data: PluginData; migration: MigrationResult }> {
+  try {
+    const rawData = await plugin.loadData();
+
+    if (!rawData || Object.keys(rawData).length === 0) {
+      return {
+        data: DEFAULT_DATA,
+        migration: { migrated: false, toVersion: CURRENT_DATA_VERSION },
+      };
+    }
+
+    // Perform migration if needed
+    const { data: migratedData, migration } = await migratePluginData(rawData);
+
+    // Validate migrated data
+    if (!validatePluginData(migratedData)) {
+      return { data: DEFAULT_DATA, migration: { ...migration, warnings: ["Validation failed"] } };
+    }
+
+    return { data: migratedData, migration };
+  } catch (error) {
+    // Try to recover from backup
+    try {
+      const recoveredData = await attemptDataRecovery(plugin);
+      if (recoveredData) {
+        return { data: recoveredData, migration: { migrated: true, warnings: ["Recovered from backup"] } };
+      }
+    } catch (recoveryError) {
+      console.warn("Recovery failed:", recoveryError);
+    }
+
+    return { data: DEFAULT_DATA, migration: { migrated: false, warnings: ["Fallback to defaults"] } };
+  }
+}
+
+export async function savePluginData(
+  plugin: PluginDataOperations,
+  data: PluginData
+): Promise<boolean> {
+  try {
+    if (!validatePluginData(data)) {
+      return false;
+    }
+
+    // Create backup before saving
+    await createDataBackup(plugin);
+
+    const versionedData: VersionedPluginData = {
+      ...data,
+      version: CURRENT_DATA_VERSION,
+    };
+
+    await plugin.saveData(versionedData);
+    return true;
+  } catch (error) {
+    await handleDataError(error, "savePluginData");
+    return false;
+  }
+}
 ```
 
 These patterns ensure consistency, maintainability, and reliability across the entire codebase.
