@@ -2,6 +2,10 @@ import { setIcon } from "obsidian";
 import type React from "react";
 import { useEffect, useRef } from "react";
 
+/**
+ * Props for the ErrorDisplay component.
+ * Defines the interface for error presentation and user interaction options.
+ */
 interface ErrorDisplayProps {
   /** Error message to display */
   error: string;
@@ -35,7 +39,8 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
 }) => {
   const iconRef = useRef<HTMLDivElement>(null);
 
-  // Set the Obsidian icon using setIcon utility
+  // Use Obsidian's native icon system for consistent visual design
+  // setIcon provides proper theming support and accessibility
   useEffect(() => {
     if (iconRef.current) {
       setIcon(iconRef.current, "alert-triangle");
