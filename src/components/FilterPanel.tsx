@@ -95,7 +95,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
    */
   const toggleFolder = useCallback(
     (folder: string) => {
-      const newFolders = filters.folders.includes(folder)
+      const isSelected = filters.folders.includes(folder);
+      const newFolders = isSelected
         ? filters.folders.filter((f) => f !== folder)
         : [...filters.folders, folder];
       handleFolderChange(newFolders);
@@ -108,9 +109,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
    */
   const toggleTag = useCallback(
     (tag: string) => {
-      const newTags = filters.tags.includes(tag)
-        ? filters.tags.filter((t) => t !== tag)
-        : [...filters.tags, tag];
+      const isSelected = filters.tags.includes(tag);
+      const newTags = isSelected ? filters.tags.filter((t) => t !== tag) : [...filters.tags, tag];
       handleTagChange(newTags);
     },
     [filters.tags, handleTagChange]
