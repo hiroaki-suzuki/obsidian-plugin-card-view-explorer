@@ -11,12 +11,15 @@
 - **State Management**: Zustand 4.4.7 with subscribeWithSelector middleware
 - **Virtual Scrolling**: react-virtuoso 4.6.2 (for performance with large note lists)
 - **Styling**: CSS (fixed design, no customization)
+- **Utility Library**: es-toolkit 1.39.7 (for debouncing and utilities)
 
 ## Data & Storage
 - **Note Metadata**: Obsidian's metadataCache API
 - **Plugin Settings**: Obsidian's plugin settings system (settings tab)
 - **Plugin Data**: data.json file (for pin states and user preferences)
 - **Configuration**: Persistent settings with defaults
+- **Data Migration**: Versioned data with automatic migration system
+- **Backup System**: Automatic backup creation before data saves
 
 ## Build System
 - **Package Manager**: Bun (lockfile: bun.lock)
@@ -107,10 +110,12 @@ bun run test:coverage:ui
 - **Virtual Scrolling**: react-virtuoso for large datasets
 
 ### Component Structure
-- **CardView**: Main container component
+- **CardView**: Main container component with error boundaries
+- **CardViewErrorBoundary**: React error boundary wrapper
+- **ErrorFallback**: Error display component with retry functionality
 - **FilterPanel**: Filter controls and UI
-- **VirtualList**: Virtualized note list
-- **NoteCard**: Individual note display
+- **VirtualList**: Virtualized note list wrapper
+- **NoteCard**: Individual note display with pin functionality
 
 ## Type System
 
@@ -124,6 +129,21 @@ bun run test:coverage:ui
 - **Type Guards**: Runtime validation for external data
 - **Generic Utilities**: Reusable type-safe functions
 
+## Error Handling & Reliability
+
+### Error Management
+- **Comprehensive Error Handling**: Centralized error handling with categories (API, DATA, UI, GENERAL)
+- **Retry Mechanisms**: Exponential backoff for transient failures
+- **User-Friendly Messages**: Technical errors converted to actionable user guidance
+- **Error Boundaries**: React error boundaries for component isolation
+- **Graceful Degradation**: Fallback values and recovery mechanisms
+
+### Data Reliability
+- **Data Validation**: Runtime validation for all plugin data and settings
+- **Automatic Backups**: Backup creation before data modifications
+- **Data Migration**: Versioned data with automatic migration between versions
+- **Recovery System**: Automatic recovery from backup on data corruption
+
 ## Performance Optimizations
 
 ### Virtual Scrolling
@@ -132,13 +152,15 @@ bun run test:coverage:ui
 - **Smooth Scrolling**: Optimized scroll performance
 
 ### React Optimizations
-- **Memoization**: Expensive computations cached
-- **Selective Re-renders**: Minimized component updates
-- **Efficient State Updates**: Batched state changes
+- **Memoization**: Expensive computations cached with useMemo/useCallback
+- **Selective Re-renders**: Minimized component updates through proper dependency arrays
+- **Efficient State Updates**: Batched state changes with automatic recomputation
+- **Debounced Operations**: File system events and auto-save operations debounced
 
 ### Data Processing
 - **Immutable Operations**: Functional data transformations
 - **Cached Computations**: Memoized filter and sort results
-- **Lazy Loading**: Notes loaded on demand
+- **Automatic Recomputation**: Derived state updates automatically when dependencies change
+- **Optimized Filtering**: Multi-stage filtering pipeline with early exits
 
-This technology stack provides a modern, performant, and maintainable foundation for the Card Explorer plugin.
+This technology stack provides a modern, performant, and maintainable foundation for the Card Explorer plugin with comprehensive error handling and data reliability.

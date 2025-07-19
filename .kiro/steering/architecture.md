@@ -95,18 +95,28 @@ DOM Update
 ## Module Organization
 
 ### Store Modules
-- **cardExplorerStore.ts**: Main store with state and actions
-- **filters/**: Filter logic and utilities
-- **noteProcessing/**: Note loading and metadata extraction
-- **selectors/**: Computed state selectors
-- **sorting/**: Sort logic and pin management
-- **utils/**: Shared constants and utilities
+- **cardExplorerStore.ts**: Main store with state and actions, automatic recomputation
+- **filters/**: Filter logic and utilities for multi-criteria filtering
+- **noteProcessing/**: Note loading and metadata extraction from Obsidian APIs
+- **selectors/**: Computed state selectors for derived data
+- **sorting/**: Sort logic and pin management with configurable sort keys
+- **utils/**: Shared constants and utilities for store operations
+
+### Utility Modules
+- **errorHandling.ts**: Comprehensive error handling with categories and retry logic
+- **dataPersistence.ts**: Data loading/saving with validation and migration
+- **dataBackup.ts**: Automatic backup system for data reliability
+- **dataMigration.ts**: Versioned data migration between plugin versions
+- **dateUtils.ts**: Date formatting and relative date calculations
+- **validation.ts**: Runtime data validation for plugin data and settings
 
 ### Component Modules
-- **CardView.tsx**: Main container with error boundaries
-- **FilterPanel.tsx**: Filter controls and UI
-- **VirtualList.tsx**: Virtualized note list
-- **NoteCard.tsx**: Individual note display
+- **CardView.tsx**: Main container with error boundaries and state orchestration
+- **CardViewErrorBoundary.tsx**: React error boundary for component isolation
+- **ErrorFallback.tsx**: Error display component with retry functionality
+- **FilterPanel.tsx**: Comprehensive filter controls and UI
+- **VirtualList.tsx**: Virtualized note list with performance optimization
+- **NoteCard.tsx**: Individual note display with pin functionality and click handling
 
 ### Type System
 - **Comprehensive TypeScript**: All data structures typed
@@ -137,14 +147,23 @@ DOM Update
 - Optimized React rendering patterns
 
 ### 5. Error Resilience
-- Multiple layers of error handling
-- Graceful degradation on failures
+- Multiple layers of error handling with categorized error types
+- Graceful degradation on failures with fallback values
 - User-friendly error messages with retry options
+- Automatic backup and recovery systems
+- React error boundaries for component isolation
 
 ### 6. Type Safety
-- Comprehensive TypeScript coverage
-- Runtime type validation where needed
-- Clear interfaces between modules
+- Comprehensive TypeScript coverage with strict mode enabled
+- Runtime type validation for external data sources
+- Clear interfaces between modules with proper type exports
+- Type guards for Obsidian API data validation
+
+### 7. Data Reliability
+- Versioned data with automatic migration between versions
+- Automatic backup creation before data modifications
+- Data validation at load and save operations
+- Recovery mechanisms for corrupted data
 
 ## Integration Patterns
 
@@ -171,9 +190,12 @@ DOM Update
 - **Mock Strategy**: Obsidian API mocking for isolated testing
 
 ### Coverage Strategy
-- **Comprehensive Coverage**: All critical paths tested
-- **Edge Cases**: Error conditions and boundary cases
+- **Comprehensive Coverage**: All critical paths tested with v8 coverage provider
+- **Edge Cases**: Error conditions and boundary cases thoroughly tested
 - **Performance Tests**: Virtual scrolling and large datasets
+- **Component Testing**: React components tested with @testing-library/react
+- **Integration Testing**: Full data flow and store interaction testing
+- **Error Handling Tests**: All error scenarios and recovery mechanisms tested
 
 ## Extensibility Patterns
 
