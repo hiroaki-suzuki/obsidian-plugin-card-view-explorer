@@ -13,6 +13,7 @@ import { MTIME_SORT_KEY } from "../utils";
  *
  * Supports sorting by frontmatter fields with automatic fallback to
  * file modification time if the field doesn't exist or is null.
+ * Automatically parses date strings from frontmatter into Date objects.
  *
  * @param {NoteData} note - The note to extract sort value from
  * @param {string} sortKey - The field to sort by ("mtime" for modification time)
@@ -26,7 +27,22 @@ export const extractSortValue = (note: NoteData, sortKey: string): any => {
 
   // Try to get value from frontmatter, fallback to modification time
   const frontmatterValue = note.frontmatter?.[sortKey];
-  return frontmatterValue ?? note.lastModified; // Nullish coalescing for fallback
+
+  if (frontmatterValue !== null && frontmatterValue !== undefined) {
+    // If it's a string that looks like a date, try to parse it
+    if (typeof frontmatterValue === "string") {
+      const parsedDate = new Date(frontmatterValue);
+      // Check if it's a valid date
+      if (!Number.isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
+    }
+    // Return the original value if it's not a parseable date string
+    return frontmatterValue;
+  }
+
+  // Fallback to file modification time
+  return note.lastModified;
 };
 
 /**

@@ -63,6 +63,55 @@ describe("Sort Logic", () => {
       const noteWithoutFrontmatter = createMockNote("Test", "/test.md", "", [], null, baseDate);
       expect(extractSortValue(noteWithoutFrontmatter, "priority")).toBe(baseDate);
     });
+
+    it("should parse date strings from frontmatter", () => {
+      const noteWithDateString = createMockNote(
+        "Test",
+        "/test.md",
+        "",
+        [],
+        { updated: "2024-01-15" },
+        baseDate
+      );
+      const result = extractSortValue(noteWithDateString, "updated");
+
+      expect(result).toBeInstanceOf(Date);
+      expect((result as Date).getFullYear()).toBe(2024);
+      expect((result as Date).getMonth()).toBe(0); // January is 0
+      expect((result as Date).getDate()).toBe(15);
+    });
+
+    it("should handle invalid date strings in frontmatter", () => {
+      const noteWithInvalidDate = createMockNote(
+        "Test",
+        "/test.md",
+        "",
+        [],
+        { updated: "not-a-date" },
+        baseDate
+      );
+      const result = extractSortValue(noteWithInvalidDate, "updated");
+
+      // Should return the original string value, not a Date
+      expect(result).toBe("not-a-date");
+      expect(result).not.toBeInstanceOf(Date);
+    });
+
+    it("should handle Date objects in frontmatter", () => {
+      const frontmatterDate = new Date("2024-01-15");
+      const noteWithDateObject = createMockNote(
+        "Test",
+        "/test.md",
+        "",
+        [],
+        { updated: frontmatterDate },
+        baseDate
+      );
+      const result = extractSortValue(noteWithDateObject, "updated");
+
+      expect(result).toBe(frontmatterDate);
+      expect(result).toBeInstanceOf(Date);
+    });
   });
 
   describe("normalizeForComparison", () => {
@@ -319,6 +368,66 @@ describe("Sort Logic", () => {
       // Add again
       pinnedNotes = togglePinState(pinnedNotes, "/note1.md");
       expect(pinnedNotes.has("/note1.md")).toBe(true);
+    });
+  });
+
+  describe("Integration: Frontmatter Date Sorting", () => {
+    it("should sort notes by frontmatter date strings correctly", () => {
+      const note1 = createMockNote(
+        "Note 1",
+        "/note1.md",
+        "",
+        [],
+        { updated: "2024-01-15" }, // Newer date string
+        new Date("2024-01-01") // Older file modification time
+      );
+      const note2 = createMockNote(
+        "Note 2",
+        "/note2.md",
+        "",
+        [],
+        { updated: "2024-01-10" }, // Older date string
+        new Date("2024-01-02") // Newer file modification time
+      );
+      const note3 = createMockNote(
+        "Note 3",
+        "/note3.md",
+        "",
+        [],
+        null, // No frontmatter, should use lastModified
+        new Date("2024-01-05")
+      );
+
+      const notes = [note2, note1, note3]; // Intentionally out of order
+      const sortConfig: SortConfig = { key: "updated", order: "desc" };
+      const result = sortNotes(notes, sortConfig, new Set());
+
+      // Should be sorted by frontmatter 'updated' field descending (newest first)
+      // Note 1: 2024-01-15 (from frontmatter)
+      // Note 2: 2024-01-10 (from frontmatter)
+      // Note 3: 2024-01-05 (from lastModified, no frontmatter)
+      expect(result[0].path).toBe("/note1.md");
+      expect(result[1].path).toBe("/note2.md");
+      expect(result[2].path).toBe("/note3.md");
+    });
+
+    it("should handle mixed frontmatter date formats", () => {
+      const note1 = createMockNote("Note 1", "/note1.md", "", [], {
+        updated: "2024-01-15T10:30:00Z",
+      }); // ISO string
+      const note2 = createMockNote("Note 2", "/note2.md", "", [], { updated: "2024-01-10" }); // Date only
+      const note3 = createMockNote("Note 3", "/note3.md", "", [], {
+        updated: new Date("2024-01-20"),
+      }); // Date object
+
+      const notes = [note1, note2, note3];
+      const sortConfig: SortConfig = { key: "updated", order: "desc" };
+      const result = sortNotes(notes, sortConfig, new Set());
+
+      // Should be sorted correctly regardless of date format
+      expect(result[0].path).toBe("/note3.md"); // 2024-01-20
+      expect(result[1].path).toBe("/note1.md"); // 2024-01-15
+      expect(result[2].path).toBe("/note2.md"); // 2024-01-10
     });
   });
 });

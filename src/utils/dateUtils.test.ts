@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { formatRelativeDate } from "./dateUtils";
+import { formatRelativeDate, getDisplayDate } from "./dateUtils";
 
 describe("dateUtils", () => {
   let mockNow: Date;
@@ -94,6 +94,85 @@ describe("dateUtils", () => {
       const result = formatRelativeDate(date);
       // This is exactly 24 hours ago, so should show day of week, not month/day
       expect(result).toBe("Sun");
+    });
+  });
+
+  describe("getDisplayDate", () => {
+    const baseDate = new Date("2024-01-01T12:00:00.000Z");
+
+    it("should return frontmatter updated date when available as string", () => {
+      const note = {
+        lastModified: baseDate,
+        frontmatter: { updated: "2024-01-15" },
+      };
+
+      const result = getDisplayDate(note);
+      expect(result).toBeInstanceOf(Date);
+      expect(result.getFullYear()).toBe(2024);
+      expect(result.getMonth()).toBe(0); // January is 0
+      expect(result.getDate()).toBe(15);
+    });
+
+    it("should return frontmatter updated date when available as Date object", () => {
+      const frontmatterDate = new Date("2024-01-15T10:30:00.000Z");
+      const note = {
+        lastModified: baseDate,
+        frontmatter: { updated: frontmatterDate },
+      };
+
+      const result = getDisplayDate(note);
+      expect(result).toBe(frontmatterDate);
+    });
+
+    it("should fallback to lastModified when frontmatter updated is invalid", () => {
+      const note = {
+        lastModified: baseDate,
+        frontmatter: { updated: "not-a-date" },
+      };
+
+      const result = getDisplayDate(note);
+      expect(result).toBe(baseDate);
+    });
+
+    it("should fallback to lastModified when frontmatter updated is null", () => {
+      const note = {
+        lastModified: baseDate,
+        frontmatter: { updated: null },
+      };
+
+      const result = getDisplayDate(note);
+      expect(result).toBe(baseDate);
+    });
+
+    it("should fallback to lastModified when no frontmatter", () => {
+      const note = {
+        lastModified: baseDate,
+        frontmatter: null,
+      };
+
+      const result = getDisplayDate(note);
+      expect(result).toBe(baseDate);
+    });
+
+    it("should fallback to lastModified when frontmatter exists but no updated field", () => {
+      const note = {
+        lastModified: baseDate,
+        frontmatter: { title: "Test Note", tags: ["test"] },
+      };
+
+      const result = getDisplayDate(note);
+      expect(result).toBe(baseDate);
+    });
+
+    it("should handle ISO date strings in frontmatter", () => {
+      const note = {
+        lastModified: baseDate,
+        frontmatter: { updated: "2024-01-15T10:30:00.000Z" },
+      };
+
+      const result = getDisplayDate(note);
+      expect(result).toBeInstanceOf(Date);
+      expect(result.getTime()).toBe(new Date("2024-01-15T10:30:00.000Z").getTime());
     });
   });
 });

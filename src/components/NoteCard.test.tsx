@@ -87,10 +87,11 @@ describe("NoteCard", () => {
   });
 
   it("should format dates correctly", () => {
-    // Test with a recent date (today)
+    // Test with a recent date (today) and no frontmatter updated field
     const recentNote = {
       ...mockNote,
       lastModified: new Date(),
+      frontmatter: null, // No frontmatter, should use lastModified
     };
 
     render(<NoteCard note={recentNote} plugin={mockPlugin} />);
@@ -185,6 +186,7 @@ describe("NoteCard", () => {
     const thisWeekNote = {
       ...mockNote,
       lastModified: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+      frontmatter: null, // No frontmatter, should use lastModified
     };
 
     render(<NoteCard note={thisWeekNote} plugin={mockPlugin} />);
@@ -234,9 +236,11 @@ describe("NoteCard", () => {
   });
 
   it("should show full date in tooltip", () => {
+    // Since mockNote has frontmatter.updated, it will use that instead of lastModified
+    const expectedDate = new Date("2024-01-15"); // From frontmatter.updated
     render(<NoteCard note={mockNote} plugin={mockPlugin} />);
 
-    const dateElement = screen.getByTitle(mockNote.lastModified.toLocaleString());
+    const dateElement = screen.getByTitle(expectedDate.toLocaleString());
     expect(dateElement).toBeInTheDocument();
   });
 
@@ -386,11 +390,40 @@ describe("NoteCard", () => {
     const noteWithInvalidDate = {
       ...mockNote,
       lastModified: new Date("invalid-date"),
+      frontmatter: null, // No frontmatter, should use lastModified
     };
 
     render(<NoteCard note={noteWithInvalidDate} plugin={mockPlugin} />);
 
     // Should fallback to "Invalid date" text
     expect(screen.getByText("Invalid date")).toBeInTheDocument();
+  });
+
+  it("should use frontmatter updated date when available", () => {
+    // mockNote already has frontmatter.updated = "2024-01-15"
+    render(<NoteCard note={mockNote} plugin={mockPlugin} />);
+
+    // Should show formatted date from frontmatter, not lastModified
+    expect(screen.getByText("Jan 15")).toBeInTheDocument();
+
+    // Tooltip should show the frontmatter date
+    const expectedDate = new Date("2024-01-15");
+    const dateElement = screen.getByTitle(expectedDate.toLocaleString());
+    expect(dateElement).toBeInTheDocument();
+  });
+
+  it("should fallback to lastModified when frontmatter updated is invalid", () => {
+    const noteWithInvalidFrontmatterDate = {
+      ...mockNote,
+      lastModified: new Date("2024-01-20T10:30:00Z"),
+      frontmatter: { updated: "invalid-date-string" },
+    };
+
+    render(<NoteCard note={noteWithInvalidFrontmatterDate} plugin={mockPlugin} />);
+
+    // Should use lastModified date since frontmatter date is invalid
+    const expectedDate = noteWithInvalidFrontmatterDate.lastModified;
+    const dateElement = screen.getByTitle(expectedDate.toLocaleString());
+    expect(dateElement).toBeInTheDocument();
   });
 });
