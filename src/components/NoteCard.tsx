@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
-import { formatRelativeDate } from "../utils/dateUtils";
+import { formatRelativeDate, getDisplayDate } from "../utils/dateUtils";
 import { ErrorCategory, handleError, safeSync } from "../utils/errorHandling";
 
 interface NoteCardProps {
@@ -61,7 +61,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   );
 
   /**
-   * Format the last modified date for display with error handling
+   * Get the display date for this note (frontmatter 'updated' field or file modification time)
+   */
+  const displayDate = getDisplayDate(note);
+
+  /**
+   * Format the display date for display with error handling
    */
   const formatDate = useCallback(
     (date: Date): string => {
@@ -150,8 +155,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
             {note.folder}
           </span>
         )}
-        <span className="note-card-date" title={note.lastModified.toLocaleString()}>
-          {formatDate(note.lastModified)}
+        <span className="note-card-date" title={displayDate.toLocaleString()}>
+          {formatDate(displayDate)}
         </span>
       </div>
     </div>
