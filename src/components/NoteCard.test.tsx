@@ -191,9 +191,9 @@ describe("NoteCard", () => {
 
     render(<NoteCard note={thisWeekNote} plugin={mockPlugin} />);
 
-    // Should show day of week for this week
-    const dayRegex = /(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/;
-    expect(screen.getByText(dayRegex)).toBeInTheDocument();
+    // Should show full date with year (no longer showing day of week)
+    const dateRegex = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\/\d{1,2}\/\d{1,2}/;
+    expect(screen.getByText(dateRegex)).toBeInTheDocument();
   });
 
   it("should format date for older notes", () => {
@@ -204,8 +204,8 @@ describe("NoteCard", () => {
 
     render(<NoteCard note={oldNote} plugin={mockPlugin} />);
 
-    // Should show month and day for older notes
-    const dateRegex = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2}/;
+    // Should show full date with year (no longer showing month/day only)
+    const dateRegex = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\/\d{1,2}\/\d{1,2}/;
     expect(screen.getByText(dateRegex)).toBeInTheDocument();
   });
 
@@ -403,8 +403,9 @@ describe("NoteCard", () => {
     // mockNote already has frontmatter.updated = "2024-01-15"
     render(<NoteCard note={mockNote} plugin={mockPlugin} />);
 
-    // Should show formatted date from frontmatter, not lastModified
-    expect(screen.getByText("Jan 15")).toBeInTheDocument();
+    // Should show formatted date with year from frontmatter, not lastModified
+    const dateRegex = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\/\d{1,2}\/\d{1,2}/;
+    expect(screen.getByText(dateRegex)).toBeInTheDocument();
 
     // Tooltip should show the frontmatter date
     const expectedDate = new Date("2024-01-15");
