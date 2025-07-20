@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
@@ -31,6 +31,63 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
   const { error: componentError, resetError, captureError } = useErrorFallback();
   const [retryCount, setRetryCount] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  /**
+   * Calculate dynamic row size based on actual container width.
+   * Uses the actual available space instead of viewport width.
+   */
+  const getRowSize = useCallback((width: number) => {
+    if (width === 0) return 1;
+
+    // Card minimum width: 280px + 12px gap = 292px per card
+    const cardMinWidth = 292;
+    const maxCards = Math.floor(width / cardMinWidth);
+
+    // Ensure at least 1 card, maximum 5 cards per row
+    return Math.max(1, Math.min(maxCards, 5));
+  }, []);
+
+  const [rowSize, setRowSize] = useState(() => getRowSize(containerWidth));
+
+  /**
+   * Handle container resize using ResizeObserver for accurate measurements
+   */
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const newWidth = entry.contentRect.width;
+        setContainerWidth(newWidth);
+        setRowSize(getRowSize(newWidth));
+      }
+    });
+
+    resizeObserver.observe(container);
+
+    // Initial measurement
+    const initialWidth = container.getBoundingClientRect().width;
+    setContainerWidth(initialWidth);
+    setRowSize(getRowSize(initialWidth));
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [getRowSize]);
+
+  /**
+   * Group notes into rows based on dynamic row size
+   */
+  const noteRows = useMemo(() => {
+    const rows: Array<Array<(typeof filteredNotes)[0]>> = [];
+    for (let i = 0; i < filteredNotes.length; i += rowSize) {
+      rows.push(filteredNotes.slice(i, i + rowSize));
+    }
+    return rows;
+  }, [filteredNotes, rowSize]);
 
   /**
    * Enhanced retry mechanism with exponential backoff to prevent overwhelming failed services.
@@ -83,21 +140,33 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
   }, [filteredNotes.length, error, componentError]);
 
   /**
-   * Renders individual note card for Virtuoso's item content callback.
-   * Memoized to prevent unnecessary re-renders during virtual scrolling.
+   * Renders a row of note cards with dynamic sizing.
+   * Each row contains the appropriate number of cards for the current viewport.
    */
-  const renderNoteCard = React.useCallback(
+  const renderNoteRow = React.useCallback(
     (index: number) => {
-      const note = filteredNotes[index];
-      if (!note) return null;
+      const row = noteRows[index];
+      if (!row) return null;
 
       return (
-        <div className="virtual-list-item" key={note.file.path}>
-          <NoteCard note={note} plugin={plugin} />
+        <div className="virtual-grid-row">
+          {row.map((note) => (
+            <div key={note.path} className="virtual-grid-item">
+              <NoteCard note={note} plugin={plugin} />
+            </div>
+          ))}
+          {/* Fill empty slots only if needed to maintain layout */}
+          {row.length < rowSize &&
+            Array.from({ length: rowSize - row.length }).map((_, emptyIndex) => (
+              <div
+                key={`empty-row-${index}-slot-${row.length + emptyIndex}`}
+                className="virtual-grid-item-empty"
+              />
+            ))}
         </div>
       );
     },
-    [filteredNotes, plugin]
+    [noteRows, plugin, rowSize]
   );
 
   /**
@@ -185,32 +254,31 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
   }
 
   /**
-   * Render virtualized list of note cards
+   * Render virtualized grid of note cards as rows
    */
   return (
-    <div className="virtual-list-container">
+    <div className="virtual-list-container" ref={containerRef}>
       <Virtuoso
-        totalCount={filteredNotes.length}
-        itemContent={renderNoteCard}
-        className="virtual-list"
+        totalCount={noteRows.length}
+        itemContent={renderNoteRow}
+        className="virtual-grid"
         style={{ height: "100%" }}
         components={{
-          // Custom styling wrappers for consistent visual hierarchy
           List: React.forwardRef<HTMLDivElement>((props, ref) => (
-            <div ref={ref} {...props} className="virtual-list-content" />
+            <div ref={ref} {...props} className="virtual-grid-list" />
           )),
           Item: ({ children, ...props }) => (
-            <div {...props} className="virtual-list-item-wrapper">
+            <div {...props} className="virtual-grid-row-wrapper">
               {children}
             </div>
           ),
         }}
-        // Performance optimizations for smooth scrolling with large datasets
-        overscan={5} // Pre-render 5 items outside viewport to reduce flickering
-        increaseViewportBy={200} // Larger render window for smoother scrolling
-        // Dynamic height estimation - critical for variable card content
-        defaultItemHeight={120} // Conservative estimate based on typical card height
-        // Smooth scroll behavior when new items are dynamically added
+        // Performance optimizations
+        overscan={5}
+        increaseViewportBy={200}
+        // Fixed row height for consistent virtualization
+        // 180px (card) + 12px (margin) = 192px
+        defaultItemHeight={192} // Row height including margins
         followOutput="smooth"
       />
 
