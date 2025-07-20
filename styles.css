@@ -5,25 +5,29 @@
  * Fully compatible with Obsidian themes through CSS custom properties.
  * 
  * Table of Contents:
- * 1. CSS Variables
- * 2. Base Button Styles
- * 3. CardView Container
- * 4. Common UI States (Loading & Error)
- * 5. Filter Panel
- * 6. Virtual List
- * 7. Note Card
- * 8. Scrollbar Styling
- * 9. Responsive Design & Media Queries
+ * 1. Global Foundations & Reset
+ * 2. Base Component System (Buttons)
+ * 3. Layout Containers (CardView Structure)
+ * 4. UI State Components (Loading & Error States)
+ * 5. Feature Components (Filter Panel)
+ * 6. Content Components (Virtual List & Note Cards)
+ * 7. Browser-Specific Styling (Scrollbars)
+ * 8. Responsive Design & Accessibility
  */
 
 /* ==========================================================================
-   Using Obsidian's Built-in CSS Variables
+   1. Global Foundations & Reset
    ========================================================================== */
+   
+/* This plugin leverages Obsidian's built-in CSS custom properties exclusively
+   for seamless theme integration and consistent design language */
 
 /* ==========================================================================
-   Base Button Styles
+   2. Base Component System (Buttons)
    ========================================================================== */
 
+/* Comprehensive button system with variants and states
+   Designed for future UI consistency across the plugin */
 .card-explorer-btn {
   border: var(--border-width) solid var(--background-modifier-border);
   border-radius: var(--radius-s);
@@ -75,8 +79,11 @@
 }
 
 /* ==========================================================================
-   CardView Container Styles
+   3. Layout Containers (CardView Structure)
    ========================================================================== */
+
+/* Main application layout using CSS Flexbox for responsive structure
+   Implements the classic sidebar + main content pattern */
 
 .card-explorer-container {
   height: 100%;
@@ -133,13 +140,13 @@
 }
 
 .card-view-sidebar {
-  width: 280px;
-  min-width: 280px;
-  max-width: 320px;
+  width: 280px;           /* Fixed width for consistent layout */
+  min-width: 280px;       /* Prevent collapse on small screens */
+  max-width: 320px;       /* Maximum expansion limit */
   background: var(--background-secondary);
   border-right: var(--border-width) solid var(--background-modifier-border);
-  overflow-y: auto;
-  flex-shrink: 0;
+  overflow-y: auto;       /* Scrollable content when needed */
+  flex-shrink: 0;         /* Never shrink in flex layout */
 }
 
 .card-view-main {
@@ -186,8 +193,11 @@
 }
 
 /* ==========================================================================
-   Common UI States (Loading & Error)
+   4. UI State Components (Loading & Error States)
    ========================================================================== */
+
+/* Centralized loading and error UI components for consistent user experience
+   Includes spinner animations, overlays, and comprehensive error handling */
 
 /* Base loading container */
 .card-view-loading,
@@ -220,7 +230,7 @@
   }
 }
 
-/* Loading overlay */
+/* Loading overlay for non-blocking refresh operations */
 .card-view-loading-overlay {
   position: absolute;
   top: 0;
@@ -232,8 +242,8 @@
   justify-content: center;
   align-items: center;
   gap: var(--size-4-3);
-  z-index: var(--layer-popover);
-  backdrop-filter: blur(2px);
+  z-index: var(--layer-popover);     /* Above content but below modals */
+  backdrop-filter: blur(2px);        /* Subtle blur effect for focus */
 
   span {
     font-size: var(--font-ui-small);
@@ -359,8 +369,11 @@
 }
 
 /* ==========================================================================
-   Filter Panel Styles
+   5. Feature Components (Filter Panel)
    ========================================================================== */
+
+/* Comprehensive filtering interface with multi-select, date ranges, and search
+   Designed for complex note filtering workflows */
 
 .filter-panel {
   padding: var(--size-4-4);
@@ -445,8 +458,8 @@
     margin-top: var(--size-2-2);
 
     .multi-select-options {
-      max-height: 150px;
-      overflow-y: auto;
+      max-height: 150px;        /* Limit height to prevent overflow */
+      overflow-y: auto;         /* Scrollable when many options */
       border: var(--border-width) solid var(--background-modifier-border);
       border-radius: var(--radius-s);
       background: var(--background-primary);
@@ -607,8 +620,11 @@
 }
 
 /* ==========================================================================
-   Virtual List Styles
+   6. Content Components (Virtual List & Note Cards)
    ========================================================================== */
+
+/* High-performance virtual scrolling and note card display system
+   Supports responsive grid layouts with 1-5 cards per row */
 
 .virtual-list-container {
   height: 100%;
@@ -633,27 +649,26 @@
           gap: var(--size-2-3);
           width: 100%;
           box-sizing: border-box;
-          flex-wrap: nowrap; /* Prevent wrapping - row size is precisely calculated in JS */
+          flex-wrap: nowrap;          /* Prevent wrapping - row size is precisely calculated in JS */
         }
       }
     }
   }
 }
 
+/* Modern responsive grid items with JavaScript-controlled layout */
 .virtual-grid-item {
-  /* Flexible card sizing - JS controls row count, CSS handles individual card flex */
-  flex: 1 1 0; /* Equal flex distribution, no basis conflicts */
-  height: 160px;
+  flex: 1 1 0;              /* Equal flex distribution, no basis conflicts */
+  height: 160px;            /* Fixed height for consistent grid layout */
   box-sizing: border-box;
-  /* Allow shrinking below content size for responsive behavior */
-  min-width: 0;
+  min-width: 0;             /* Allow shrinking below content size for responsive behavior */
 }
 
 .virtual-grid-item-empty {
-  flex: 1 1 0; /* Layout spacer - matches .virtual-grid-item */
-  height: 160px; /* Required for consistent row height */
-  visibility: hidden; /* Keep layout but don't show content */
-  min-width: 0; /* Allow shrinking */
+  flex: 1 1 0;              /* Layout spacer - matches .virtual-grid-item */
+  height: 160px;            /* Required for consistent row height */
+  visibility: hidden;       /* Keep layout but don't show content */
+  min-width: 0;             /* Allow shrinking */
 }
 
 /* Legacy virtual list styles for backward compatibility */
@@ -743,9 +758,7 @@
   }
 }
 
-/* ==========================================================================
-   Note Card Styles
-   ========================================================================== */
+/* Individual Note Card Components */
 
 .note-card {
   display: flex;
@@ -757,10 +770,10 @@
   transition: all 0.2s ease;
   position: relative;
   min-height: 120px;
-  height: 160px; /* Fixed height for grid layout consistency */
+  height: 160px;            /* Fixed height for grid layout consistency */
   width: 100%;
   box-sizing: border-box;
-  overflow: hidden; /* Prevent content overflow in fixed dimensions */
+  overflow: hidden;         /* Prevent content overflow in fixed dimensions */
 
   &:hover {
     background: var(--background-modifier-hover);
@@ -813,11 +826,11 @@
         position: relative;
 
         &::before {
-          content: "★";
+          content: "★";                     /* Star icon using Unicode */
           transform: translate(-50%, -50%);
           font-size: 14px;
           color: var(--text-muted);
-          opacity: 0.4;
+          opacity: 0.4;                     /* Subtle when unpinned */
           transition: all 0.2s ease;
         }
       }
@@ -900,8 +913,11 @@
 }
 
 /* ==========================================================================
-   Scrollbar Styling
+   7. Browser-Specific Styling (Scrollbars)
    ========================================================================== */
+
+/* Custom scrollbar styling for WebKit browsers (Chrome, Safari, Edge)
+   Provides consistent theming with Obsidian's design system */
 
 .multi-select-options::-webkit-scrollbar,
 .filter-panel::-webkit-scrollbar {
@@ -925,21 +941,24 @@
 }
 
 /* ==========================================================================
-   Responsive Design & Media Queries
+   8. Responsive Design & Accessibility
    ========================================================================== */
 
-/* Tablet and mobile layout */
+/* Progressive enhancement for different screen sizes and accessibility needs
+   Includes mobile-first responsive design and accessibility features */
+
+/* Tablet and mobile layout - transforms horizontal layout to vertical stack */
 @media (max-width: 768px) {
   .card-view-content {
-    flex-direction: column;
+    flex-direction: column;          /* Stack sidebar above main content */
   }
 
   .card-view-sidebar {
-    width: 100%;
-    max-width: none;
+    width: 100%;                     /* Full width when stacked */
+    max-width: none;                 /* Remove width constraints */
     min-width: 0;
-    max-height: 200px;
-    border-right: none;
+    max-height: 200px;               /* Limit height to preserve main content space */
+    border-right: none;              /* Remove right border when stacked */
     border-bottom: var(--border-width) solid var(--background-modifier-border);
   }
 
