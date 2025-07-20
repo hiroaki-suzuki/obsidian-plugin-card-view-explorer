@@ -1,177 +1,121 @@
-# CLAUDE.md
+# Claude Code Spec-Driven Development
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This project implements Kiro-style Spec-Driven Development for Claude Code using hooks and slash commands.
 
-## Development Commands
+## Project Context
 
-### Essential Commands
-- `bun run dev` - Development build with watch mode (hot reload)
-- `bun run build` - Production build for release
-- `bun run check` - TypeScript type checking without emitting files
-- `bun run lint` - Lint code using Biome
-- `bun run format` - Format code using Biome
-- `bun run check-all` - Run both linting and formatting checks
+### Project Steering
+- Product overview: `.kiro/steering/product.md`
+- Technology stack: `.kiro/steering/tech.md`
+- Project structure: `.kiro/steering/structure.md`
+- Custom steering docs for specialized contexts
 
-### Testing
-- `bun run test` - Run test suite once
-- `bun run test:watch` - Run tests in watch mode
-- `bun run test:coverage` - Generate test coverage report
-- `bun run test:coverage:ui` - Test coverage with UI
+### Active Specifications
+- Current spec: Check `.kiro/specs/` for active specifications
+- Use `/spec-status [feature-name]` to check progress
 
-### Type Checking
-Always run `bun run check` before committing changes to ensure TypeScript compilation succeeds.
+## Spec-Driven Development Workflow
 
-## Architecture Overview
+### Phase 0: Steering Generation (Recommended)
 
-### Plugin Structure
-This is an Obsidian plugin using React for the UI layer with Zustand for state management. The plugin provides a card-based interface for browsing recently edited notes.
-
-**Core Components:**
-- `main.ts` - Plugin entry point, handles Obsidian lifecycle and file system events
-- `view.tsx` - Obsidian view wrapper that mounts React components
-- `store/cardExplorerStore.ts` - Zustand store managing application state
-- `components/` - React components for the card interface
-
-### State Management Architecture
-The plugin uses a centralized Zustand store (`cardExplorerStore.ts`) that manages:
-- Note data loaded from Obsidian vault
-- Filter and sort configurations
-- Pinned notes state
-- UI loading/error states
-
-**Key State Flow:**
-1. Plugin loads notes from Obsidian APIs (`noteProcessing/`)
-2. Store applies filters (`filters/`) and sorting (`sorting/`)
-3. React components consume computed state via selectors (`selectors/`)
-
-### Data Persistence
-- Plugin settings stored in Obsidian's settings system
-- User data (pinned notes, filters) stored in `data.json`
-- Automatic data migration handled in `utils/dataMigration.ts`
-
-### Key Directories
-- `src/components/` - React UI components
-- `src/store/` - State management (Zustand store and modules)
-- `src/utils/` - Utility functions (error handling, validation, data persistence)
-- `src/types/` - TypeScript type definitions
-- `src/test/` - Test setup and Obsidian mocks
-
-### Technology Stack
-- **Obsidian Plugin API** - Core plugin functionality
-- **React 18** - UI framework with createRoot API
-- **Zustand** - Lightweight state management
-- **TypeScript** - Type safety
-- **Vitest** - Testing framework with jsdom
-- **Biome** - Fast linting and formatting
-- **ESBuild** - Fast bundling via esbuild.config.mjs
-
-### Testing Approach
-Tests use Vitest with React Testing Library. Obsidian APIs are mocked in `src/test/obsidian-mock.ts`. Coverage reports are generated in the `coverage/` directory.
-
-### Error Handling
-Comprehensive error handling system in `utils/errorHandling.ts` with retry mechanisms and categorized error types.
-
-## Implementation Rules & Guidelines
-
-### Core Development Principles
-
-#### Type Safety Requirements
-- **No `any` types**: Use proper interfaces or `unknown` instead
-- **Runtime validation**: Use type guards for external data (Obsidian APIs)
-- **Comprehensive TypeScript**: All code must have proper type definitions
-- Always run `bun run check` before committing to ensure TypeScript compilation
-
-#### State Management Rules
-- **Immutable updates only**: Never mutate existing arrays/objects directly
-- **Action-based mutations**: All state changes through defined store actions
-- **Automatic recomputation**: Use the recomputation pattern for derived state
-- **Single source of truth**: All application state in Zustand store
-
-```typescript
-// ✅ Correct - immutable update
-const updateFilters = (newFilters: Partial<FilterState>) => {
-  const updatedFilters = { ...state.filters, ...newFilters };
-  set({ filters: updatedFilters });
-};
-
-// ❌ Incorrect - direct mutation
-state.filters.tags.push(newTag);
+#### Kiro Steering (`.kiro/steering/`)
+```
+/steering-init          # Generate initial steering documents
+/steering-update        # Update steering after changes
+/steering-custom        # Create custom steering for specialized contexts
 ```
 
-#### Performance Requirements
-- **Virtual scrolling mandatory**: For any list >100 items (use react-virtuoso)
-- **Memoization**: Cache expensive computations with useMemo/useCallback
-- **Selective re-renders**: Optimize React dependency arrays
-- **Bundle optimization**: Import only what you need, avoid unnecessary dependencies
+**Note**: For new features or empty projects, steering is recommended but not required. You can proceed directly to spec-requirements if needed.
 
-### Code Organization Standards
+### Phase 1: Specification Creation
+```
+/spec-init [feature-name]           # Initialize spec structure only
+/spec-requirements [feature-name]   # Generate requirements → Review → Edit if needed
+/spec-design [feature-name]         # Generate technical design → Review → Edit if needed
+/spec-tasks [feature-name]          # Generate implementation tasks → Review → Edit if needed
+```
 
-#### File Structure Patterns
-- **Store modules**: Each module follows consistent structure (types → defaults → logic → store integration)
-- **Component pattern**: Interface → hooks → memoized computations → event handlers → render
-- **Barrel exports**: Use index.ts files for clean imports
-- **Named exports**: Prefer named exports over default exports
+### Phase 2: Progress Tracking
+```
+/spec-status [feature-name]         # Check current progress and phases
+```
 
-#### Module Boundaries
-- **Single responsibility**: Each module handles one specific concern
-- **Clear interfaces**: Well-defined inputs and outputs
-- **Minimal dependencies**: Reduce coupling between modules
-- **No circular imports**: Avoid circular dependencies
+## Spec-Driven Development Workflow
 
-### React Development Standards
+Kiro's spec-driven development follows a strict **3-phase approval workflow**:
 
-#### Component Requirements
-- **Functional components only**: Use hooks instead of class components
-- **Error boundaries**: Wrap components that might fail with ErrorFallback
-- **Props interfaces**: Always define TypeScript interfaces for props
-- **Cleanup**: Always cleanup effects and subscriptions
+### Phase 1: Requirements Generation & Approval
+1. **Generate**: `/spec-requirements [feature-name]` - Generate requirements document
+2. **Review**: Human reviews `requirements.md` and edits if needed
+3. **Approve**: Manually update `spec.json` to set `"requirements": true`
 
-#### Performance Patterns
-- **Virtual scrolling**: Use react-virtuoso for large note lists
-- **Memoization**: useMemo for expensive computations, useCallback for event handlers
-- **Loading states**: Consistent loading/error state handling pattern
+### Phase 2: Design Generation & Approval
+1. **Generate**: `/spec-design [feature-name]` - Generate technical design (requires requirements approval)
+2. **Review**: Human reviews `design.md` and edits if needed
+3. **Approve**: Manually update `spec.json` to set `"design": true`
 
-### Obsidian Integration Standards
+### Phase 3: Tasks Generation & Approval
+1. **Generate**: `/spec-tasks [feature-name]` - Generate implementation tasks (requires design approval)
+2. **Review**: Human reviews `tasks.md` and edits if needed
+3. **Approve**: Manually update `spec.json` to set `"tasks": true`
 
-#### API Usage Rules
-- **Minimal surface area**: Limit direct Obsidian API usage to store methods
-- **Abstraction layer**: Wrap APIs in store methods, not components
-- **Error handling**: Graceful handling of all API failures
-- **Type safety**: Create types for Obsidian data structures
+### Implementation
+Only after all three phases are approved can implementation begin.
 
-#### Plugin Lifecycle
-- **Proper registration**: Register views, commands, and settings in onload
-- **Complete cleanup**: Always cleanup resources in onunload
-- **Settings management**: Use persistent settings with defaults
-- **Auto-start**: Respect user settings for automatic view activation
+**Key Principle**: Each phase requires explicit human approval before proceeding to the next phase, ensuring quality and accuracy throughout the development process.
 
-### Testing Requirements
+## Development Rules
 
-#### Test Coverage Standards
-- **>90% coverage**: Aim for high test coverage on critical paths
-- **Unit tests**: Test individual functions and components
-- **Integration tests**: Test store interactions and data flow
-- **Mock Obsidian APIs**: Use test/obsidian-mock.ts for isolated testing
+1. **Consider steering**: Run `/steering-init` before major development (optional for new features)
+2. **Follow the 3-phase approval workflow**: Requirements → Design → Tasks → Implementation
+3. **Manual approval required**: Each phase must be explicitly approved by human review
+4. **No skipping phases**: Design requires approved requirements; Tasks require approved design
+5. **Update task status**: Mark tasks as completed when working on them
+6. **Keep steering current**: Run `/steering-update` after significant changes
+7. **Check spec compliance**: Use `/spec-status` to verify alignment
 
-#### Test Organization
-- **Co-location**: Place tests near the code they test (*.test.ts)
-- **Descriptive names**: Test names should describe behavior
-- **Arrange-Act-Assert**: Clear test structure
-- **Edge cases**: Test error conditions and boundary cases
+## Automation
 
-### Security & Data Handling
+This project uses Claude Code hooks to:
+- Automatically track task progress in tasks.md
+- Check spec compliance
+- Preserve context during compaction
+- Detect steering drift
 
-#### Input Validation
-- **Validate external data**: Type guards for Obsidian API responses
-- **Sanitize inputs**: Sanitize user inputs and file content
-- **Safe defaults**: Use secure defaults for all settings
-- **Error information**: Don't expose sensitive information in errors
+### Task Progress Tracking
 
-### Documentation Standards
+When working on implementation:
+1. **Manual tracking**: Update tasks.md checkboxes manually as you complete tasks
+2. **Progress monitoring**: Use `/spec-status` to view current completion status
+3. **TodoWrite integration**: Use TodoWrite tool to track active work items
+4. **Status visibility**: Checkbox parsing shows completion percentage
 
-#### Code Documentation
-- **JSDoc comments**: Document all public interfaces
-- **Type annotations**: Use descriptive type names
-- **Architecture decisions**: Document design patterns and rationale
+## Getting Started
 
-These implementation rules ensure code quality, maintainability, and performance while following established patterns throughout the codebase.
+1. Initialize steering documents: `/steering-init`
+2. Create your first spec: `/spec-init [your-feature-name]`
+3. Follow the workflow through requirements, design, and tasks
+
+## Kiro Steering Details
+
+Kiro-style steering provides persistent project knowledge through markdown files:
+
+### Core Steering Documents
+- **product.md**: Product overview, features, use cases, value proposition
+- **tech.md**: Architecture, tech stack, dev environment, commands, ports
+- **structure.md**: Directory organization, code patterns, naming conventions
+
+### Custom Steering
+Create specialized steering documents for:
+- API standards
+- Testing approaches
+- Code style guidelines
+- Security policies
+- Database conventions
+- Performance standards
+- Deployment workflows
+
+### Inclusion Modes
+- **Always Included**: Loaded in every interaction (default)
+- **Conditional**: Loaded for specific file patterns (e.g., `"*.test.js"`)
+- **Manual**: Loaded on-demand with `#filename` reference
