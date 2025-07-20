@@ -1,3 +1,4 @@
+import { setIcon } from "obsidian";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type CardExplorerPlugin from "../main";
@@ -232,10 +233,25 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
    * Handle empty state
    */
   if (filteredNotes.length === 0) {
+    /**
+     * Empty state icon using Obsidian's setIcon
+     */
+    const EmptyStateIcon: React.FC = () => {
+      const iconRef = useRef<HTMLDivElement>(null);
+
+      useEffect(() => {
+        if (iconRef.current) {
+          setIcon(iconRef.current, "file-search");
+        }
+      }, []);
+
+      return <div ref={iconRef} className="empty-icon" />;
+    };
+
     return (
       <div className="virtual-list-container">
         <div className="virtual-list-empty">
-          <div className="empty-icon">📝</div>
+          <EmptyStateIcon />
           <h3>No Notes Found</h3>
           <p>
             No notes match your current filters. Try adjusting your search criteria or clearing
