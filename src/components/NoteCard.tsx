@@ -144,7 +144,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
           title={isPinned ? "Unpin note" : "Pin note"}
           aria-label={isPinned ? "Unpin note" : "Pin note"}
         >
-          {isPinned ? "📌" : "📍"}
+          <span className="pin-icon" />
         </button>
       </div>
 

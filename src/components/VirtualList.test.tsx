@@ -11,6 +11,31 @@ import { VirtualList } from "./VirtualList";
 
 // Mock react-virtuoso
 vi.mock("react-virtuoso", () => ({
+  VirtuosoGrid: ({ totalCount, itemContent, components }: any) => {
+    const items = Array.from({ length: totalCount }, (_, index) => itemContent(index));
+    return (
+      <div data-testid="virtuoso-grid-container">
+        {components?.List ? (
+          <components.List>
+            {items.map((item: any, index: number) =>
+              components?.Item ? (
+                <components.Item key={`virtuoso-item-${index}`}>{item}</components.Item>
+              ) : (
+                <div key={`virtuoso-item-${index}`}>{item}</div>
+              )
+            )}
+          </components.List>
+        ) : (
+          <div>
+            {items.map((item: any, index: number) => (
+              <div key={`virtuoso-item-${index}`}>{item}</div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  },
+  // Keep backward compatibility for other tests that might use Virtuoso
   Virtuoso: ({ totalCount, itemContent, components }: any) => {
     const items = Array.from({ length: totalCount }, (_, index) => itemContent(index));
     return (
@@ -47,6 +72,31 @@ vi.mock("./NoteCard", () => ({
   ),
 }));
 
+// Mock ResizeObserver
+const mockResizeObserver = vi.fn();
+mockResizeObserver.mockReturnValue({
+  observe: vi.fn(),
+  disconnect: vi.fn(),
+  unobserve: vi.fn(),
+});
+// @ts-ignore
+window.ResizeObserver = mockResizeObserver;
+
+// Mock getBoundingClientRect
+const mockGetBoundingClientRect = vi.fn(() => ({
+  width: 800,
+  height: 600,
+  top: 0,
+  left: 0,
+  bottom: 600,
+  right: 800,
+  x: 0,
+  y: 0,
+  toJSON: vi.fn(),
+}));
+// @ts-ignore
+Element.prototype.getBoundingClientRect = mockGetBoundingClientRect;
+
 // Mock the store
 const mockClearFilters = vi.fn();
 
@@ -74,6 +124,20 @@ describe("VirtualList", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset ResizeObserver mock
+    mockResizeObserver.mockClear();
+    mockGetBoundingClientRect.mockReturnValue({
+      width: 800,
+      height: 600,
+      top: 0,
+      left: 0,
+      bottom: 600,
+      right: 800,
+      x: 0,
+      y: 0,
+      toJSON: vi.fn(),
+    });
+
     // Reset store mock to default state
     mockUseCardExplorerStore.mockReturnValue({
       filteredNotes: [],
@@ -187,7 +251,7 @@ describe("VirtualList", () => {
 
     render(<VirtualList plugin={mockPlugin} />);
 
-    // Check that virtuoso container is rendered
+    // Check that virtuoso container is rendered (now using regular Virtuoso with grid layout)
     expect(screen.getByTestId("virtuoso-container")).toBeInTheDocument();
 
     // Check that note cards are rendered
@@ -313,5 +377,108 @@ describe("VirtualList", () => {
 
     expect(screen.queryByText("Error Loading Notes")).not.toBeInTheDocument();
     expect(screen.getByText("Note 1")).toBeInTheDocument();
+  });
+
+  describe("Responsive Layout", () => {
+    it("should initialize ResizeObserver on mount", () => {
+      const mockNotes = [createMockNote("1", "Note 1")];
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+      });
+
+      render(<VirtualList plugin={mockPlugin} />);
+
+      expect(mockResizeObserver).toHaveBeenCalled();
+      const resizeObserverInstance = mockResizeObserver.mock.results[0].value;
+      expect(resizeObserverInstance.observe).toHaveBeenCalled();
+    });
+
+    it("should calculate correct row size based on container width", () => {
+      // Test different container widths
+      const testCases = [
+        { width: 292, expectedCards: 1 }, // Exactly one card width
+        { width: 584, expectedCards: 2 }, // Two cards width
+        { width: 876, expectedCards: 3 }, // Three cards width
+        { width: 1460, expectedCards: 5 }, // Max cards (5)
+        { width: 2000, expectedCards: 5 }, // Above max, should cap at 5
+        { width: 200, expectedCards: 1 }, // Below min card width
+      ];
+
+      testCases.forEach(({ width, expectedCards }) => {
+        mockGetBoundingClientRect.mockReturnValue({
+          width,
+          height: 600,
+          top: 0,
+          left: 0,
+          bottom: 600,
+          right: width,
+          x: 0,
+          y: 0,
+          toJSON: vi.fn(),
+        });
+
+        const mockNotes = Array.from({ length: 10 }, (_, i) =>
+          createMockNote(i.toString(), `Note ${i + 1}`)
+        );
+
+        mockUseCardExplorerStore.mockReturnValue({
+          filteredNotes: mockNotes,
+          isLoading: false,
+          error: null,
+        });
+
+        const { unmount } = render(<VirtualList plugin={mockPlugin} />);
+
+        // Component should render without errors
+        expect(screen.getByTestId("virtuoso-container")).toBeInTheDocument();
+
+        unmount();
+      });
+    });
+
+    it("should handle zero width container gracefully", () => {
+      mockGetBoundingClientRect.mockReturnValue({
+        width: 0,
+        height: 600,
+        top: 0,
+        left: 0,
+        bottom: 600,
+        right: 0,
+        x: 0,
+        y: 0,
+        toJSON: vi.fn(),
+      });
+
+      const mockNotes = [createMockNote("1", "Note 1")];
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+      });
+
+      render(<VirtualList plugin={mockPlugin} />);
+
+      // Should still render the component without errors
+      expect(screen.getByTestId("virtuoso-container")).toBeInTheDocument();
+    });
+
+    it("should cleanup ResizeObserver on unmount", () => {
+      const mockNotes = [createMockNote("1", "Note 1")];
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+      });
+
+      const { unmount } = render(<VirtualList plugin={mockPlugin} />);
+
+      const resizeObserverInstance = mockResizeObserver.mock.results[0].value;
+
+      unmount();
+
+      expect(resizeObserverInstance.disconnect).toHaveBeenCalled();
+    });
   });
 });
