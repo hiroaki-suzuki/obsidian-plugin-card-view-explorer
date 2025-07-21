@@ -1,271 +1,95 @@
-# Development Principles & Guidelines
+---
+inclusion: always
+---
 
-## Core Development Principles
+# Development Principles
 
-### 1. Type Safety First
-- **Comprehensive TypeScript**: All code must have proper type definitions
-- **Runtime Validation**: Use type guards for external data (Obsidian APIs)
-- **No `any` Types**: Avoid `any` - use proper interfaces or `unknown`
-- **Generic Utilities**: Create reusable type-safe utility functions
+## Non-Negotiable Rules
 
+### Type Safety
+- NO `any` types - use interfaces or `unknown`
+- Create type guards for Obsidian APIs: `isMarkdownFile(file)`
+- Runtime validation: `validatePluginData()` before saves
+- All data structures must have TypeScript interfaces
+
+### Immutable State
 ```typescript
-// ✅ Good - proper typing
-interface NoteData {
-  file: TFile;
-  title: string;
-  tags: string[];
-}
-
-// ❌ Bad - using any
-const processNote = (note: any) => { ... }
-```
-
-### 2. Immutable State Management
-- **No Direct Mutations**: Always create new objects/arrays for state updates
-- **Functional Updates**: Use spread operators and array methods
-- **Predictable Changes**: State updates should be pure functions
-- **Automatic Recomputation**: Derived state updates automatically
-
-```typescript
-// ✅ Good - immutable update
-const updateFilters = (newFilters: Partial<FilterState>) => {
-  const updatedFilters = { ...state.filters, ...newFilters };
-  set({ filters: updatedFilters });
-};
-
-// ❌ Bad - direct mutation
+// ✅ CORRECT - Always create new objects
+set({ filters: { ...state.filters, ...newFilters } });
+// ❌ FORBIDDEN - Never mutate directly
 state.filters.tags.push(newTag);
 ```
+- All state changes through store actions only
+- Derived state recomputes automatically
 
-### 3. Performance by Design
-- **Virtual Scrolling**: Always use for large lists (>100 items)
-- **Memoization**: Cache expensive computations with useMemo/useCallback
-- **Selective Re-renders**: Optimize React dependency arrays
-- **Lazy Loading**: Load data on demand when possible
+### Error Handling
+- Wrap components with `CardViewErrorBoundary`
+- Use `handleError(error, category)` with categories: API, DATA, UI, GENERAL
+- Always: `validatePluginData()` → `createDataBackup()` → save
+- Provide fallbacks and retry mechanisms
 
-### 4. Error Resilience
-- **Categorized Error Handling**: API, DATA, UI, and GENERAL error categories with specific handling
-- **Multiple Error Boundaries**: Component-level React error boundaries and global error state
-- **Graceful Degradation**: Provide fallbacks for all failure modes with default values
-- **User-Friendly Messages**: Convert technical errors to actionable messages based on error patterns
-- **Retry Mechanisms**: Exponential backoff retry logic for transient failures
-- **Automatic Recovery**: Backup and recovery systems for data corruption scenarios
+### Performance
+- `react-virtuoso` for lists >100 items
+- `useMemo`/`useCallback` for expensive operations
+- Debounce file system events with `es-toolkit`
 
-### 5. Testability
-- **Comprehensive Unit Tests**: Test individual functions and components (all major modules have .test.ts files)
-- **Integration Tests**: Test store interactions and data flow (integration.test.ts)
-- **Component Tests**: React component testing with @testing-library/react
-- **Mock External Dependencies**: Mock Obsidian APIs for isolated testing (obsidian-mock.ts)
-- **High Coverage**: Aim for >90% test coverage on critical paths with v8 coverage provider
-- **Error Scenario Testing**: Test all error conditions and recovery mechanisms
+## Required Patterns
 
-## Code Organization Principles
-
-### Module Boundaries
-- **Single Responsibility**: Each module handles one specific concern
-- **Clear Interfaces**: Well-defined inputs and outputs
-- **Minimal Dependencies**: Reduce coupling between modules
-- **Composable Design**: Modules can be combined and reused
-
-### File Organization
-```
-src/
-├── main.ts                 # Plugin entry point
-├── view.tsx               # React integration
-├── settings.ts            # Plugin configuration
-├── components/            # UI components
-├── store/                 # State management
-│   ├── cardExplorerStore.ts
-│   ├── filters/           # Filter logic
-│   ├── noteProcessing/    # Data loading
-│   ├── selectors/         # Computed state
-│   ├── sorting/           # Sort logic
-│   └── utils/             # Shared utilities
-├── types/                 # Type definitions
-└── utils/                 # General utilities
-```
-
-### Import/Export Patterns
-- **Barrel Exports**: Use index.ts files for clean imports
-- **Named Exports**: Prefer named exports over default exports
-- **Explicit Dependencies**: Import only what you need
-- **Circular Dependencies**: Avoid circular imports
-
+### Store Module Structure
 ```typescript
-// ✅ Good - barrel export
-export * from "./note";
-export * from "./filter";
-export * from "./sort";
-
-// ✅ Good - named imports
-import { NoteData, FilterState } from "../types";
-
-// ❌ Bad - default export with unclear name
-import Thing from "./module";
+// Order: Types → Defaults → Logic → Store
+interface ModuleState { ... }
+const createDefaultState = () => ({ ... });
+const processData = (data, config) => { ... };
+export const useModuleStore = create<ModuleState & ModuleActions>()(...);
 ```
 
-## React Development Guidelines
-
-### Component Design
-- **Functional Components**: Use hooks instead of class components
-- **Single Responsibility**: Each component has one clear purpose
-- **Props Interface**: Always define TypeScript interfaces for props
-- **Error Boundaries**: Wrap components that might fail
-
-### Hook Usage
-- **Custom Hooks**: Extract reusable logic into custom hooks
-- **Dependency Arrays**: Be explicit about hook dependencies
-- **Cleanup**: Always cleanup effects and subscriptions
-- **Memoization**: Use useMemo/useCallback for expensive operations
-
+### Component Structure
 ```typescript
-// ✅ Good - proper hook usage
-const Component = ({ data, onAction }) => {
-  const processedData = useMemo(() => {
-    return expensiveProcessing(data);
-  }, [data]);
+export const Component: React.FC<Props> = ({ prop1, prop2 }) => {
+  const storeData = useStore();
+  const memoized = useMemo(() => computation, [deps]);
+  const handler = useCallback(() => action, [deps]);
 
-  const handleClick = useCallback((id) => {
-    onAction(id);
-  }, [onAction]);
-
-  useEffect(() => {
-    const cleanup = setupSomething();
-    return cleanup;
-  }, []);
-
-  return <div>...</div>;
+  if (error && !isLoading) return <ErrorDisplay error={error} onRetry={...} />;
+  if (isLoading && !data.length) return <LoadingSpinner />;
+  return <div>{isLoading && <LoadingOverlay />}<MainContent /></div>;
 };
 ```
 
-### State Management
-- **Zustand Store**: Use centralized store for shared state
-- **Local State**: Use useState for component-specific state
-- **Computed State**: Derive state instead of storing duplicates
-- **Action Pattern**: All state changes through defined actions
+### Obsidian Integration
+- Wrap ALL Obsidian APIs in store methods with error handling
+- NO direct API usage outside store
+- Handle failures gracefully
 
-## Obsidian Integration Guidelines
+## Code Organization
 
-### API Usage
-- **Minimal Surface Area**: Limit direct Obsidian API usage
-- **Abstraction Layer**: Wrap APIs in store methods
-- **Error Handling**: Handle API failures gracefully
-- **Type Safety**: Create types for Obsidian data structures
+### File Structure
+- `src/store/` - Zustand modules (filters/, noteProcessing/, selectors/, sorting/)
+- `src/components/` - React components with co-located .test.tsx
+- `src/types/` - TypeScript definitions
+- `src/utils/` - errorHandling, dataPersistence, validation
 
-### Plugin Lifecycle
-- **Proper Registration**: Register views, commands, and settings
-- **Cleanup**: Always cleanup resources in onunload
-- **Settings Management**: Use persistent settings with defaults
-- **View Management**: Handle view creation and destruction properly
+### Module Rules
+- Single responsibility per module
+- Named exports preferred over default
+- Barrel exports via index.ts files
+- Avoid circular dependencies
 
-```typescript
-// ✅ Good - proper plugin structure
-export default class Plugin extends ObsidianPlugin {
-  async onload() {
-    await this.loadSettings();
-    this.registerView(VIEW_TYPE, (leaf) => new View(leaf, this));
-    this.addCommand({ ... });
-  }
+## Testing Requirements
+- Co-locate tests: `Component.test.tsx` alongside `Component.tsx`
+- Use `src/test/obsidian-mock.ts` for Obsidian APIs
+- Clear mocks: `beforeEach(() => vi.clearAllMocks())`
+- Test error conditions and recovery
 
-  async onunload() {
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE);
-  }
-}
-```
+## Data Operations Checklist
+1. Validate: `validatePluginData(data)`
+2. Backup: `createDataBackup(plugin)`
+3. Migrate: `migratePluginData(rawData)`
+4. Fallback to defaults on validation failure
 
-## Testing Guidelines
-
-### Test Organization
-- **Co-location**: Place tests near the code they test
-- **Descriptive Names**: Test names should describe behavior
-- **Arrange-Act-Assert**: Structure tests clearly
-- **Mock External Dependencies**: Mock Obsidian APIs and external services
-
-### Test Coverage
-- **Critical Paths**: Ensure all critical functionality is tested
-- **Edge Cases**: Test error conditions and boundary cases
-- **Integration**: Test component interactions and data flow
-- **Performance**: Test virtual scrolling and large datasets
-
-```typescript
-// ✅ Good - descriptive test
-describe('FilterPanel', () => {
-  it('should update store when tag filter is changed', async () => {
-    // Arrange
-    const mockStore = createMockStore();
-    render(<FilterPanel />, { store: mockStore });
-
-    // Act
-    await user.selectOptions(screen.getByRole('combobox'), 'tag1');
-
-    // Assert
-    expect(mockStore.updateFilters).toHaveBeenCalledWith({
-      tags: ['tag1']
-    });
-  });
-});
-```
-
-## Performance Guidelines
-
-### React Performance
-- **Virtual Scrolling**: Required for lists >100 items
-- **Memoization**: Cache expensive computations
-- **Component Splitting**: Split large components into smaller ones
-- **Lazy Loading**: Load components and data on demand
-
-### Data Processing
-- **Immutable Operations**: Use functional programming patterns
-- **Batch Updates**: Group related state changes
-- **Efficient Algorithms**: Use appropriate data structures and algorithms
-- **Memory Management**: Avoid memory leaks in effects and subscriptions
-
-### Bundle Size
-- **Tree Shaking**: Import only what you need
-- **Code Splitting**: Split large modules when beneficial
-- **Dependency Audit**: Regularly review and minimize dependencies
-- **Build Optimization**: Use ESBuild optimizations
-
-## Data Reliability Guidelines
-
-### Data Validation
-- **Runtime Validation**: Validate all plugin data and settings at load/save operations
-- **Type Guards**: Use type guards for external data from Obsidian APIs
-- **Schema Validation**: Comprehensive validation functions for all data structures
-- **Fallback Values**: Provide safe defaults when validation fails
-
-### Data Migration & Backup
-- **Versioned Data**: All plugin data includes version information for migration
-- **Automatic Migration**: Seamless migration between plugin versions
-- **Backup System**: Automatic backup creation before data modifications
-- **Recovery Mechanisms**: Automatic recovery from backup on data corruption
-
-### Security Guidelines
-
-### Data Handling
-- **Input Validation**: Validate all external data with comprehensive validation functions
-- **Sanitization**: Sanitize user inputs and file content
-- **Error Information**: Don't expose sensitive information in errors
-- **File Access**: Respect Obsidian's file access patterns
-
-### Plugin Security
-- **Minimal Permissions**: Request only necessary permissions
-- **Safe Defaults**: Use secure defaults for all settings
-- **User Consent**: Get user consent for data operations
-- **Privacy**: Don't collect or transmit user data
-
-## Documentation Guidelines
-
-### Code Documentation
-- **JSDoc Comments**: Document all public interfaces
-- **Type Annotations**: Use descriptive type names
-- **README Files**: Maintain up-to-date documentation
-- **Architecture Docs**: Document design decisions and patterns
-
-### User Documentation
-- **Clear Instructions**: Provide step-by-step guides
-- **Screenshots**: Include visual aids where helpful
-- **Troubleshooting**: Document common issues and solutions
-- **Changelog**: Maintain version history and breaking changes
-
-These principles ensure the codebase remains maintainable, performant, and reliable as it grows and evolves.
+## React Standards
+- Functional components with hooks only
+- TypeScript interfaces for all props
+- Explicit dependency arrays in hooks
+- Extract reusable logic into custom hooks

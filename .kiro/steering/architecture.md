@@ -1,220 +1,93 @@
+---
+inclusion: always
+---
+
 # Architecture & Design Principles
 
 ## Core Architecture
 
-### Plugin Architecture Pattern
-The Card View Explorer follows Obsidian's standard plugin architecture with React integration:
+**Plugin Structure**: Obsidian Plugin → React View → Zustand Store → Obsidian APIs
 
-```
-Obsidian Plugin API
-    ↓
-CardExplorerPlugin (main.ts)
-    ↓
-CardExplorerView (view.tsx)
-    ↓
-React Component Tree
-    ↓
-Zustand State Management
-    ↓
-Obsidian Vault APIs
-```
+**State Management**: Centralized Zustand store with automatic recomputation
+- Raw data (notes) separate from computed state (filteredNotes)
+- All state changes create new objects/arrays (immutable)
+- State changes only through defined store actions
+- Filtered/sorted results update automatically when dependencies change
 
-### State Management Philosophy
+**Component Pattern**: Container-Presenter with Error Boundaries
+- `CardView`: Container managing state orchestration
+- `FilterPanel`, `VirtualList`, `NoteCard`: Presenter components
+- React Error Boundaries for component isolation
+- Virtual scrolling (react-virtuoso) for performance
 
-**Centralized State with Zustand**
-- Single source of truth for all application state
-- Reactive updates with automatic recomputation
-- Immutable state updates to prevent side effects
-- Modular store organization for maintainability
+## Data Flow
 
-**Key State Management Principles:**
-1. **Separation of Data and UI State**: Raw data (notes) separate from computed state (filteredNotes)
-2. **Automatic Recomputation**: Filtered/sorted results update automatically when dependencies change
-3. **Immutable Updates**: All state changes create new objects/arrays
-4. **Action-Based Mutations**: State changes only through defined actions
-
-### Component Architecture
-
-**Container-Presenter Pattern**
-- `CardView`: Container component managing state and orchestration
-- `FilterPanel`, `VirtualList`, `NoteCard`: Presenter components focused on UI
-
-**Error Handling Strategy**
-- React Error Boundaries for component-level error isolation
-- Global error state in store for API/data errors
-- Graceful degradation with retry mechanisms
-
-**Performance Optimizations**
-- Virtual scrolling for large note lists (react-virtuoso)
-- Memoized computations (useMemo, useCallback)
-- Selective re-renders through proper dependency arrays
-
-## Data Flow Architecture
-
-### Note Loading Pipeline
-```
-Obsidian Vault
-    ↓ (loadNotesFromVault)
-Raw TFile Objects
-    ↓ (metadataExtractor)
-Note Metadata Extraction
-    ↓ (noteLoader)
-NoteData Objects
-    ↓ (store.setNotes)
-Store State Update
-    ↓ (recomputeFilteredNotes)
-Filtered & Sorted Results
-    ↓ (React re-render)
-UI Update
-```
-
-### Filter & Sort Pipeline
-```
-Raw Notes Array
-    ↓ (applyFilters)
-Filtered Notes
-    ↓ (sortNotes)
-Sorted Notes
-    ↓ (pin organization)
-Final Display Order
-```
-
-### State Update Flow
-```
-User Action
-    ↓ (store action)
-State Mutation
-    ↓ (automatic trigger)
-Recomputation
-    ↓ (Zustand subscription)
-React Re-render
-    ↓
-DOM Update
-```
+**Note Loading**: Vault → Raw TFiles → Metadata Extraction → NoteData → Store → Filtered Results → UI
+**State Updates**: User Action → Store Action → Recomputation → React Re-render
 
 ## Module Organization
 
-### Store Modules
-- **cardExplorerStore.ts**: Main store with state and actions, automatic recomputation
-- **filters/**: Filter logic and utilities for multi-criteria filtering
-- **noteProcessing/**: Note loading and metadata extraction from Obsidian APIs
-- **selectors/**: Computed state selectors for derived data
-- **sorting/**: Sort logic and pin management with configurable sort keys
-- **utils/**: Shared constants and utilities for store operations
+**Store Modules** (`src/store/`):
+- `cardExplorerStore.ts`: Main store with automatic recomputation
+- `filters/`: Multi-criteria filtering logic
+- `noteProcessing/`: Note loading and metadata extraction
+- `selectors/`: Computed state selectors
+- `sorting/`: Sort logic with pin management
+- `utils/`: Store constants and utilities
 
-### Utility Modules
-- **errorHandling.ts**: Comprehensive error handling with categories and retry logic
-- **dataPersistence.ts**: Data loading/saving with validation and migration
-- **dataBackup.ts**: Automatic backup system for data reliability
-- **dataMigration.ts**: Versioned data migration between plugin versions
-- **dateUtils.ts**: Date formatting and relative date calculations
-- **validation.ts**: Runtime data validation for plugin data and settings
+**Components** (`src/components/`):
+- `CardView.tsx`: Main container with error boundaries
+- `CardViewErrorBoundary.tsx`: React error boundary
+- `ErrorFallback.tsx`: Error display with retry
+- `FilterPanel.tsx`: Filter controls
+- `VirtualList.tsx`: Virtualized list wrapper
+- `NoteCard.tsx`: Individual note display
 
-### Component Modules
-- **CardView.tsx**: Main container with error boundaries and state orchestration
-- **CardViewErrorBoundary.tsx**: React error boundary for component isolation
-- **ErrorFallback.tsx**: Error display component with retry functionality
-- **FilterPanel.tsx**: Comprehensive filter controls and UI
-- **VirtualList.tsx**: Virtualized note list with performance optimization
-- **NoteCard.tsx**: Individual note display with pin functionality and click handling
+**Utilities** (`src/utils/`):
+- `errorHandling.ts`: Categorized error handling with retry logic
+- `dataPersistence.ts`: Data loading/saving with validation
+- `dataBackup.ts`: Automatic backup system
+- `dataMigration.ts`: Versioned data migration
+- `validation.ts`: Runtime data validation
 
-### Type System
-- **Comprehensive TypeScript**: All data structures typed
-- **Domain-Specific Types**: Separate types for different concerns
-- **Type Guards**: Runtime validation for external data
-- **Generic Utilities**: Reusable type-safe functions
+## Key Principles
 
-## Design Principles
+**Immutability**: Always create new objects for state updates
+```typescript
+// ✅ Correct
+const updateFilters = (newFilters) => {
+  set({ filters: { ...state.filters, ...newFilters } });
+};
 
-### 1. Separation of Concerns
-- **Data Layer**: Store handles all business logic
-- **UI Layer**: Components focus on presentation
-- **Integration Layer**: View handles Obsidian API integration
+// ❌ Wrong
+state.filters.tags.push(newTag);
+```
 
-### 2. Immutability
-- All state updates create new objects
-- No direct mutation of arrays or objects
-- Predictable state changes and easier debugging
+**Error Resilience**: Multiple error handling layers
+- React Error Boundaries for UI errors
+- Store error state for API/data errors
+- Categorized error handling (API, DATA, UI, GENERAL)
+- Automatic retry with exponential backoff
+- Backup and recovery systems
 
-### 3. Reactive Programming
-- State changes automatically trigger dependent updates
-- Declarative data transformations
-- Minimal manual state synchronization
+**Performance**: Virtual scrolling + memoization
+- Use `react-virtuoso` for lists >100 items
+- Memoize expensive computations with `useMemo`/`useCallback`
+- Optimize React dependency arrays
 
-### 4. Performance First
-- Virtual scrolling for large datasets
-- Memoized expensive computations
-- Optimized React rendering patterns
-
-### 5. Error Resilience
-- Multiple layers of error handling with categorized error types
-- Graceful degradation on failures with fallback values
-- User-friendly error messages with retry options
-- Automatic backup and recovery systems
-- React error boundaries for component isolation
-
-### 6. Type Safety
-- Comprehensive TypeScript coverage with strict mode enabled
-- Runtime type validation for external data sources
-- Clear interfaces between modules with proper type exports
-- Type guards for Obsidian API data validation
-
-### 7. Data Reliability
-- Versioned data with automatic migration between versions
-- Automatic backup creation before data modifications
-- Data validation at load and save operations
-- Recovery mechanisms for corrupted data
+**Type Safety**: Comprehensive TypeScript
+- All data structures typed with interfaces
+- Type guards for external data (Obsidian APIs)
+- Runtime validation for plugin data
 
 ## Integration Patterns
 
-### Obsidian API Integration
-- **Minimal Surface Area**: Limited API usage points
-- **Abstraction Layer**: Store methods wrap Obsidian APIs
-- **Error Handling**: Graceful handling of API failures
+**Obsidian APIs**: Wrap in store methods, handle failures gracefully
+**React**: Functional components with hooks, error boundaries
+**Testing**: Unit tests for all modules, integration tests for data flow, mock Obsidian APIs
 
-### React Integration
-- **Standard Patterns**: Hooks, functional components, error boundaries
-- **Performance**: Memoization and virtual scrolling
-- **State Management**: Zustand integration with React
+## Extension Patterns
 
-### Plugin Lifecycle
-- **Initialization**: Async setup with proper cleanup
-- **Settings**: Persistent configuration with defaults
-- **View Management**: Proper view registration and cleanup
-
-## Testing Architecture
-
-### Test Organization
-- **Unit Tests**: Individual functions and components
-- **Integration Tests**: Store interactions and data flow
-- **Mock Strategy**: Obsidian API mocking for isolated testing
-
-### Coverage Strategy
-- **Comprehensive Coverage**: All critical paths tested with v8 coverage provider
-- **Edge Cases**: Error conditions and boundary cases thoroughly tested
-- **Performance Tests**: Virtual scrolling and large datasets
-- **Component Testing**: React components tested with @testing-library/react
-- **Integration Testing**: Full data flow and store interaction testing
-- **Error Handling Tests**: All error scenarios and recovery mechanisms tested
-
-## Extensibility Patterns
-
-### Adding New Filters
-1. Update `FilterState` type
-2. Add filter logic in `filters/` module
-3. Update `FilterPanel` UI
-4. Add tests for new filter
-
-### Adding New Sort Options
-1. Update `SortConfig` type
-2. Add sort logic in `sorting/` module
-3. Update settings UI if needed
-4. Add tests for new sort
-
-### Adding New Components
-1. Create component in `components/` directory
-2. Add to `CardView` if needed
-3. Update types if new props needed
-4. Add component tests
-
-This architecture provides a solid foundation for maintainability, performance, and extensibility while following React and Obsidian plugin best practices.
+**New Filters**: Update `FilterState` type → Add logic in `filters/` → Update `FilterPanel` UI → Add tests
+**New Components**: Create in `components/` → Add to `CardView` → Update types → Add tests
+**New Sort Options**: Update `SortConfig` type → Add logic in `sorting/` → Add tests
