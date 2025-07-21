@@ -9,50 +9,89 @@ import { FilterPanel } from "./FilterPanel";
 import { FullPageLoading, LoadingSpinner } from "./LoadingSpinner";
 import { VirtualList } from "./VirtualList";
 
+/**
+ * Props for the CardView component
+ */
 interface CardViewProps {
-  /** Plugin instance for API access and configuration */
+  /**
+   * Plugin instance for API access and configuration.
+   * Provides access to Obsidian's App instance and plugin settings.
+   */
   plugin: CardExplorerPlugin;
 }
 
 /**
  * Main CardView Container Component
  *
- * Orchestrates all child components and manages the overall Card Explorer interface.
+ * This is the primary container component for the Card View Explorer plugin interface.
+ * It orchestrates all child components and manages the overall Card View Explorer UI.
+ *
  * Features:
- * - Error boundary for React error handling
- * - Loading states and error handling UI
- * - Integration of FilterPanel and VirtualList components
- * - Plugin prop passing and Obsidian API access
- * - Automatic note loading on mount
- * - Computed available tags and folders for filtering
+ * - Error boundary for React error handling with fallback UI
+ * - Loading states and comprehensive error handling UI
+ * - Integration of FilterPanel for note filtering and VirtualList for note display
+ * - Plugin prop passing and Obsidian API access for data operations
+ * - Automatic note loading on mount with error recovery
+ * - Computed available tags and folders for filtering options
+ * - Debounced pin state persistence to plugin data
+ * - Collapsible filter panel for better space utilization
+ *
+ * @component
+ * @example
+ * ```tsx
+ * <CardView plugin={plugin} />
+ * ```
  */
 export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
+  // Extract state and actions from the centralized Zustand store
   const {
-    notes,
-    filteredNotes,
-    isLoading,
-    error,
-    refreshNotes,
-    setError,
-    initializeFromPluginData,
-    savePinStatesToPlugin,
-    pinnedNotes,
+    notes, // All notes loaded from the vault
+    filteredNotes, // Notes after applying filters
+    isLoading, // Loading state indicator
+    error, // Error state for API/data operations
+    refreshNotes, // Action to reload notes from vault
+    setError, // Action to set/clear error state
+    initializeFromPluginData, // Action to load saved settings from plugin
+    savePinStatesToPlugin, // Action to save pin states to plugin data
+    pinnedNotes, // Set of pinned note IDs
   } = useCardExplorerStore();
 
-  // Filter panel collapse state
+  // Local state for filter panel visibility toggle
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
 
   /**
-   * Initialize store from plugin data when component mounts
-   * This loads saved pin states, filters, and sort configuration
+   * Initialize store from plugin data when component mounts.
+   *
+   * This effect runs once on component mount and loads:
+   * - Saved pin states (which notes are pinned)
+   * - Filter configuration (tags, folders, date ranges)
+   * - Sort configuration (sort field, direction)
+   * - Other user preferences from plugin data
+   *
+   * @effect
+   * @dependency plugin - Re-runs if plugin instance changes
+   * @dependency initializeFromPluginData - Re-runs if this function reference changes
    */
   useEffect(() => {
     initializeFromPluginData(plugin);
   }, [plugin, initializeFromPluginData]);
 
   /**
-   * Load notes when component mounts
-   * Includes cleanup to prevent memory leaks
+   * Load notes from Obsidian vault when component mounts.
+   *
+   * This effect:
+   * 1. Triggers the initial note loading process from Obsidian's vault
+   * 2. Handles errors during the loading process
+   * 3. Prevents memory leaks with cleanup function
+   * 4. Uses isMounted flag to prevent state updates after unmount
+   *
+   * The refreshNotes function accesses Obsidian's metadataCache and vault APIs
+   * to load all markdown files and extract their metadata.
+   *
+   * @effect
+   * @dependency plugin.app - Obsidian App instance for API access
+   * @dependency refreshNotes - Store action to load notes
+   * @dependency setError - Store action to update error state
    */
   useEffect(() => {
     let isMounted = true;
@@ -77,8 +116,22 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
   }, [plugin.app, refreshNotes, setError]);
 
   /**
-   * Auto-save pin states when they change
-   * Debounced to avoid excessive saves during rapid changes
+   * Auto-save pin states when they change with debouncing.
+   *
+   * This effect:
+   * 1. Watches for changes to pinnedNotes collection
+   * 2. Debounces save operations (500ms) to avoid excessive disk writes
+   * 3. Persists pin states to plugin data.json
+   * 4. Handles errors with dynamic import of error handling utilities
+   * 5. Cleans up timeout on component unmount
+   *
+   * Note: We use pinnedNotes.size as dependency instead of pinnedNotes itself
+   * because Set object references don't work well as effect dependencies.
+   *
+   * @effect
+   * @dependency pinnedNotes.size - Number of pinned notes (changes when pins are added/removed)
+   * @dependency savePinStatesToPlugin - Store action to persist pin states
+   * @dependency plugin - Plugin instance for data persistence
    */
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -89,7 +142,7 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
         try {
           await savePinStatesToPlugin(plugin);
         } catch (err) {
-          // Import error handling utilities dynamically
+          // Import error handling utilities dynamically to avoid circular dependencies
           import("../utils/errorHandling").then(({ handleError, ErrorCategory }) => {
             handleError(err, ErrorCategory.DATA, {
               operation: "savePinStates",
@@ -108,9 +161,19 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
   }, [pinnedNotes.size, savePinStatesToPlugin, plugin]); // Use pinnedNotes.size to avoid Set reference issues
 
   /**
-   * Compute available tags from all notes for filter dropdown
-   * Includes both parent and full tag paths (e.g., "ai" and "ai/code")
-   * Memoized to avoid recomputation on every render
+   * Compute available tags from all notes for filter dropdown options.
+   *
+   * This memoized computation:
+   * 1. Collects all tags from all notes
+   * 2. Extracts both full tag paths and parent tags (hierarchical tags)
+   *    For example, from "#ai/ml/neural" it extracts ["ai", "ai/ml", "ai/ml/neural"]
+   * 3. Returns a sorted, unique list of all available tags
+   *
+   * The extractAllTagPaths utility handles the hierarchical tag extraction logic.
+   *
+   * @memoized
+   * @dependency notes - Recomputes when notes collection changes
+   * @returns {string[]} Array of unique tag paths for filter options
    */
   const availableTags = useMemo(() => {
     const allNoteTags: string[] = [];
@@ -124,8 +187,18 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
   }, [notes]);
 
   /**
-   * Compute available folders from all notes for filter dropdown
-   * Memoized to avoid recomputation on every render
+   * Compute available folders from all notes for filter dropdown options.
+   *
+   * This memoized computation:
+   * 1. Creates a Set to collect unique folder paths
+   * 2. Adds each note's folder to the Set (automatically deduplicates)
+   * 3. Converts the Set to a sorted array for the filter dropdown
+   *
+   * Using a Set ensures we only have unique folder paths before sorting.
+   *
+   * @memoized
+   * @dependency notes - Recomputes when notes collection changes
+   * @returns {string[]} Sorted array of unique folder paths
    */
   const availableFolders = useMemo(() => {
     const folderSet = new Set<string>();
@@ -138,16 +211,36 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
   }, [notes]);
 
   /**
-   * Handle error boundary errors
+   * Handle errors caught by the React error boundary.
+   *
+   * This function is called when the CardViewErrorBoundary catches an error
+   * in any of the child components. It logs the error details and updates
+   * the global error state to display a user-friendly error message.
+   *
+   * @param {Error} error - The error object caught by the boundary
+   * @param {React.ErrorInfo} errorInfo - React component stack information
    */
   const handleErrorBoundaryError = (error: Error, errorInfo: React.ErrorInfo) => {
-    console.error("Card Explorer Error Boundary:", error, errorInfo);
+    console.error("Card View Explorer Error Boundary:", error, errorInfo);
     setError(`React Error: ${error.message}`);
   };
 
   /**
-   * Handle retry action for errors
-   * Memoized to prevent unnecessary re-renders
+   * Handle retry action for errors with error state reset.
+   *
+   * This memoized callback:
+   * 1. Clears the current error state
+   * 2. Attempts to reload notes from the vault
+   * 3. Handles any errors that occur during retry
+   *
+   * Used by both the error display component and the refresh button.
+   * Memoized to prevent unnecessary re-renders when passed as prop.
+   *
+   * @memoized
+   * @dependency plugin.app - Obsidian App instance
+   * @dependency refreshNotes - Store action to reload notes
+   * @dependency setError - Store action to update error state
+   * @returns {Promise<void>} Promise that resolves when retry completes
    */
   const handleRetry = useCallback(async () => {
     setError(null);
@@ -160,7 +253,15 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
   }, [plugin.app, refreshNotes, setError]);
 
   /**
-   * Render global error state (non-React errors)
+   * Render global error state for API/data errors (non-React errors).
+   *
+   * This conditional rendering handles errors from:
+   * - Note loading failures
+   * - API access issues
+   * - Data corruption
+   * - Other operational errors
+   *
+   * The ErrorDisplay component provides retry and dismiss options.
    */
   if (error && !isLoading) {
     return (
@@ -168,28 +269,42 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
         error={error}
         onRetry={handleRetry}
         onDismiss={() => setError(null)}
-        title="Error Loading Card Explorer"
+        title="Error Loading Card View Explorer"
         isRetrying={isLoading}
       />
     );
   }
 
   /**
-   * Render global loading state
+   * Render global loading state for initial data load.
+   *
+   * This shows a full-page loading spinner only during the initial load
+   * when we have no notes yet. For subsequent refreshes, we use an overlay
+   * instead to maintain context.
    */
   if (isLoading && notes.length === 0) {
-    return <FullPageLoading title="Loading Card Explorer" message="Loading your notes..." />;
+    return <FullPageLoading title="Loading Card View Explorer" message="Loading your notes..." />;
   }
 
   /**
-   * Render main Card Explorer interface
+   * Render main Card View Explorer interface with all components.
+   *
+   * The UI structure consists of:
+   * 1. Error boundary wrapper for React error handling
+   * 2. Header section with title, statistics, and action buttons
+   * 3. Collapsible filter panel (conditionally rendered)
+   * 4. Main content area with virtual list of note cards
+   * 5. Loading overlay for refresh operations
+   *
+   * The component uses conditional rendering for the filter panel
+   * and loading overlay based on component state.
    */
   return (
     <CardViewErrorBoundary onError={handleErrorBoundaryError}>
       <div className="card-view-container">
         {/* Header with title, stats, filter toggle, and refresh button */}
         <div className="card-view-header">
-          <h2 className="card-view-title">Card Explorer</h2>
+          <h2 className="card-view-title">Card View Explorer</h2>
           <div className="card-view-stats">
             <span className="total-notes">
               {notes.length} total note{notes.length !== 1 ? "s" : ""}
@@ -219,17 +334,17 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
           </div>
         </div>
 
-        {/* Collapsible filter panel */}
+        {/* Collapsible filter panel - only rendered when open */}
         {isFilterPanelOpen && (
           <div className="card-view-filter-panel">
             <FilterPanel availableTags={availableTags} availableFolders={availableFolders} />
           </div>
         )}
 
-        {/* Main content area - now full width */}
+        {/* Main content area with virtual list */}
         <div className="card-view-content">
           <div className="card-view-main">
-            {/* Loading overlay for refresh operations */}
+            {/* Loading overlay for refresh operations - shown during refreshes but not initial load */}
             {isLoading && (
               <div className="card-view-loading-overlay">
                 <LoadingSpinner
@@ -240,7 +355,7 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
               </div>
             )}
 
-            {/* Virtual List of Note Cards */}
+            {/* Virtual List of Note Cards - uses react-virtuoso for performance */}
             <VirtualList plugin={plugin} />
           </div>
         </div>

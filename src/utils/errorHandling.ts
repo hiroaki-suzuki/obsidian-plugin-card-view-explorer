@@ -1,7 +1,9 @@
 /**
  * Error Handling Utilities
  *
- * Provides essential error handling functionality for the Card Explorer plugin.
+ * Provides essential error handling functionality for the Card View Explorer plugin.
+ * This module implements a comprehensive error handling system with categorization,
+ * user-friendly messages, retry mechanisms, and fallback strategies.
  */
 
 import { Notice } from "obsidian";
@@ -24,17 +26,19 @@ export enum ErrorCategory {
 
 /**
  * Error information structure
+ *
+ * Standardized format for error reporting and handling throughout the plugin.
  */
 export interface ErrorInfo {
-  /** User-friendly error message */
+  /** User-friendly error message displayed to the user */
   message: string;
-  /** Technical details for debugging */
+  /** Technical details for debugging (stack trace or serialized error) */
   details?: string;
-  /** Error category */
+  /** Error category determining handling behavior */
   category: ErrorCategory;
-  /** Timestamp when error occurred */
+  /** Timestamp when error occurred (milliseconds since epoch) */
   timestamp: number;
-  /** Context information */
+  /** Additional contextual information for debugging */
   context?: Record<string, any>;
 }
 
@@ -52,6 +56,8 @@ interface ErrorConfig {
 
 /**
  * Retry operation options with exponential backoff configuration
+ *
+ * Used to configure the withRetry function's behavior when retrying failed operations.
  */
 export interface RetryOptions {
   /** Maximum number of retry attempts (default: 3) */
@@ -85,6 +91,9 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
  *
  * Handles Error objects, strings, generic objects, and unknown types safely.
  * Protects against circular reference issues in object serialization.
+ *
+ * @param error - The error to extract information from (any type)
+ * @returns Object containing user-readable message and optional technical details
  */
 function extractErrorInfo(error: unknown): { message: string; details?: string } {
   if (error instanceof Error) {
@@ -100,9 +109,11 @@ function extractErrorInfo(error: unknown): { message: string; details?: string }
 
   if (error && typeof error === "object") {
     try {
+      // Extract message property if available, fallback to generic message
       const message = (error as any).message || "Unknown error";
       let details: string;
       try {
+        // Try to serialize the object, but handle circular references gracefully
         details = JSON.stringify(error);
       } catch {
         // Handle circular references or non-serializable objects
@@ -110,6 +121,7 @@ function extractErrorInfo(error: unknown): { message: string; details?: string }
       }
       return { message, details };
     } catch {
+      // Fallback if object processing fails entirely
       return { message: "Unknown error" };
     }
   }
@@ -122,6 +134,10 @@ function extractErrorInfo(error: unknown): { message: string; details?: string }
  *
  * Transforms technical API errors into actionable user guidance based on
  * error category and common Obsidian API failure patterns.
+ *
+ * @param message - The technical error message to transform
+ * @param category - Error category to determine appropriate user message
+ * @returns User-friendly error message with actionable guidance
  */
 function getUserFriendlyMessage(message: string, category: ErrorCategory): string {
   const lowerMessage = message.toLowerCase();
@@ -152,6 +168,9 @@ function getUserFriendlyMessage(message: string, category: ErrorCategory): strin
  *
  * Determines retry eligibility based on error patterns. Permanent failures
  * like permission errors and data corruption are excluded from retry attempts.
+ *
+ * @param message - The error message to analyze for retry eligibility
+ * @returns True if the error should be retried, false for permanent failures
  */
 function isRetryable(message: string): boolean {
   const lowerMessage = message.toLowerCase();
@@ -176,11 +195,19 @@ function isRetryable(message: string): boolean {
  * - Logs technical details for debugging
  * - Shows notifications (suppressed for UI errors to prevent spam)
  *
- * @param error - The error to handle (any type)
+ * @param error - The error to handle (any type: Error object, string, or any other value)
  * @param category - Error category for specialized handling
- * @param context - Additional context for debugging
+ * @param context - Additional context for debugging (e.g., component name, operation type)
  * @param config - Override default notification/logging behavior
  * @returns Structured error information
+ *
+ * @example
+ * try {
+ *   // Some operation that might fail
+ * } catch (error) {
+ *   const errorInfo = handleError(error, ErrorCategory.API, { operation: 'loadNotes' });
+ *   // Handle the error appropriately
+ * }
  */
 export function handleError(
   error: unknown,
@@ -201,7 +228,7 @@ export function handleError(
 
   // Console logging
   if (finalConfig.logToConsole) {
-    console.error(`Card Explorer Error:`, {
+    console.error(`Card View Explorer Error:`, {
       message: errorInfo.message,
       details: errorInfo.details,
       category: errorInfo.category,
@@ -211,7 +238,7 @@ export function handleError(
 
   // User notifications (suppressed for UI errors to avoid notification spam)
   if (finalConfig.showNotifications && category !== ErrorCategory.UI) {
-    new Notice(`Card Explorer: ${errorInfo.message}`, 5000);
+    new Notice(`Card View Explorer: ${errorInfo.message}`, 5000);
   }
 
   return errorInfo;
@@ -229,6 +256,12 @@ export function handleError(
  * @param operation - Async operation to retry on failure
  * @param options - Retry configuration options
  * @returns Promise that resolves with operation result or rejects with final error
+ *
+ * @example
+ * const result = await withRetry(
+ *   async () => await api.fetchData(),
+ *   { maxRetries: 3, baseDelay: 1000, category: ErrorCategory.API }
+ * );
  */
 export async function withRetry<T>(
   operation: () => Promise<T>,
@@ -248,7 +281,7 @@ export async function withRetry<T>(
         break;
       }
 
-      // Check if error should be retried
+      // Check if error should be retried based on error message patterns
       const { message } = extractErrorInfo(error);
       if (!isRetryable(message)) {
         break;
@@ -258,13 +291,15 @@ export async function withRetry<T>(
       const delay = Math.min(config.baseDelay * 2 ** attempt, config.maxDelay);
 
       console.warn(
-        `Card Explorer: Retry attempt ${attempt + 1}/${config.maxRetries} after ${delay}ms`
+        `Card View Explorer: Retry attempt ${attempt + 1}/${config.maxRetries} after ${delay}ms`
       );
 
+      // Wait before next retry attempt
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
+  // If we've exhausted all retries or encountered a non-retryable error, throw the last error
   throw lastError;
 }
 
@@ -279,6 +314,14 @@ export async function withRetry<T>(
  * @param category - Error category for proper handling
  * @param context - Additional error context
  * @returns Operation result or fallback value
+ *
+ * @example
+ * const parsedData = safeSync(
+ *   () => JSON.parse(rawData),
+ *   defaultData,
+ *   ErrorCategory.DATA,
+ *   { source: 'settings.json' }
+ * );
  */
 export function safeSync<T>(
   operation: () => T,

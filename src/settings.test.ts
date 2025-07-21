@@ -125,7 +125,7 @@ describe("CardExplorerSettingTab", () => {
 
       expect(mockContainerEl.empty).toHaveBeenCalled();
       expect(mockContainerEl.createEl).toHaveBeenCalledWith("h2", {
-        text: "Card Explorer Settings",
+        text: "Card View Explorer Settings",
       });
     });
 

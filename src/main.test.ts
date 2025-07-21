@@ -6,7 +6,7 @@ import type { FilterState, PluginData, SortConfig } from "./types";
 
 vi.mock("./view", () => ({
   CardExplorerView: vi.fn(),
-  VIEW_TYPE_CARD_EXPLORER: "card-explorer-view",
+  VIEW_TYPE_CARD_EXPLORER: "card-view-explorer-view",
 }));
 
 vi.mock("./settings", () => ({
@@ -248,7 +248,7 @@ describe("CardExplorerPlugin", () => {
 
       await plugin.saveSettings();
 
-      expect(consoleSpy).toHaveBeenCalledWith("Card Explorer: Failed to save settings");
+      expect(consoleSpy).toHaveBeenCalledWith("Card View Explorer: Failed to save settings");
       consoleSpy.mockRestore();
     });
 
@@ -291,7 +291,7 @@ describe("CardExplorerPlugin", () => {
 
       await plugin.loadPluginData();
 
-      expect(consoleSpy).toHaveBeenCalledWith("Card Explorer: Data migrated", {
+      expect(consoleSpy).toHaveBeenCalledWith("Card View Explorer: Data migrated", {
         from: 0,
         to: 1,
         warnings: [],
@@ -316,7 +316,7 @@ describe("CardExplorerPlugin", () => {
 
       await plugin.savePluginData();
 
-      expect(consoleSpy).toHaveBeenCalledWith("Card Explorer: Failed to save plugin data");
+      expect(consoleSpy).toHaveBeenCalledWith("Card View Explorer: Failed to save plugin data");
       consoleSpy.mockRestore();
     });
   });
@@ -329,7 +329,7 @@ describe("CardExplorerPlugin", () => {
 
       await plugin.activateView();
 
-      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-explorer-view");
+      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-view-explorer-view");
       expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
     });
 
@@ -345,7 +345,7 @@ describe("CardExplorerPlugin", () => {
 
       expect(mockWorkspace.getLeaf).toHaveBeenCalledWith(true);
       expect(mockLeaf.setViewState).toHaveBeenCalledWith({
-        type: "card-explorer-view",
+        type: "card-view-explorer-view",
         active: true,
       });
       expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
@@ -363,7 +363,7 @@ describe("CardExplorerPlugin", () => {
 
       expect(mockWorkspace.getRightLeaf).toHaveBeenCalledWith(false);
       expect(mockLeaf.setViewState).toHaveBeenCalledWith({
-        type: "card-explorer-view",
+        type: "card-view-explorer-view",
         active: true,
       });
       expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
@@ -388,15 +388,18 @@ describe("CardExplorerPlugin", () => {
 
       await plugin.onload();
 
-      expect(plugin.registerView).toHaveBeenCalledWith("card-explorer-view", expect.any(Function));
+      expect(plugin.registerView).toHaveBeenCalledWith(
+        "card-view-explorer-view",
+        expect.any(Function)
+      );
       expect(plugin.addCommand).toHaveBeenCalledWith({
-        id: "open-card-explorer",
-        name: "Open Card Explorer",
+        id: "open-card-view-explorer",
+        name: "Open Card View Explorer",
         callback: expect.any(Function),
       });
       expect(plugin.addRibbonIcon).toHaveBeenCalledWith(
         "layout-grid",
-        "Card Explorer",
+        "Card View Explorer",
         expect.any(Function)
       );
       expect(plugin.addSettingTab).toHaveBeenCalledWith(expect.any(Object));
@@ -420,7 +423,7 @@ describe("CardExplorerPlugin", () => {
     it("should detach views on unload", async () => {
       await plugin.onunload();
 
-      expect(mockWorkspace.detachLeavesOfType).toHaveBeenCalledWith("card-explorer-view");
+      expect(mockWorkspace.detachLeavesOfType).toHaveBeenCalledWith("card-view-explorer-view");
     });
   });
 
@@ -437,7 +440,7 @@ describe("CardExplorerPlugin", () => {
 
       await plugin.refreshNotes();
 
-      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-explorer-view");
+      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-view-explorer-view");
       expect(mockView.refreshNotes).toHaveBeenCalled();
     });
 
@@ -467,10 +470,10 @@ describe("CardExplorerPlugin", () => {
       await expect(plugin.refreshNotes()).resolves.toBeUndefined();
     });
 
-    it("should query workspace for card explorer views during refresh", async () => {
+    it("should query workspace for Card View Explorer views during refresh", async () => {
       await plugin.refreshNotes();
 
-      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-explorer-view");
+      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-view-explorer-view");
     });
   });
 });

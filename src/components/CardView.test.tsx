@@ -118,7 +118,7 @@ describe("CardView", () => {
     render(<CardView plugin={mockPlugin} />);
 
     // Check header
-    expect(screen.getByText("Card Explorer")).toBeInTheDocument();
+    expect(screen.getByText("Card View Explorer")).toBeInTheDocument();
     expect(screen.getByText("2 total notes")).toBeInTheDocument();
 
     // Check virtual list is rendered
@@ -171,7 +171,7 @@ describe("CardView", () => {
 
     render(<CardView plugin={mockPlugin} />);
 
-    expect(screen.getByText("Loading Card Explorer")).toBeInTheDocument();
+    expect(screen.getByText("Loading Card View Explorer")).toBeInTheDocument();
     expect(screen.getByText("Loading your notes...")).toBeInTheDocument();
   });
 
@@ -190,7 +190,7 @@ describe("CardView", () => {
 
     render(<CardView plugin={mockPlugin} />);
 
-    expect(screen.getByText("Error Loading Card Explorer")).toBeInTheDocument();
+    expect(screen.getByText("Error Loading Card View Explorer")).toBeInTheDocument();
     expect(screen.getByText("Failed to load notes")).toBeInTheDocument();
     expect(screen.getByText("Retry")).toBeInTheDocument();
     expect(screen.getByText("Dismiss")).toBeInTheDocument();
@@ -306,7 +306,7 @@ describe("CardView", () => {
 
       // If there were any errors in the handleErrorBoundaryError function definition,
       // the component would fail to render, so successful rendering validates the integration
-      expect(screen.getByText("Card Explorer")).toBeInTheDocument();
+      expect(screen.getByText("Card View Explorer")).toBeInTheDocument();
 
       consoleSpy.mockRestore();
     });

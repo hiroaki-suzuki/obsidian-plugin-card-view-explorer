@@ -2,7 +2,7 @@ import type { PluginData } from "../types";
 import { validatePluginData } from "./validation";
 
 /**
- * Data backup and restore utilities for Card Explorer plugin
+ * Data backup and restore utilities for Card View Explorer plugin
  *
  * Handles creating backups before data changes and recovering from backups
  * when data corruption or loading errors occur.
@@ -58,7 +58,7 @@ export async function createDataBackup(plugin: BackupPlugin): Promise<DataBackup
 
     // Don't create backup if existing data is invalid
     if (!validatePluginData(existingData)) {
-      console.warn("Card Explorer: Existing data is invalid, skipping backup creation");
+      console.warn("Card View Explorer: Existing data is invalid, skipping backup creation");
       return null;
     }
 
@@ -83,7 +83,7 @@ export async function createDataBackup(plugin: BackupPlugin): Promise<DataBackup
 
     return backup;
   } catch (error) {
-    console.warn("Card Explorer: Failed to create data backup:", error);
+    console.warn("Card View Explorer: Failed to create data backup:", error);
     return null;
   }
 }
@@ -100,7 +100,7 @@ export async function attemptDataRecovery(plugin: BackupPlugin): Promise<PluginD
     const backups = rawData?._backups as DataBackup[] | undefined;
 
     if (!backups || !Array.isArray(backups) || backups.length === 0) {
-      console.log("Card Explorer: No backups available for recovery");
+      console.log("Card View Explorer: No backups available for recovery");
       return null;
     }
 
@@ -108,16 +108,16 @@ export async function attemptDataRecovery(plugin: BackupPlugin): Promise<PluginD
     for (const backup of backups) {
       if (backup.data && validatePluginData(backup.data)) {
         console.log(
-          `Card Explorer: Recovered data from backup created at ${new Date(backup.timestamp).toISOString()}`
+          `Card View Explorer: Recovered data from backup created at ${new Date(backup.timestamp).toISOString()}`
         );
         return backup.data;
       }
     }
 
-    console.warn("Card Explorer: No valid backups found for recovery");
+    console.warn("Card View Explorer: No valid backups found for recovery");
     return null;
   } catch (error) {
-    console.error("Card Explorer: Failed to recover from backup:", error);
+    console.error("Card View Explorer: Failed to recover from backup:", error);
     return null;
   }
 }

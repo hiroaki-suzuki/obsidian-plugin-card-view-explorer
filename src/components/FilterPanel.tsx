@@ -2,6 +2,9 @@ import type React from "react";
 import { useCallback, useState } from "react";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 
+/**
+ * Props for the FilterPanel component
+ */
 interface FilterPanelProps {
   /** Available tags from all notes for tag filter dropdown */
   availableTags: string[];
@@ -12,7 +15,7 @@ interface FilterPanelProps {
 /**
  * FilterPanel Component
  *
- * Provides comprehensive filtering controls for the Card Explorer:
+ * Provides comprehensive filtering controls for the Card View Explorer:
  * - Filename search with partial matching
  * - Multi-select folder filtering
  * - Tag filtering with available tags
@@ -24,8 +27,17 @@ interface FilterPanelProps {
 export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availableFolders }) => {
   const { filters, updateFilters, clearFilters } = useCardExplorerStore();
 
-  // Local state for date filter input
+  /**
+   * Local state for date filter input value
+   * Stores the raw input string from the date filter field
+   */
   const [dateInput, setDateInput] = useState("");
+
+  /**
+   * Local state for date filter type
+   * "within" - Filter notes modified within X days
+   * "after" - Filter notes modified after a specific date
+   */
   const [dateType, setDateType] = useState<"within" | "after">("within");
 
   /**
@@ -85,7 +97,91 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
   );
 
   /**
-   * Check if any filters are active
+   * Handles date type selection change between "within" and "after"
+   * Re-applies the filter with the new date type if there's existing input
+   *
+   * @param newDateType - The new date filter type ("within" or "after")
+   */
+  const handleDateTypeChange = useCallback(
+    (newDateType: "within" | "after") => {
+      setDateType(newDateType);
+
+      // Re-apply filter with new date type if there's input
+      if (dateInput.trim()) {
+        let dateValue: Date | null = null;
+
+        if (newDateType === "within") {
+          const days = parseInt(dateInput, 10);
+          if (!Number.isNaN(days) && days > 0) {
+            dateValue = new Date();
+            dateValue.setDate(dateValue.getDate() - days);
+          }
+        } else {
+          const parsedDate = new Date(dateInput);
+          if (!Number.isNaN(parsedDate.getTime())) {
+            dateValue = parsedDate;
+          }
+        }
+
+        if (dateValue) {
+          updateFilters({
+            dateRange: {
+              type: newDateType,
+              value: dateValue,
+            },
+          });
+        }
+      }
+    },
+    [dateInput, updateFilters]
+  );
+
+  /**
+   * Handles date input changes and updates the filter accordingly
+   * For "within" type, converts days to a date range
+   * For "after" type, uses the specific date provided
+   *
+   * @param value - The new date input value
+   */
+  const handleDateInputChange = useCallback(
+    (value: string) => {
+      setDateInput(value);
+
+      if (!value.trim()) {
+        updateFilters({ dateRange: null });
+        return;
+      }
+
+      let dateValue: Date | null = null;
+
+      if (dateType === "within") {
+        const days = parseInt(value, 10);
+        if (!Number.isNaN(days) && days > 0) {
+          dateValue = new Date();
+          dateValue.setDate(dateValue.getDate() - days);
+        }
+      } else {
+        const parsedDate = new Date(value);
+        if (!Number.isNaN(parsedDate.getTime())) {
+          dateValue = parsedDate;
+        }
+      }
+
+      if (dateValue) {
+        updateFilters({
+          dateRange: {
+            type: dateType,
+            value: dateValue,
+          },
+        });
+      }
+    },
+    [dateType, updateFilters]
+  );
+
+  /**
+   * Determines if any filters are currently active
+   * Used to conditionally display the "Clear All" button
    */
   const hasActiveFilters =
     filters.filename.length > 0 ||
@@ -109,7 +205,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
         )}
       </div>
 
-      {/* Filename Search */}
+      {/* Filename Search - Text input for filtering notes by filename */}
       <div className="filter-group">
         <h4>
           <label htmlFor="filter-filename">Filename:</label>
@@ -124,7 +220,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
         />
       </div>
 
-      {/* Date Range Filter */}
+      {/* Date Range Filter - Filter notes by modification date with two modes:
+           1. "Within last X days" - Shows notes modified within a specific number of days
+           2. "After date" - Shows notes modified after a specific calendar date */}
       <div className="filter-group">
         <h4>
           <label htmlFor="filter-date">Date:</label>
@@ -132,34 +230,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
         <div className="date-filter-container">
           <select
             value={dateType}
-            onChange={(e) => {
-              // TODO: 関数化
-              const newDateType = e.target.value as "within" | "after";
-              setDateType(newDateType);
-
-              // Re-apply filter with new date type if there's input
-              if (dateInput.trim()) {
-                let dateValue: Date;
-
-                if (newDateType === "within") {
-                  const days = parseInt(dateInput, 10);
-                  if (Number.isNaN(days) || days <= 0) return;
-
-                  dateValue = new Date();
-                  dateValue.setDate(dateValue.getDate() - days);
-                } else {
-                  dateValue = new Date(dateInput);
-                  if (Number.isNaN(dateValue.getTime())) return;
-                }
-
-                updateFilters({
-                  dateRange: {
-                    type: newDateType,
-                    value: dateValue,
-                  },
-                });
-              }
-            }}
+            onChange={(e) => handleDateTypeChange(e.target.value as "within" | "after")}
             className="date-type-select"
             title="Date filter type"
           >
@@ -171,36 +242,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
             id="filter-date"
             type={dateType === "within" ? "number" : "date"}
             value={dateInput}
-            onChange={(e) => {
-              // TODO: 関数化
-              const value = e.target.value;
-              setDateInput(value);
-
-              if (!value.trim()) {
-                updateFilters({ dateRange: null });
-                return;
-              }
-
-              let dateValue: Date;
-
-              if (dateType === "within") {
-                const days = parseInt(value, 10);
-                if (Number.isNaN(days) || days <= 0) return;
-
-                dateValue = new Date();
-                dateValue.setDate(dateValue.getDate() - days);
-              } else {
-                dateValue = new Date(value);
-                if (Number.isNaN(dateValue.getTime())) return;
-              }
-
-              updateFilters({
-                dateRange: {
-                  type: dateType,
-                  value: dateValue,
-                },
-              });
-            }}
+            onChange={(e) => handleDateInputChange(e.target.value)}
             placeholder={dateType === "within" ? "days" : ""}
             min={dateType === "within" ? "1" : undefined}
             className="date-input"
@@ -210,7 +252,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
         </div>
       </div>
 
-      {/* Tag Filter */}
+      {/* Tag Filter - Multi-select checkboxes for filtering notes by tags
+           Shows all available tags from the notes collection */}
       <div className="filter-group">
         <h4>Tags:</h4>
         <div className="multi-select-container">
@@ -233,7 +276,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
         </div>
       </div>
 
-      {/* Folder Filter */}
+      {/* Folder Filter - Multi-select checkboxes for filtering notes by folders
+           Shows all available folders from the notes collection */}
       <div className="filter-group">
         <h4>Folders:</h4>
         <div className="multi-select-container">

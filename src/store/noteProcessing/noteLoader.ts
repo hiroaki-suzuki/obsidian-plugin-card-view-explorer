@@ -6,16 +6,18 @@ import { extractContentPreview, extractNoteMetadata } from "./metadataExtractor"
  * Data Processing Functions - Note Loading and Transformation
  *
  * These functions handle loading notes from Obsidian APIs and transforming
- * them into the NoteData format used by the Card Explorer.
+ * them into the NoteData format used by the Card View Explorer. This module serves
+ * as the bridge between Obsidian's file system and the plugin's data model.
  */
 
 /**
  * Check if a file is a markdown file
  *
  * Type guard function to ensure we only process markdown files.
+ * This is used as a TypeScript type guard to narrow the type from TFile to MarkdownFile.
  *
- * @param {TFile} file - File to check
- * @returns {file is MarkdownFile} True if file is a markdown file
+ * @param {TFile} file - Obsidian file object to check
+ * @returns {file is MarkdownFile} True if file is a markdown file (extension is "md")
  */
 export const isMarkdownFile = (file: TFile): file is MarkdownFile => {
   return file.extension === "md";
@@ -24,12 +26,13 @@ export const isMarkdownFile = (file: TFile): file is MarkdownFile => {
 /**
  * Transform a TFile into NoteData
  *
- * Converts an Obsidian TFile into the NoteData format used by Card Explorer.
- * Extracts metadata, content preview, and other required information.
+ * Converts an Obsidian TFile into the NoteData format used by Card View Explorer.
+ * Extracts metadata, content preview, and other required information from the file.
+ * This function is asynchronous because it needs to read file content for the preview.
  *
- * @param {App} app - Obsidian App instance
- * @param {TFile} file - File to transform
- * @returns {Promise<NoteData>} Transformed note data
+ * @param {App} app - Obsidian App instance for accessing vault and metadata cache
+ * @param {TFile} file - Obsidian file object to transform into NoteData
+ * @returns {Promise<NoteData>} Transformed note data with metadata and preview
  */
 export const transformFileToNoteData = async (app: App, file: TFile): Promise<NoteData> => {
   // Extract metadata (frontmatter and tags)
@@ -61,26 +64,32 @@ export const transformFileToNoteData = async (app: App, file: TFile): Promise<No
  *
  * Queries Obsidian's vault for all markdown files and transforms them
  * into NoteData objects. Handles errors gracefully and filters out
- * non-markdown files.
+ * non-markdown files. Uses Promise.allSettled to process files in parallel
+ * while ensuring that failures with individual files don't cause the entire
+ * operation to fail.
  *
- * @param {App} app - Obsidian App instance
- * @returns {Promise<NoteData[]>} Array of transformed note data
+ * @param {App} app - Obsidian App instance for accessing vault and metadata cache
+ * @returns {Promise<NoteData[]>} Array of successfully transformed note data objects
+ * @throws {Error} If the overall loading operation fails (with error handling applied)
  */
 export const loadNotesFromVault = async (app: App): Promise<NoteData[]> => {
   try {
     // Get all files from vault
     const allFiles = app.vault.getMarkdownFiles();
 
-    // Filter to only markdown files (should already be filtered by getMarkdownFiles)
+    // Filter to only markdown files (redundant safety check as getMarkdownFiles should already filter)
+    // This ensures type safety through the isMarkdownFile type guard
     const markdownFiles = allFiles.filter(isMarkdownFile);
 
     // Transform each file to NoteData
     const noteDataPromises = markdownFiles.map((file) => transformFileToNoteData(app, file));
 
-    // Wait for all transformations to complete
+    // Wait for all transformations to complete - using Promise.allSettled ensures
+    // that failures with individual files don't cause the entire operation to fail
     const noteDataResults = await Promise.allSettled(noteDataPromises);
 
     // Extract successful results and log failures
+    // This approach ensures we get as many valid notes as possible even if some fail
     const notes: NoteData[] = [];
     noteDataResults.forEach((result, index) => {
       if (result.status === "fulfilled") {
@@ -92,9 +101,11 @@ export const loadNotesFromVault = async (app: App): Promise<NoteData[]> => {
 
     return notes;
   } catch (error) {
-    // Import error handling utilities dynamically
+    // Import error handling utilities dynamically to avoid circular dependencies
+    // This is necessary because errorHandling.ts might import from this module
     const { handleError, ErrorCategory } = await import("../../utils/errorHandling");
 
+    // Log and handle the error with proper categorization and context
     handleError(error, ErrorCategory.API, {
       operation: "loadNotesFromVault",
       fileCount: 0,

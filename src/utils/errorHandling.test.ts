@@ -34,7 +34,7 @@ describe("Error Handling - Simplified", () => {
       expect(result.timestamp).toBeTypeOf("number");
       expect(console.error).toHaveBeenCalled();
       expect(mockNotice).toHaveBeenCalledWith(
-        "Card Explorer: Failed to communicate with Obsidian. Please try refreshing.",
+        "Card View Explorer: Failed to communicate with Obsidian. Please try refreshing.",
         5000
       );
     });
@@ -187,7 +187,7 @@ describe("Error Handling - Simplified", () => {
       safeSync(operation, "fallback", ErrorCategory.DATA);
 
       expect(console.error).toHaveBeenCalledWith(
-        "Card Explorer Error:",
+        "Card View Explorer Error:",
         expect.objectContaining({
           category: ErrorCategory.DATA,
         })
@@ -202,7 +202,7 @@ describe("Error Handling - Simplified", () => {
       safeSync(operation, "fallback", ErrorCategory.API, context);
 
       expect(console.error).toHaveBeenCalledWith(
-        "Card Explorer Error:",
+        "Card View Explorer Error:",
         expect.objectContaining({
           context,
         })

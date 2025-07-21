@@ -10,9 +10,9 @@ import { sortNotes, togglePinState } from "./sorting";
 import { DEFAULT_SORT_KEY, DEFAULT_SORT_ORDER } from "./utils";
 
 /**
- * Card Explorer Store State Interface
+ * Card View Explorer Store State Interface
  *
- * Defines the complete state structure and actions for Card Explorer.
+ * Defines the complete state structure and actions for Card View Explorer.
  * This interface clearly separates data, UI state, and actions.
  */
 export interface CardExplorerState {
@@ -123,6 +123,12 @@ const createDefaultSortConfig = (): SortConfig => ({
  *
  * This is the main orchestrator function that applies the complete
  * transformation pipeline: filtering → sorting → pinning organization.
+ *
+ * @param notes - Array of all notes to process
+ * @param filters - Current filter configuration to apply
+ * @param sortConfig - Current sort configuration to apply
+ * @param pinnedNotes - Set of pinned note paths to prioritize
+ * @returns Filtered, sorted array of notes with pinned notes at the top
  */
 const recomputeFilteredNotes = (
   notes: NoteData[],
@@ -137,16 +143,19 @@ const recomputeFilteredNotes = (
 };
 
 /**
- * Card Explorer Zustand Store
+ * Card View Explorer Zustand Store
  *
- * Main state management store for the Card Explorer plugin.
+ * Main state management store for the Card View Explorer plugin.
  * Uses Zustand with subscribeWithSelector middleware for reactive updates.
+ * This store serves as the central state management system for the entire plugin.
  *
  * Key Features:
  * - Automatic recomputation of filtered notes when state changes
  * - Immutable updates to prevent side effects
  * - Optimized filtering and sorting pipeline
  * - Support for pinned notes that always appear first
+ * - Error handling and loading state management
+ * - Persistence of user preferences (pins, filters, sort)
  */
 export const useCardExplorerStore = create<CardExplorerState>()(
   subscribeWithSelector((set, get) => ({
@@ -164,6 +173,8 @@ export const useCardExplorerStore = create<CardExplorerState>()(
     /**
      * Set the complete notes array from Obsidian
      * Automatically recomputes filtered results with current filters/sort
+     *
+     * @param notes - Array of note data objects loaded from Obsidian vault
      */
     setNotes: (notes: NoteData[]) => {
       set({ notes }); // Update raw notes array
@@ -181,6 +192,9 @@ export const useCardExplorerStore = create<CardExplorerState>()(
     /**
      * Update filter configuration with partial updates
      * Merges new filters with existing ones and recomputes results
+     *
+     * @param newFilters - Partial filter state to merge with current filters
+     *                     Only specified properties will be updated
      */
     updateFilters: (newFilters: Partial<FilterState>) => {
       const state = get();
@@ -201,6 +215,8 @@ export const useCardExplorerStore = create<CardExplorerState>()(
     /**
      * Update sort configuration and recompute results
      * Replaces entire sort config (not partial like filters)
+     *
+     * @param config - Complete new sort configuration (key and order)
      */
     updateSortConfig: (config: SortConfig) => {
       set({ sortConfig: config });
@@ -219,6 +235,8 @@ export const useCardExplorerStore = create<CardExplorerState>()(
     /**
      * Toggle pin state for a specific note
      * Uses immutable update pattern and recomputes to move pinned notes to top
+     *
+     * @param filePath - Full path to the note file to toggle pin state
      */
     togglePin: (filePath: string) => {
       const state = get();
@@ -239,17 +257,22 @@ export const useCardExplorerStore = create<CardExplorerState>()(
     /**
      * Initialize store from plugin data
      * Loads saved pin states, filters, and sort config from plugin data
+     *
+     * @param plugin - Plugin instance containing persisted user data
      */
     initializeFromPluginData: (plugin: CardExplorerPlugin) => {
       const data = plugin.getData();
 
       // Initialize pinned notes from plugin data
+      // Convert array to Set for O(1) lookup performance
       const pinnedNotes = new Set(data.pinnedNotes || []);
 
       // Initialize filters from plugin data (use last filters if available)
+      // This restores the user's previous filter selections
       const filters = data.lastFilters || createDefaultFilters();
 
       // Initialize sort config from plugin data
+      // This restores the user's preferred sort order
       const sortConfig = data.sortConfig || createDefaultSortConfig();
 
       // Update store state
@@ -268,17 +291,21 @@ export const useCardExplorerStore = create<CardExplorerState>()(
     /**
      * Save current pin states to plugin data
      * Persists current pin states, filters, and sort config to plugin data file
+     *
+     * @param plugin - Plugin instance to save data to
+     * @returns Promise that resolves when data is saved
      */
     savePinStatesToPlugin: async (plugin: CardExplorerPlugin) => {
       const state = get();
 
       // Update plugin data with current state
+      // This preserves other plugin data while updating only what we need
       const currentData = plugin.getData();
       plugin.updateData({
         ...currentData,
-        pinnedNotes: Array.from(state.pinnedNotes),
-        lastFilters: state.filters,
-        sortConfig: state.sortConfig,
+        pinnedNotes: Array.from(state.pinnedNotes), // Convert Set back to array for storage
+        lastFilters: state.filters, // Save current filters for next session
+        sortConfig: state.sortConfig, // Save current sort config for next session
       });
 
       // Save to disk
@@ -287,17 +314,25 @@ export const useCardExplorerStore = create<CardExplorerState>()(
 
     /**
      * Set loading state for UI feedback during async operations
+     *
+     * @param loading - Boolean indicating whether loading is in progress
      */
     setLoading: (loading: boolean) => set({ isLoading: loading }),
 
     /**
-     * Set error state for user feedback (null to clear error)
+     * Set error state for user feedback
+     *
+     * @param error - Error message to display or null to clear error state
      */
     setError: (error: string | null) => set({ error }),
 
     /**
      * Refresh notes from Obsidian APIs
      * Loads all notes from vault and updates store state
+     * Includes error handling with retry mechanism for API failures
+     *
+     * @param app - Obsidian App instance for API access
+     * @returns Promise that resolves when notes are refreshed
      */
     refreshNotes: async (app: App) => {
       // Import error handling utilities dynamically
@@ -308,9 +343,10 @@ export const useCardExplorerStore = create<CardExplorerState>()(
         set({ isLoading: true, error: null });
 
         // Load notes from vault with retry mechanism
+        // withRetry will attempt the operation multiple times with exponential backoff
         const notes = await withRetry(() => loadNotesFromVault(app), {
-          maxRetries: 3,
-          baseDelay: 1000,
+          maxRetries: 3, // Try up to 3 times
+          baseDelay: 1000, // Start with 1 second delay
           category: ErrorCategory.API,
           context: { operation: "loadNotesFromVault", notesCount: get().notes.length },
         });
@@ -332,6 +368,7 @@ export const useCardExplorerStore = create<CardExplorerState>()(
         set({ isLoading: false });
       } catch (error) {
         // Handle error with comprehensive error handling
+        // This converts technical errors to user-friendly messages
         const errorInfo = handleError(error, ErrorCategory.API, {
           operation: "refreshNotes",
           notesCount: get().notes.length,
@@ -348,6 +385,7 @@ export const useCardExplorerStore = create<CardExplorerState>()(
     /**
      * Clear all active filters and reset to default state
      * Recomputes results to show all notes with current sort
+     * Maintains pin states and sort configuration
      */
     clearFilters: () => {
       const defaultFilters = createDefaultFilters(); // Fresh default filters
@@ -367,6 +405,7 @@ export const useCardExplorerStore = create<CardExplorerState>()(
     /**
      * Reset entire store to initial state
      * Used for cleanup or when switching contexts
+     * Clears all data including notes, filters, pins, and errors
      */
     reset: () => {
       set({

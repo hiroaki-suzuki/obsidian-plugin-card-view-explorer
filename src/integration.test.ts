@@ -1,7 +1,7 @@
 /**
  * Integration tests for Obsidian API usage
  *
- * These tests focus on the integration between the Card Explorer plugin
+ * These tests focus on the integration between the Card View Explorer plugin
  * and Obsidian's APIs, testing the complete workflows and interactions.
  */
 
@@ -114,7 +114,10 @@ describe("Obsidian API Integration Tests", () => {
     };
 
     // Create plugin instance
-    plugin = new CardExplorerPlugin(mockApp, { id: "card-explorer", name: "Card Explorer" });
+    plugin = new CardExplorerPlugin(mockApp, {
+      id: "card-view-explorer",
+      name: "Card View Explorer",
+    });
   });
 
   describe("Plugin Registration and Lifecycle", () => {
@@ -134,13 +137,13 @@ describe("Obsidian API Integration Tests", () => {
         expect.any(Function)
       );
       expect(plugin.addCommand).toHaveBeenCalledWith({
-        id: "open-card-explorer",
-        name: "Open Card Explorer",
+        id: "open-card-view-explorer",
+        name: "Open Card View Explorer",
         callback: expect.any(Function),
       });
       expect(plugin.addRibbonIcon).toHaveBeenCalledWith(
         "layout-grid",
-        "Card Explorer",
+        "Card View Explorer",
         expect.any(Function)
       );
       expect(plugin.addSettingTab).toHaveBeenCalledWith(expect.any(CardExplorerSettingTab));
@@ -320,7 +323,7 @@ describe("Obsidian API Integration Tests", () => {
 
       await plugin.saveSettings();
 
-      expect(consoleSpy).toHaveBeenCalledWith("Card Explorer: Failed to save settings");
+      expect(consoleSpy).toHaveBeenCalledWith("Card View Explorer: Failed to save settings");
       consoleSpy.mockRestore();
     });
 
@@ -386,7 +389,7 @@ describe("Obsidian API Integration Tests", () => {
 
       await plugin.loadPluginData();
 
-      expect(consoleSpy).toHaveBeenCalledWith("Card Explorer: Data migrated", {
+      expect(consoleSpy).toHaveBeenCalledWith("Card View Explorer: Data migrated", {
         from: 0,
         to: 1,
         warnings: [],
