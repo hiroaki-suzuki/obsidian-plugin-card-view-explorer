@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Obsidian Card Explorer plugin provides a card-based interface for browsing recently edited notes. The plugin integrates with Obsidian's existing APIs to create a responsive, filterable view that helps users quickly locate and access their notes through visual previews.
+The Obsidian Card View Explorer plugin provides a card-based interface for browsing recently edited notes. The plugin integrates with Obsidian's existing APIs to create a responsive, filterable view that helps users quickly locate and access their notes through visual previews.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ The Obsidian Card Explorer plugin provides a card-based interface for browsing r
 ┌─────────────────────────────────────────────────────────────┐
 │                    Obsidian Application                     │
 ├─────────────────────────────────────────────────────────────┤
-│  Card Explorer Plugin                                       │
+│  Card View Explorer Plugin                                  │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐ │
 │  │   Main Plugin   │  │   Settings      │  │   View      │ │
 │  │   (main.ts)     │  │   (settings.ts) │  │   (view.ts) │ │
@@ -72,7 +72,7 @@ The Obsidian Card Explorer plugin provides a card-based interface for browsing r
   - Event subscription (vault events, metadata cache events)
   - Data persistence coordination using loadData() and saveData()
 
-#### Card Explorer View (view.ts)
+#### Card View Explorer View (view.ts)
 - **Purpose**: Obsidian ItemView implementation for the card interface
 - **Extends**: ItemView from Obsidian API
 - **Responsibilities**:
@@ -92,7 +92,7 @@ The Obsidian Card Explorer plugin provides a card-based interface for browsing r
 
 ### State Management with Zustand
 
-#### Card Explorer Store
+#### Card View Explorer Store
 ```typescript
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
@@ -289,8 +289,8 @@ async function safeApiCall<T>(operation: () => Promise<T>): Promise<T | null> {
   try {
     return await operation();
   } catch (error) {
-    console.error('Card Explorer API Error:', error);
-    new Notice('Card Explorer: Operation failed');
+    console.error('Card View Explorer API Error:', error);
+    new Notice('Card View Explorer: Operation failed');
     return null;
   }
 }

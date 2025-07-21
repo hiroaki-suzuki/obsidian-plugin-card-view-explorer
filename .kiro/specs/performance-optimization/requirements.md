@@ -2,13 +2,13 @@
 
 ## Introduction
 
-The Performance Optimization feature focuses on enhancing the Card Explorer plugin's performance when handling large note collections, optimizing memory usage, and ensuring smooth user interactions. This feature addresses scalability concerns and provides monitoring capabilities for performance analysis.
+The Performance Optimization feature focuses on enhancing the Card View Explorer plugin's performance when handling large note collections, optimizing memory usage, and ensuring smooth user interactions. This feature addresses scalability concerns and provides monitoring capabilities for performance analysis.
 
 ## Requirements
 
 ### Requirement 1
 
-**User Story:** As an Obsidian user with a large vault, I want the Card Explorer to perform well with thousands of notes, so that the interface remains responsive and usable.
+**User Story:** As an Obsidian user with a large vault, I want the Card View Explorer to perform well with thousands of notes, so that the interface remains responsive and usable.
 
 #### Acceptance Criteria
 
@@ -19,7 +19,7 @@ The Performance Optimization feature focuses on enhancing the Card Explorer plug
 
 ### Requirement 2
 
-**User Story:** As an Obsidian user, I want the Card Explorer to use memory efficiently, so that it doesn't impact Obsidian's overall performance.
+**User Story:** As an Obsidian user, I want the Card View Explorer to use memory efficiently, so that it doesn't impact Obsidian's overall performance.
 
 #### Acceptance Criteria
 
@@ -52,7 +52,7 @@ The Performance Optimization feature focuses on enhancing the Card Explorer plug
 
 ### Requirement 5
 
-**User Story:** As an Obsidian user, I want the Card Explorer to handle edge cases gracefully, so that performance doesn't degrade under unusual conditions.
+**User Story:** As an Obsidian user, I want the Card View Explorer to handle edge cases gracefully, so that performance doesn't degrade under unusual conditions.
 
 #### Acceptance Criteria
 

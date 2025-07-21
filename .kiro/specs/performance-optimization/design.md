@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Performance Optimization feature enhances the Card Explorer plugin's scalability and responsiveness when handling large note collections. This design focuses on memory efficiency, rendering optimization, and performance monitoring to ensure smooth user experience regardless of vault size.
+The Performance Optimization feature enhances the Card View Explorer plugin's scalability and responsiveness when handling large note collections. This design focuses on memory efficiency, rendering optimization, and performance monitoring to ensure smooth user experience regardless of vault size.
 
 ## Architecture
 
@@ -18,7 +18,7 @@ The Performance Optimization feature enhances the Card Explorer plugin's scalabi
 │  └─────────────────┘  └─────────────────┘  └─────────────┘ │
 │           │                     │                   │       │
 ├─────────────────────────────────────────────────────────────┤
-│                Existing Card Explorer                       │
+│                Existing Card View Explorer                   │
 │  ┌─────────────────────────────────────────────────────────┐ │
 │  │              Zustand Store                              │ │
 │  │  • Optimized Data Structures                            │ │
@@ -426,7 +426,7 @@ class PerformanceErrorHandler {
       this.reduceBatchSize();
 
       // Show warning to user
-      new Notice('Card Explorer: High memory usage detected. Performance may be affected.');
+      new Notice('Card View Explorer: High memory usage detected. Performance may be affected.');
     }
   }
 
@@ -541,4 +541,4 @@ interface TestResult {
 }
 ```
 
-This design provides a comprehensive approach to optimizing the Card Explorer's performance while maintaining functionality and user experience.
+This design provides a comprehensive approach to optimizing the Card View Explorer's performance while maintaining functionality and user experience.

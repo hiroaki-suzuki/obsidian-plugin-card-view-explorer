@@ -1,6 +1,6 @@
 # Product Overview
 
-This is an Obsidian plugin called "Card Explorer" that provides a card-based view for recently edited notes with comprehensive filtering and management capabilities.
+This is an Obsidian plugin called "Card View Explorer" that provides a card-based view for recently edited notes with comprehensive filtering and management capabilities.
 
 ## Core Features
 - **Card-Based Display**: Visual tile/card format showing note title, preview (first 3 lines), and metadata
@@ -15,7 +15,7 @@ This is an Obsidian plugin called "Card Explorer" that provides a card-based vie
 ## Advanced Features
 - **Date Range Filtering**: Filter notes by "within X days" or "after specific date"
 - **Exclusion Filters**: Exclude specific folders, tags, or filename patterns
-- **Auto-Start Option**: Automatically open Card Explorer when Obsidian starts
+- **Auto-Start Option**: Automatically open Card View Explorer when Obsidian starts
 - **Sidebar Integration**: Option to display in sidebar or main workspace area
 - **Debounced Operations**: Optimized performance with debounced file system events
 - **Persistent State**: Remembers filter settings, pin states, and sort configuration

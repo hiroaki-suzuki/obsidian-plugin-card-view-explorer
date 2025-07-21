@@ -11,12 +11,12 @@
 - [x] 2.1 Create main plugin class and basic Obsidian integration
   - Implement main plugin class extending Obsidian's Plugin base class
   - Add plugin lifecycle methods (onload, onunload)
-  - Register view type and commands for Card Explorer
+  - Register view type and commands for Card View Explorer
   - Create basic settings interface and default values
   - _Requirements: 5.1, 5.2, 7.1, 7.2_
 
-- [x] 2.2 Implement Card Explorer view class
-  - Create ItemView subclass for Card Explorer interface
+- [x] 2.2 Implement Card View Explorer view class
+  - Create ItemView subclass for Card View Explorer interface
   - Implement view lifecycle methods (onOpen, onClose)
   - Set up React component mounting in containerEl
   - Handle view type registration and icon configuration
@@ -30,7 +30,7 @@
   - _Requirements: 1.2, 2.1, 3.1, 4.1_
 
 - [x] 4. Implement Zustand state management
-- [x] 4.1 Create Card Explorer store with core state
+- [x] 4.1 Create Card View Explorer store with core state
   - Implement Zustand store with notes, filters, and UI state
   - Add state actions for updating filters and sort configuration
   - Implement pin toggle functionality in store

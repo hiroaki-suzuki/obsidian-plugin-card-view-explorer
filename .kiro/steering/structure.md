@@ -6,7 +6,7 @@ obsidian-plugin-card-explorer/
 ├── .git/                           # Git repository
 ├── .kiro/                          # Kiro AI assistant configuration
 │   ├── specs/                      # Feature specifications
-│   │   └── obsidian-card-explorer/ # Card Explorer feature spec
+│   │   └── obsidian-card-explorer/ # Card View Explorer feature spec
 │   └── steering/                   # AI guidance documents
 ├── docs/                           # Documentation
 │   ├── 001-requirements.md         # Project requirements (Japanese)
@@ -15,7 +15,7 @@ obsidian-plugin-card-explorer/
 ├── src/                            # Source code (implemented)
 │   ├── main.ts                     # Plugin entry point
 │   ├── settings.ts                 # Plugin settings interface
-│   ├── view.tsx                    # Card explorer React view
+│   ├── view.tsx                    # Card View Explorer React view
 │   ├── components/                 # React components
 │   │   ├── CardView.tsx            # Main container component
 │   │   ├── CardView.test.tsx       # CardView component tests
