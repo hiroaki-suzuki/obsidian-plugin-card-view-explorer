@@ -167,11 +167,9 @@ describe("FilterPanel", () => {
 
     const dateTypeSelect = screen.getByDisplayValue("Within last");
     const dateInput = screen.getByRole("spinbutton");
-    const applyButton = screen.getByRole("button", { name: "Apply" });
 
     await user.selectOptions(dateTypeSelect, "within");
     await user.type(dateInput, "7");
-    await user.click(applyButton);
 
     expect(mockUpdateFilters).toHaveBeenCalledWith({
       dateRange: {
@@ -191,10 +189,8 @@ describe("FilterPanel", () => {
     const dateInput = screen
       .getAllByDisplayValue("")
       .find((input) => (input as HTMLInputElement).type === "date") as HTMLInputElement;
-    const applyButton = screen.getByRole("button", { name: "Apply" });
 
     await user.type(dateInput, "2024-01-01");
-    await user.click(applyButton);
 
     expect(mockUpdateFilters).toHaveBeenCalledWith({
       dateRange: {
@@ -204,14 +200,21 @@ describe("FilterPanel", () => {
     });
   });
 
-  it("disables apply button when date input is empty", () => {
+  it("clears date filter when input is empty", async () => {
+    const user = userEvent.setup();
     render(<FilterPanel {...defaultProps} />);
 
-    const applyButton = screen.getByRole("button", { name: "Apply" });
-    expect(applyButton).toBeDisabled();
+    const dateInput = screen.getByRole("spinbutton");
+
+    // First add some text then clear it
+    await user.type(dateInput, "7");
+    await user.clear(dateInput);
+
+    // Should call updateFilters with null dateRange when input is cleared
+    expect(mockUpdateFilters).toHaveBeenLastCalledWith({ dateRange: null });
   });
 
-  it("shows active date filter with remove option", () => {
+  it("shows active date filter status in summary", () => {
     // Mock store with active date filter
     mockUseCardExplorerStore.mockReturnValue({
       filters: {
@@ -232,9 +235,8 @@ describe("FilterPanel", () => {
 
     render(<FilterPanel {...defaultProps} />);
 
-    expect(screen.getByText(/Active:/)).toBeInTheDocument();
-    expect(screen.getByText(/Within \d+ days/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "×" })).toBeInTheDocument();
+    expect(screen.getByText("Active filters:")).toBeInTheDocument();
+    expect(screen.getByText("Date: within filter active")).toBeInTheDocument();
   });
 
   it("shows filter summary when filters are active", () => {
@@ -342,28 +344,29 @@ describe("FilterPanel", () => {
     render(<FilterPanel {...defaultProps} />);
 
     const dateInput = screen.getByRole("spinbutton");
-    const applyButton = screen.getByRole("button", { name: "Apply" });
 
     await user.type(dateInput, "invalid");
-    await user.click(applyButton);
 
-    // Should not call updateFilters with invalid date
+    // Should not call updateFilters with invalid date (NaN or negative numbers)
+    // Only valid positive numbers should trigger updateFilters
     expect(mockUpdateFilters).not.toHaveBeenCalled();
   });
 
-  it("clears date filter when input is empty", async () => {
+  it("handles real-time date filter updates", async () => {
     const user = userEvent.setup();
     render(<FilterPanel {...defaultProps} />);
 
     const dateInput = screen.getByRole("spinbutton");
-    const applyButton = screen.getByRole("button", { name: "Apply" });
 
-    // First add some text then clear it
+    // Type each character and verify filter updates happen in real-time
     await user.type(dateInput, "7");
-    await user.clear(dateInput);
 
-    // The apply button should be disabled when input is empty, so this test
-    // should verify that the button is disabled rather than clicking it
-    expect(applyButton).toBeDisabled();
+    // Should have called updateFilters with the date range
+    expect(mockUpdateFilters).toHaveBeenCalledWith({
+      dateRange: {
+        type: "within",
+        value: expect.any(Date),
+      },
+    });
   });
 });

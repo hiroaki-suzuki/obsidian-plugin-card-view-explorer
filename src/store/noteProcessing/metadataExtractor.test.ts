@@ -361,5 +361,88 @@ describe("Metadata Extractor", () => {
         success: true,
       });
     });
+
+    it("should exclude frontmatter from preview", async () => {
+      const mockContent = `---
+title: My Note
+tags: [test, example]
+date: 2023-01-01
+---
+
+This is the actual content
+This is the second line
+More content here`;
+
+      const mockApp = {
+        vault: {
+          cachedRead: vi.fn().mockResolvedValue(mockContent),
+        },
+      } as any;
+
+      const result = await extractContentPreview(mockApp, mockFile);
+
+      expect(result).toEqual({
+        preview: "This is the actual content\nThis is the second line",
+        success: true,
+      });
+    });
+
+    it("should handle content without frontmatter", async () => {
+      const mockContent = "No frontmatter here\nJust regular content\nMore lines";
+      
+      const mockApp = {
+        vault: {
+          cachedRead: vi.fn().mockResolvedValue(mockContent),
+        },
+      } as any;
+
+      const result = await extractContentPreview(mockApp, mockFile);
+
+      expect(result).toEqual({
+        preview: mockContent,
+        success: true,
+      });
+    });
+
+    it("should handle incomplete frontmatter (no closing delimiter)", async () => {
+      const mockContent = `---
+title: Incomplete frontmatter
+This content should be returned as-is
+Since there's no closing delimiter`;
+      
+      const mockApp = {
+        vault: {
+          cachedRead: vi.fn().mockResolvedValue(mockContent),
+        },
+      } as any;
+
+      const result = await extractContentPreview(mockApp, mockFile);
+
+      expect(result).toEqual({
+        preview: "---\ntitle: Incomplete frontmatter\nThis content should be returned as-is",
+        success: true,
+      });
+    });
+
+    it("should handle empty content after frontmatter removal", async () => {
+      const mockContent = `---
+title: Empty content
+---
+
+`;
+      
+      const mockApp = {
+        vault: {
+          cachedRead: vi.fn().mockResolvedValue(mockContent),
+        },
+      } as any;
+
+      const result = await extractContentPreview(mockApp, mockFile);
+
+      expect(result).toEqual({
+        preview: "test", // Falls back to filename when content is empty after frontmatter removal
+        success: true,
+      });
+    });
   });
 });

@@ -59,38 +59,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
   );
 
   /**
-   * Handle date range filter changes
-   */
-  const handleDateRangeChange = useCallback(() => {
-    if (!dateInput.trim()) {
-      updateFilters({ dateRange: null });
-      return;
-    }
-
-    let dateValue: Date;
-
-    if (dateType === "within") {
-      // Parse as number of days
-      const days = parseInt(dateInput, 10);
-      if (Number.isNaN(days) || days <= 0) return;
-
-      dateValue = new Date();
-      dateValue.setDate(dateValue.getDate() - days);
-    } else {
-      // Parse as specific date
-      dateValue = new Date(dateInput);
-      if (Number.isNaN(dateValue.getTime())) return;
-    }
-
-    updateFilters({
-      dateRange: {
-        type: dateType,
-        value: dateValue,
-      },
-    });
-  }, [dateInput, dateType, updateFilters]);
-
-  /**
    * Toggle folder selection in multi-select
    */
   const toggleFolder = useCallback(
@@ -143,15 +111,126 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
 
       {/* Filename Search */}
       <div className="filter-group">
-        <label htmlFor="filename-search">Search filename:</label>
+        <h4>
+          <label htmlFor="filter-filename">Filename:</label>
+        </h4>
         <input
-          id="filename-search"
+          id="filter-filename"
           type="text"
           value={filters.filename}
           onChange={(e) => handleFilenameChange(e.target.value)}
-          placeholder="Type to search filenames..."
+          placeholder="Type to search filename"
           className="filter-input"
         />
+      </div>
+
+      {/* Date Range Filter */}
+      <div className="filter-group">
+        <h4>
+          <label htmlFor="filter-date">Date:</label>
+        </h4>
+        <div className="date-filter-container">
+          <select
+            value={dateType}
+            onChange={(e) => {
+              // TODO: 関数化
+              const newDateType = e.target.value as "within" | "after";
+              setDateType(newDateType);
+
+              // Re-apply filter with new date type if there's input
+              if (dateInput.trim()) {
+                let dateValue: Date;
+
+                if (newDateType === "within") {
+                  const days = parseInt(dateInput, 10);
+                  if (Number.isNaN(days) || days <= 0) return;
+
+                  dateValue = new Date();
+                  dateValue.setDate(dateValue.getDate() - days);
+                } else {
+                  dateValue = new Date(dateInput);
+                  if (Number.isNaN(dateValue.getTime())) return;
+                }
+
+                updateFilters({
+                  dateRange: {
+                    type: newDateType,
+                    value: dateValue,
+                  },
+                });
+              }
+            }}
+            className="date-type-select"
+            title="Date filter type"
+          >
+            <option value="within">Within last</option>
+            <option value="after">After date</option>
+          </select>
+
+          <input
+            id="filter-date"
+            type={dateType === "within" ? "number" : "date"}
+            value={dateInput}
+            onChange={(e) => {
+              // TODO: 関数化
+              const value = e.target.value;
+              setDateInput(value);
+
+              if (!value.trim()) {
+                updateFilters({ dateRange: null });
+                return;
+              }
+
+              let dateValue: Date;
+
+              if (dateType === "within") {
+                const days = parseInt(value, 10);
+                if (Number.isNaN(days) || days <= 0) return;
+
+                dateValue = new Date();
+                dateValue.setDate(dateValue.getDate() - days);
+              } else {
+                dateValue = new Date(value);
+                if (Number.isNaN(dateValue.getTime())) return;
+              }
+
+              updateFilters({
+                dateRange: {
+                  type: dateType,
+                  value: dateValue,
+                },
+              });
+            }}
+            placeholder={dateType === "within" ? "days" : ""}
+            min={dateType === "within" ? "1" : undefined}
+            className="date-input"
+          />
+
+          {dateType === "within" && <span className="date-unit">days</span>}
+        </div>
+      </div>
+
+      {/* Tag Filter */}
+      <div className="filter-group">
+        <h4>Tags:</h4>
+        <div className="multi-select-container">
+          {availableTags.length === 0 ? (
+            <div className="no-options">No tags available</div>
+          ) : (
+            <div className="multi-select-options">
+              {availableTags.map((tag) => (
+                <label key={tag} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={filters.tags.includes(tag)}
+                    onChange={() => toggleTag(tag)}
+                  />
+                  <span className="tag-name">{tag}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Folder Filter */}
@@ -175,103 +254,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
             </div>
           )}
         </div>
-        {filters.folders.length > 0 && (
-          <div className="selected-items">Selected: {filters.folders.join(", ")}</div>
-        )}
       </div>
-
-      {/* Tag Filter */}
-      <div className="filter-group">
-        <h4>Tags:</h4>
-        <div className="multi-select-container">
-          {availableTags.length === 0 ? (
-            <div className="no-options">No tags available</div>
-          ) : (
-            <div className="multi-select-options">
-              {availableTags.map((tag) => (
-                <label key={tag} className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={filters.tags.includes(tag)}
-                    onChange={() => toggleTag(tag)}
-                  />
-                  <span className="tag-name">#{tag}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-        {filters.tags.length > 0 && (
-          <div className="selected-items">
-            Selected: {filters.tags.map((tag) => `#${tag}`).join(", ")}
-          </div>
-        )}
-      </div>
-
-      {/* Date Range Filter */}
-      <div className="filter-group">
-        <h4>Date filter:</h4>
-        <div className="date-filter-container">
-          <select
-            value={dateType}
-            onChange={(e) => setDateType(e.target.value as "within" | "after")}
-            className="date-type-select"
-          >
-            <option value="within">Within last</option>
-            <option value="after">After date</option>
-          </select>
-
-          <input
-            type={dateType === "within" ? "number" : "date"}
-            value={dateInput}
-            onChange={(e) => setDateInput(e.target.value)}
-            placeholder={dateType === "within" ? "days" : ""}
-            min={dateType === "within" ? "1" : undefined}
-            className="date-input"
-          />
-
-          {dateType === "within" && <span className="date-unit">days</span>}
-
-          <button
-            type="button"
-            onClick={handleDateRangeChange}
-            disabled={!dateInput.trim()}
-            className="apply-date-btn"
-          >
-            Apply
-          </button>
-        </div>
-
-        {filters.dateRange && (
-          <div className="active-date-filter">
-            Active:{" "}
-            {filters.dateRange.type === "within"
-              ? `Within ${Math.ceil((Date.now() - (filters.dateRange.value instanceof Date ? filters.dateRange.value.getTime() : new Date(filters.dateRange.value).getTime())) / (1000 * 60 * 60 * 24))} days`
-              : `After ${(filters.dateRange.value instanceof Date ? filters.dateRange.value : new Date(filters.dateRange.value)).toLocaleDateString()}`}
-            <button
-              type="button"
-              onClick={() => updateFilters({ dateRange: null })}
-              className="remove-date-filter"
-              title="Remove date filter"
-            >
-              ×
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Filter Summary */}
-      {hasActiveFilters && (
-        <div className="filter-summary">
-          <strong>Active filters:</strong>
-          <ul>
-            {filters.filename && <li>Filename: "{filters.filename}"</li>}
-            {filters.folders.length > 0 && <li>Folders: {filters.folders.length} selected</li>}
-            {filters.tags.length > 0 && <li>Tags: {filters.tags.length} selected</li>}
-            {filters.dateRange && <li>Date: {filters.dateRange.type} filter active</li>}
-          </ul>
-        </div>
-      )}
     </div>
   );
 };

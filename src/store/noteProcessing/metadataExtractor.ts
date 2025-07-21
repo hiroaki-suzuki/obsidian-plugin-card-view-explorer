@@ -3,6 +3,41 @@ import type { ContentPreview, NoteMetadata } from "../../types";
 import { PREVIEW_MAX_LINES } from "../utils";
 
 /**
+ * Remove frontmatter from note content
+ * 
+ * Frontmatter is YAML content between --- delimiters at the start of the file
+ * 
+ * @param content - Raw note content
+ * @returns Content with frontmatter removed
+ */
+const removeFrontmatter = (content: string): string => {
+  // Check if content starts with frontmatter delimiter
+  if (!content.startsWith('---')) {
+    return content;
+  }
+  
+  // Find the closing delimiter
+  const lines = content.split('\n');
+  let endIndex = -1;
+  
+  // Start from line 1 (skip the opening ---)
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === '---') {
+      endIndex = i;
+      break;
+    }
+  }
+  
+  // If no closing delimiter found, return original content
+  if (endIndex === -1) {
+    return content;
+  }
+  
+  // Return content after the frontmatter
+  return lines.slice(endIndex + 1).join('\n');
+};
+
+/**
  * Extract note metadata from Obsidian's metadata cache
  *
  * Safely extracts frontmatter and tags from a note using Obsidian's
@@ -75,6 +110,7 @@ export const extractNoteMetadata = (app: App, file: TFile): NoteMetadata => {
  * Extract content preview from a note
  *
  * Reads the note content and extracts the first few lines for preview.
+ * Excludes frontmatter from the preview content.
  * Uses Obsidian's vault.cachedRead() for efficient content access.
  *
  * @param {App} app - Obsidian App instance
@@ -84,9 +120,12 @@ export const extractNoteMetadata = (app: App, file: TFile): NoteMetadata => {
 export const extractContentPreview = async (app: App, file: TFile): Promise<ContentPreview> => {
   try {
     const content = await app.vault.cachedRead(file);
+    
+    // Remove frontmatter if present
+    const contentWithoutFrontmatter = removeFrontmatter(content);
 
     // Split content into lines and take first N lines
-    const lines = content.split("\n");
+    const lines = contentWithoutFrontmatter.split("\n");
     const previewLines = lines.slice(0, PREVIEW_MAX_LINES);
 
     // Join lines and trim whitespace
