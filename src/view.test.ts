@@ -67,7 +67,7 @@ describe("CardExplorerView", () => {
   });
 
   it("should have correct display text", () => {
-    expect(view.getDisplayText()).toBe("Card Explorer");
+    expect(view.getDisplayText()).toBe("Card View Explorer");
   });
 
   it("should have correct icon", () => {

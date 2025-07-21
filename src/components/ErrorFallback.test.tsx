@@ -162,7 +162,7 @@ describe("ErrorFallback", () => {
       const context = { operation: "test", component: "TestComponent" };
       render(<ErrorFallback error={mockError} category={ErrorCategory.API} context={context} />);
 
-      expect(mockConsoleGroup).toHaveBeenCalledWith("🛑 Card Explorer Error");
+      expect(mockConsoleGroup).toHaveBeenCalledWith("🛑 Card View Explorer Error");
       expect(mockConsoleError).toHaveBeenCalledWith("Error:", mockError);
       expect(mockConsoleError).toHaveBeenCalledWith("Category:", ErrorCategory.API);
       expect(mockConsoleError).toHaveBeenCalledWith("Context:", context);

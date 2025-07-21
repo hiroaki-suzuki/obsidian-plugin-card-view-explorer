@@ -8,6 +8,12 @@ import { MILLISECONDS_PER_DAY } from "../utils";
  * These functions implement the Extract Method pattern to break down
  * complex filtering logic into small, testable, pure functions.
  * Each function has a single responsibility and no side effects.
+ *
+ * The filter system supports:
+ * - Folder inclusion/exclusion with hierarchical matching
+ * - Tag inclusion/exclusion with hierarchical matching
+ * - Filename pattern matching (inclusion/exclusion)
+ * - Date range filtering (within X days or after specific date)
  */
 
 /**
@@ -54,6 +60,9 @@ export const isExcludedByFolder = (note: NoteData, excludeFolders: string[]): bo
  * Supports hierarchical tag matching. A note matches if:
  * - It has the exact tag specified in the filter, OR
  * - It has any child tag of the filter tag (e.g., filter "project" matches "project/frontend")
+ *
+ * The hierarchical matching is enabled when allNotes parameter is provided,
+ * otherwise falls back to exact matching for backwards compatibility.
  *
  * @param {NoteData} note - The note to check
  * @param {string[]} tags - Array of tags to filter by

@@ -10,15 +10,22 @@ import {
 import { validatePluginData, validatePluginSettings } from "./validation";
 
 /**
- * Data persistence utilities for Card Explorer plugin
+ * Data persistence utilities for Card View Explorer plugin
  *
- * Handles saving/loading of plugin data and settings with validation
- * and migration. Backup and recovery functionality is handled by
- * the dataBackup module.
+ * This module provides functions for saving and loading plugin data and settings
+ * with comprehensive validation, automatic migration between versions, and
+ * backup/recovery functionality. It ensures data integrity through validation
+ * and provides fallback mechanisms when data is corrupted or invalid.
+ *
+ * The backup and recovery functionality is handled by the dataBackup module,
+ * while data migration is handled by the dataMigration module.
  */
 
 /**
  * Plugin interface for data operations
+ *
+ * Represents an Obsidian plugin instance with both read and write capabilities
+ * for plugin data. Used for operations that need to both read and write data.
  */
 interface PluginDataOperations {
   loadData(): Promise<any>;
@@ -27,6 +34,9 @@ interface PluginDataOperations {
 
 /**
  * Plugin interface for read-only operations
+ *
+ * Represents an Obsidian plugin instance with only read capabilities
+ * for plugin data. Used for operations that only need to read data.
  */
 interface PluginReadOnlyOperations {
   loadData(): Promise<any>;
@@ -34,6 +44,10 @@ interface PluginReadOnlyOperations {
 
 /**
  * Error messages for consistent logging
+ *
+ * Centralized error messages to ensure consistency in error reporting
+ * throughout the data persistence operations. Using a const object
+ * helps maintain consistency and makes it easier to update messages.
  */
 const ERROR_MESSAGES = {
   LOAD_FAILED: "Failed to load plugin data",
@@ -51,6 +65,14 @@ const ERROR_MESSAGES = {
 
 /**
  * Handle errors with consistent logging and optional error handling utilities
+ *
+ * This function provides a consistent way to handle errors in data operations.
+ * It attempts to use the centralized error handling system, but falls back to
+ * basic console logging if that's not available (e.g., in test environments).
+ *
+ * @param error - The error that occurred
+ * @param operation - Name of the operation that failed (for logging)
+ * @param context - Optional additional context information about the error
  */
 async function handleDataError(
   error: unknown,
@@ -65,15 +87,23 @@ async function handleDataError(
     });
   } catch {
     // Fallback for test environments where error handling might not be available
-    console.error(`Card Explorer: ${operation} failed:`, error);
+    console.error(`Card View Explorer: ${operation} failed:`, error);
   }
 }
 
 /**
- * Load plugin data with validation and migration
+ * Loads plugin data with validation and automatic migration between versions
+ *
+ * This function handles the complete data loading process including:
+ * - Loading raw data from Obsidian storage
+ * - Handling first-time plugin usage (empty data)
+ * - Automatic version detection and migration
+ * - Data validation after migration
+ * - Fallback to defaults if validation fails
+ * - Automatic recovery from backup if loading fails
  *
  * @param plugin - Plugin instance with loadData method
- * @returns Promise resolving to validated plugin data and migration info
+ * @returns Promise resolving to validated plugin data and detailed migration info
  */
 export async function loadPluginData(
   plugin: PluginReadOnlyOperations
@@ -101,7 +131,7 @@ export async function loadPluginData(
 
     // Validate migrated data
     if (!validatePluginData(migratedData)) {
-      console.warn(`Card Explorer: ${ERROR_MESSAGES.VALIDATION_FAILED}`);
+      console.warn(`Card View Explorer: ${ERROR_MESSAGES.VALIDATION_FAILED}`);
       return {
         data: DEFAULT_DATA,
         migration: {
@@ -132,7 +162,7 @@ export async function loadPluginData(
         };
       }
     } catch (recoveryError) {
-      console.warn(`Card Explorer: ${ERROR_MESSAGES.RECOVERY_FAILED}:`, recoveryError);
+      console.warn(`Card View Explorer: ${ERROR_MESSAGES.RECOVERY_FAILED}:`, recoveryError);
     }
 
     // Fall back to defaults
@@ -148,11 +178,17 @@ export async function loadPluginData(
 }
 
 /**
- * Save plugin data with backup and validation
+ * Saves plugin data with automatic backup creation and validation
+ *
+ * This function ensures data integrity through:
+ * - Validation of data structure before saving
+ * - Automatic backup creation before modifying existing data
+ * - Version tagging to support future migrations
+ * - Error handling with detailed context information
  *
  * @param plugin - Plugin instance with saveData method
  * @param data - Plugin data to save
- * @returns Promise resolving to success status
+ * @returns Promise resolving to boolean indicating success (true) or failure (false)
  */
 export async function savePluginData(
   plugin: PluginDataOperations,
@@ -161,7 +197,7 @@ export async function savePluginData(
   try {
     // Validate data before saving
     if (!validatePluginData(data)) {
-      console.error(`Card Explorer: ${ERROR_MESSAGES.INVALID_DATA}`);
+      console.error(`Card View Explorer: ${ERROR_MESSAGES.INVALID_DATA}`);
       return false;
     }
 
@@ -185,10 +221,16 @@ export async function savePluginData(
 }
 
 /**
- * Load plugin settings with validation
+ * Loads plugin settings with validation and default value merging
+ *
+ * This function handles settings loading with:
+ * - Extraction of settings from the plugin data file
+ * - Validation of settings structure and values
+ * - Merging with default settings to ensure all fields exist
+ * - Fallback to default settings if validation fails
  *
  * @param plugin - Plugin instance with loadData method
- * @returns Promise resolving to validated plugin settings
+ * @returns Promise resolving to validated plugin settings (merged with defaults)
  */
 export async function loadPluginSettings(
   plugin: PluginReadOnlyOperations
@@ -203,7 +245,7 @@ export async function loadPluginSettings(
     if (validatePluginSettings(settings)) {
       return { ...DEFAULT_SETTINGS, ...settings };
     } else {
-      console.warn(`Card Explorer: ${ERROR_MESSAGES.SETTINGS_INVALID}`);
+      console.warn(`Card View Explorer: ${ERROR_MESSAGES.SETTINGS_INVALID}`);
       return DEFAULT_SETTINGS;
     }
   } catch (error) {
@@ -226,7 +268,7 @@ export async function savePluginSettings(
   try {
     // Validate settings before saving
     if (!validatePluginSettings(settings)) {
-      console.error(`Card Explorer: ${ERROR_MESSAGES.INVALID_SETTINGS}`);
+      console.error(`Card View Explorer: ${ERROR_MESSAGES.INVALID_SETTINGS}`);
       return false;
     }
 

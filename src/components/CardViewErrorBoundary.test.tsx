@@ -55,7 +55,7 @@ describe("CardViewErrorBoundary", () => {
 
       expect(screen.getByText("Loading Error")).toBeInTheDocument();
       expect(
-        screen.getByText("An error occurred while loading Card Explorer.")
+        screen.getByText("An error occurred while loading Card View Explorer.")
       ).toBeInTheDocument();
     });
 
@@ -160,7 +160,7 @@ describe("CardViewErrorBoundary", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByRole("link", {
-          name: /https:\/\/github\.com\/hiroaki-suzuki\/obsidian-plugin-card-explorer/,
+          name: "Link to GitHub repository for issue reporting",
         })
       ).toBeInTheDocument();
     });

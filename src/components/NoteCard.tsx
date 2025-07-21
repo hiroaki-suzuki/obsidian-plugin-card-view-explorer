@@ -6,10 +6,13 @@ import type { NoteData } from "../types";
 import { formatRelativeDate, getDisplayDate } from "../utils/dateUtils";
 import { ErrorCategory, handleError, safeSync } from "../utils/errorHandling";
 
+/**
+ * Props for the NoteCard component
+ */
 interface NoteCardProps {
-  /** Note data to display in the card */
+  /** Note data to display in the card including title, path, preview, tags, etc. */
   note: NoteData;
-  /** Plugin instance for accessing Obsidian APIs */
+  /** Plugin instance for accessing Obsidian APIs like workspace and file operations */
   plugin: CardExplorerPlugin;
 }
 
@@ -35,6 +38,9 @@ interface NoteCardProps {
 export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   const { pinnedNotes, togglePin } = useCardExplorerStore();
 
+  /**
+   * Determines if the current note is pinned by checking if its path exists in the pinnedNotes Set
+   */
   const isPinned = pinnedNotes.has(note.path);
 
   /**
@@ -77,7 +83,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   );
 
   /**
-   * Get the display date prioritizing frontmatter 'updated' field over file modification time.
+   * Gets the appropriate display date for the note
+   *
+   * The function prioritizes dates in the following order:
+   * 1. Frontmatter 'updated' field if available
+   * 2. Frontmatter 'date' field if available
+   * 3. File modification time as fallback
    */
   const displayDate = getDisplayDate(note);
 
@@ -122,6 +133,13 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
     [handleNoteClick, note.path]
   );
 
+  /**
+   * Renders the note card with all its sections:
+   * - Header with title and pin button
+   * - Preview text showing the first few lines of content
+   * - Tags section with overflow handling (max 3 visible)
+   * - Footer with folder path and formatted date
+   */
   return (
     <div
       className={`note-card ${isPinned ? "pinned" : ""}`}
@@ -153,7 +171,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
         {note.preview}
       </div>
 
-      {/* Tags with overflow handling - show max 3 tags + count indicator */}
+      {/*
+        Tags section with overflow handling
+        - Shows maximum of 3 tags to prevent UI clutter
+        - Displays a count indicator (+N) when more than 3 tags exist
+        - Each tag is prefixed with # for visual identification
+      */}
       {note.tags.length > 0 && (
         <div className="note-card-tags">
           {note.tags.slice(0, 3).map((tag) => (
@@ -165,7 +188,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
         </div>
       )}
 
-      {/* Footer with folder and date */}
+      {/*
+        Footer with folder path and formatted date
+        - Folder is conditionally displayed only if available
+        - Date is shown in relative format (e.g., "2 days ago") with full date on hover
+        - Both elements have title attributes for showing complete information on hover
+      */}
       <div className="note-card-footer">
         {note.folder && (
           <span className="note-card-folder" title={note.folder}>

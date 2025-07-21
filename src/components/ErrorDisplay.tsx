@@ -9,13 +9,13 @@ import { useEffect, useRef } from "react";
 interface ErrorDisplayProps {
   /** Error message to display */
   error: string;
-  /** Callback for retry action */
+  /** Callback function triggered when user clicks the retry button */
   onRetry: () => void;
-  /** Callback for dismiss action */
+  /** Callback function triggered when user clicks the dismiss button */
   onDismiss: () => void;
-  /** Optional title for the error display */
+  /** Optional title for the error display. Defaults to "Error Loading Card View Explorer" */
   title?: string;
-  /** Whether retry action is in progress */
+  /** Whether retry action is in progress. Controls button disabled state and text */
   isRetrying?: boolean;
 }
 
@@ -24,25 +24,47 @@ interface ErrorDisplayProps {
  *
  * Displays global error states with retry and dismiss actions.
  * Used for non-React errors that occur during data loading or API operations.
- * Features:
- * - User-friendly error presentation
- * - Retry and dismiss action buttons
- * - Customizable title and loading states
- * - Consistent error UI styling
+ *
+ * This component is designed to be used in two scenarios:
+ * 1. As a fallback UI for React error boundaries
+ * 2. For displaying API/data loading errors outside the React component tree
+ *
+ * @example
+ * // Basic usage
+ * <ErrorDisplay
+ *   error="Failed to load notes from vault"
+ *   onRetry={() => loadNotes()}
+ *   onDismiss={() => setError(null)}
+ * />
+ *
+ * @example
+ * // With custom title and retry state
+ * <ErrorDisplay
+ *   error={errorMessage}
+ *   title="Connection Error"
+ *   isRetrying={isLoading}
+ *   onRetry={handleRetry}
+ *   onDismiss={handleDismiss}
+ * />
  */
 export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   error,
   onRetry,
   onDismiss,
-  title = "Error Loading Card Explorer",
+  title = "Error Loading Card View Explorer",
   isRetrying = false,
 }) => {
+  // Reference to the DOM element where we'll render the Obsidian icon
   const iconRef = useRef<HTMLDivElement>(null);
 
-  // Use Obsidian's native icon system for consistent visual design
-  // setIcon provides proper theming support and accessibility
+  /**
+   * Effect hook to render the Obsidian warning icon
+   * Uses Obsidian's native icon system for consistent styling across themes
+   */
   useEffect(() => {
     if (iconRef.current) {
+      // The alert-triangle icon is part of Obsidian's icon set
+      // and provides visual indication of the error state
       setIcon(iconRef.current, "alert-triangle");
     }
   }, []);
@@ -51,15 +73,20 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
     <div className="card-view-container">
       <div className="card-view-error">
         <div className="error-content">
+          {/* Icon container that will be populated by the useEffect hook */}
           <div className="error-icon" ref={iconRef}></div>
+          {/* Error title */}
           <h3>{title}</h3>
+          {/* Error message text */}
           <p>{error}</p>
+          {/* Action buttons for user interaction */}
           <div className="error-actions">
             <button
               type="button"
               className="error-retry-button"
               onClick={onRetry}
               disabled={isRetrying}
+              aria-busy={isRetrying}
             >
               {isRetrying ? "Retrying..." : "Retry"}
             </button>

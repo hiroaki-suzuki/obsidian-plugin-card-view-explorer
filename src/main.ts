@@ -23,59 +23,74 @@ import { CardExplorerView, VIEW_TYPE_CARD_EXPLORER } from "./view";
 const DEFAULT_REFRESH_DEBOUNCE_DELAY = 300;
 
 /**
- * Main Card Explorer plugin class
+ * Main Card View Explorer plugin class
  *
- * This class serves as the core of the Obsidian plugin with the following responsibilities:
+ * This class serves as the core of the Obsidian plugin, extending Obsidian's Plugin base class.
+ * It manages the complete plugin lifecycle and coordinates all major subsystems:
+ *
  * - Plugin lifecycle management (initialization and cleanup)
- * - User settings loading and saving
- * - File system event monitoring and processing
- * - Card Explorer view management
+ * - User settings and persistent data management
+ * - Real-time file system event monitoring and processing
+ * - Card View Explorer view creation and management
+ * - Command registration and ribbon icon setup
  */
 export default class CardExplorerPlugin extends Plugin {
   /**
    * Plugin settings that control behavior and appearance
    *
-   * Settings include:
-   * - sortKey: Frontmatter key used for sorting
-   * - autoStart: Auto-start flag when Obsidian launches
-   * - showInSidebar: Sidebar display flag
+   * These settings are persisted in Obsidian's plugin settings system and include:
+   * - sortKey: Frontmatter field name used for sorting notes (e.g., "created", "modified")
+   * - autoStart: Whether to automatically open Card View Explorer when Obsidian starts
+   * - showInSidebar: Whether to display the view in the sidebar or main workspace
    *
-   * Initialized with default values and loaded from disk in onload()
+   * Initialized with DEFAULT_SETTINGS and loaded from disk during onload()
    */
   private settings: CardExplorerSettings = DEFAULT_SETTINGS;
 
   /**
-   * Plugin persistent data (pinned notes, user preferences, etc.)
+   * Plugin persistent data stored in data.json file
    *
-   * Stored data includes:
-   * - pinnedNotes: List of paths for pinned notes
-   * - lastFilters: Last used filter settings
-   * - sortConfig: Sort configuration
+   * This data is separate from settings and includes user-specific state:
+   * - pinnedNotes: Array of file paths for notes pinned to the top of the list
+   * - lastFilters: Previously applied filter criteria (tags, folders, date ranges)
+   * - sortConfig: Current sort configuration and preferences
+   * - version: Data format version for migration purposes
    *
-   * Saved separately from settings in data.json file
+   * Managed through loadPluginData() and savePluginData() methods with automatic
+   * backup creation and data migration between plugin versions
    */
   private data: PluginData = DEFAULT_DATA;
 
   // Event handling related properties
   /**
-   * Array of registered event handler references for cleanup
-   * Used to properly remove all event listeners when plugin is unloaded
+   * Array of registered event handler references for proper cleanup
+   *
+   * Stores EventRef objects returned by Obsidian's event system to ensure
+   * all event listeners are properly removed when the plugin is unloaded,
+   * preventing memory leaks and unexpected behavior
    */
   private eventRefs: EventRef[] = [];
 
   /**
-   * Debounced function for note updates
+   * Debounced function for note refresh operations
    *
-   * Prevents excessive update processing when multiple file events
-   * (create, delete, modify, rename) occur in a short time period
-   * Executed with DEFAULT_REFRESH_DEBOUNCE_DELAY (300ms) delay
+   * Prevents excessive UI updates when multiple file system events
+   * (create, delete, modify, rename) occur rapidly. Uses es-toolkit's
+   * debounce with a 300ms delay to batch updates efficiently.
+   *
+   * This is crucial for performance when users perform bulk operations
+   * like importing many files or using find-and-replace across multiple notes.
    */
   private readonly debouncedRefreshNotes: () => void;
 
   /**
-   * Constructor: Initialize plugin and set up debounced update function
-   * @param app - Obsidian app instance
-   * @param manifest - Plugin manifest data
+   * Initialize the Card View Explorer plugin
+   *
+   * Sets up the debounced refresh function during construction to ensure
+   * it's available throughout the plugin lifecycle.
+   *
+   * @param app - Obsidian application instance providing access to vault, workspace, and APIs
+   * @param manifest - Plugin manifest containing metadata like version, name, and description
    */
   constructor(app: any, manifest: any) {
     super(app, manifest);
@@ -87,28 +102,36 @@ export default class CardExplorerPlugin extends Plugin {
   }
 
   /**
-   * Plugin initialization lifecycle method
-   * Sets up views, commands, event handlers, and loads user data
+   * Plugin initialization lifecycle method called by Obsidian
+   *
+   * Performs complete plugin setup in the following order:
+   * 1. Load user settings and persistent data from disk
+   * 2. Register the Card View Explorer view type with Obsidian
+   * 3. Add commands and ribbon icon for user interaction
+   * 4. Set up real-time file system event monitoring
+   * 5. Auto-start the view if enabled in settings
+   *
+   * @returns Promise that resolves when initialization is complete
    */
   async onload(): Promise<void> {
     // Load settings and data
     await this.loadSettings();
     await this.loadPluginData();
 
-    // Register Card Explorer view
+    // Register Card View Explorer view
     this.registerView(VIEW_TYPE_CARD_EXPLORER, (leaf) => new CardExplorerView(leaf, this));
 
     // Register commands
     this.addCommand({
-      id: "open-card-explorer",
-      name: "Open Card Explorer",
+      id: "open-card-view-explorer",
+      name: "Open Card View Explorer",
       callback: () => {
         this.activateView();
       },
     });
 
     // Add ribbon icon
-    this.addRibbonIcon("layout-grid", "Card Explorer", () => {
+    this.addRibbonIcon("layout-grid", "Card View Explorer", () => {
       this.activateView();
     });
 
@@ -128,20 +151,29 @@ export default class CardExplorerPlugin extends Plugin {
   }
 
   /**
-   * Plugin cleanup lifecycle method
-   * Removes event handlers and detaches views when plugin is disabled
+   * Plugin cleanup lifecycle method called by Obsidian
+   *
+   * Performs proper cleanup when the plugin is disabled or Obsidian shuts down:
+   * - Removes all registered event handlers to prevent memory leaks
+   * - Detaches all Card View Explorer views from the workspace
+   *
+   * @returns Promise that resolves when cleanup is complete
    */
   async onunload(): Promise<void> {
     // Clean up event handlers
     this.cleanupEventHandlers();
 
-    // Cleanup - detach all Card Explorer views
+    // Cleanup - detach all Card View Explorer views
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_CARD_EXPLORER);
   }
 
   /**
-   * Load plugin settings from disk
-   * Called during plugin initialization to restore user settings
+   * Load plugin settings from Obsidian's settings system
+   *
+   * Restores user preferences from disk, merging with default values
+   * for any missing settings. Called during plugin initialization.
+   *
+   * @returns Promise that resolves when settings are loaded
    */
   async loadSettings(): Promise<void> {
     this.settings = await loadPluginSettings(this);
@@ -154,7 +186,7 @@ export default class CardExplorerPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     const success = await savePluginSettings(this, this.settings);
     if (!success) {
-      console.error("Card Explorer: Failed to save settings");
+      console.error("Card View Explorer: Failed to save settings");
     }
   }
 
@@ -208,11 +240,19 @@ export default class CardExplorerPlugin extends Plugin {
 
     // Log migration if it occurred
     if (migration.migrated) {
-      console.log("Card Explorer: Data migrated", {
+      console.log("Card View Explorer: Data migrated", {
         from: migration.fromVersion,
         to: migration.toVersion,
-        warnings: migration.warnings,
+        warnings: migration.warnings || [],
       });
+
+      // Also log warnings if any
+      if (migration.warnings?.length) {
+        console.warn(
+          "Card View Explorer: Data migration completed with warnings",
+          migration.warnings
+        );
+      }
     }
   }
 
@@ -224,12 +264,12 @@ export default class CardExplorerPlugin extends Plugin {
   async savePluginData(): Promise<void> {
     const success = await savePluginData(this, this.data);
     if (!success) {
-      console.error("Card Explorer: Failed to save plugin data");
+      console.error("Card View Explorer: Failed to save plugin data");
     }
   }
 
   /**
-   * Activate or create Card Explorer view in workspace
+   * Activate or create Card View Explorer view in workspace
    * Creates new view if none exists, focuses existing view if found
    * Respects user settings for sidebar vs main workspace placement
    * @returns Promise that resolves when view is activated
@@ -241,10 +281,10 @@ export default class CardExplorerPlugin extends Plugin {
     const leaves = workspace.getLeavesOfType(VIEW_TYPE_CARD_EXPLORER);
 
     if (leaves.length > 0) {
-      // Use existing Card Explorer view if available
+      // Use existing Card View Explorer view if available
       leaf = leaves[0];
     } else {
-      // Create new Card Explorer view
+      // Create new Card View Explorer view
       if (this.settings.showInSidebar) {
         // Place in right sidebar if user setting is configured for sidebar display
         leaf = workspace.getRightLeaf(false);
@@ -268,7 +308,7 @@ export default class CardExplorerPlugin extends Plugin {
   }
 
   /**
-   * Update notes in all active Card Explorer views
+   * Update notes in all active Card View Explorer views
    * Used by components to trigger note reloading
    */
   async refreshNotes(): Promise<void> {
@@ -288,7 +328,7 @@ export default class CardExplorerPlugin extends Plugin {
       // Log failures but don't throw exceptions
       results.forEach((result, index) => {
         if (result.status === "rejected") {
-          console.warn(`Failed to refresh Card Explorer view ${index}:`, result.reason);
+          console.warn(`Failed to refresh Card View Explorer view ${index}:`, result.reason);
         }
       });
     } catch (error) {

@@ -2,10 +2,17 @@ import type { PluginData } from "../types";
 import { DEFAULT_DATA } from "../types/plugin";
 
 /**
- * Data migration utilities for Card Explorer plugin
+ * Data migration utilities for Card View Explorer plugin
  *
- * Handles version-specific data migrations using Strategy pattern
- * for maintainable and extensible migration logic.
+ * This module provides a framework for migrating plugin data between different versions.
+ * It implements the Strategy pattern for version-specific migrations, allowing for
+ * maintainable and extensible migration logic as the plugin evolves.
+ *
+ * The migration system handles:
+ * - Automatic detection of data version
+ * - Sequential application of migration strategies
+ * - Validation of migrated data
+ * - Tracking of warnings and issues during migration
  */
 
 /**
@@ -37,13 +44,21 @@ export interface MigrationResult {
 
 /**
  * Migration strategy interface for version-specific migrations
+ *
+ * Each migration strategy handles the transformation of data from one version to the next.
+ * Strategies are registered in the migrationStrategies map and applied sequentially.
  */
 export interface MigrationStrategy {
-  /** Version this strategy handles */
+  /** Version this strategy handles (migrates from this version to version+1) */
   version: number;
   /** Description of what this migration does */
   description: string;
-  /** Execute the migration */
+  /**
+   * Execute the migration from the current version to the next
+   *
+   * @param data - The data to migrate
+   * @returns Object containing the migrated data and any warnings generated during migration
+   */
   migrate(data: Partial<VersionedPluginData>): {
     data: Partial<VersionedPluginData>;
     warnings: string[];
@@ -128,7 +143,7 @@ export async function migratePluginData(
       allWarnings.push(...warnings);
 
       console.log(
-        `Card Explorer: Applied migration from version ${currentVersion}: ${strategy.description}`
+        `Card View Explorer: Applied migration from version ${currentVersion}: ${strategy.description}`
       );
       currentVersion++;
     } catch (error) {

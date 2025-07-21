@@ -1,29 +1,40 @@
 import React from "react";
 
-/** Maximum number of retry attempts before showing permanent error state */
+/**
+ * Maximum number of retry attempts before showing permanent error state.
+ * After this many retries, the user will be prompted to restart the plugin.
+ */
 const MAX_RETRIES = 3;
 
 /**
  * Props for the CardViewErrorBoundary component.
+ * @interface ErrorBoundaryProps
  */
 interface ErrorBoundaryProps {
   /** Child components to be wrapped by the error boundary */
   children: React.ReactNode;
-  /** Optional callback function called when an error is caught */
+  /**
+   * Optional callback function called when an error is caught.
+   * Useful for reporting errors to a monitoring service or parent component.
+   */
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }
 
 /**
  * Internal state for the error boundary component.
+ * @interface ErrorBoundaryState
  */
 interface ErrorBoundaryState {
   /** Whether an error has been caught */
   hasError: boolean;
   /** The caught error object, if any */
   error: Error | null;
-  /** Unique identifier for the error instance */
+  /**
+   * Unique identifier for the error instance.
+   * Used to distinguish between different error occurrences.
+   */
   errorId: string | null;
-  /** Number of retry attempts made */
+  /** Number of retry attempts made for the current error */
   retryCount: number;
 }
 
@@ -40,7 +51,7 @@ interface ErrorBoundaryState {
  * - User-friendly error UI with actionable options
  *
  * This component follows the React Error Boundary pattern and is specifically designed
- * for the Card Explorer plugin's needs, including plugin restart functionality.
+ * for the Card View Explorer plugin's needs, including plugin restart functionality.
  */
 export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -101,6 +112,12 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
     this.props.onError?.(error, errorInfo);
   }
 
+  /**
+   * Renders either the error UI when an error is caught or the children components when no error exists.
+   * The error UI includes retry functionality and helpful information for users.
+   *
+   * @returns React elements representing either the error UI or the wrapped children
+   */
   render() {
     if (this.state.hasError && this.state.error) {
       // Simple user-friendly error UI
@@ -112,8 +129,9 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
           <div className="error-content">
             <div className="error-icon">⚠️</div>
             <h3>Loading Error</h3>
-            <p>An error occurred while loading Card Explorer.</p>
+            <p>An error occurred while loading Card View Explorer.</p>
 
+            {/* Display retry counter information when retries have been attempted */}
             {this.state.retryCount > 0 && (
               <p className="retry-info">
                 Retrying... ({this.state.retryCount}/{MAX_RETRIES})
@@ -121,6 +139,11 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
             )}
 
             <div className="error-actions">
+              {/*
+                Conditional rendering based on retry count:
+                - Show "Retry" button if under MAX_RETRIES
+                - Show "Restart Plugin" button if max retries reached
+              */}
               {canRetry ? (
                 <button
                   type="button"
@@ -142,15 +165,17 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
               )}
             </div>
 
+            {/* Help text with link to GitHub repository for issue reporting */}
             <p className="error-help-text">
               If the problem persists, please report it on GitHub.
               <br />
               <a
-                href="https://github.com/hiroaki-suzuki/obsidian-plugin-card-explorer"
+                href="https://github.com/hiroaki-suzuki/obsidian-plugin-card-view-explorer"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="Link to GitHub repository for issue reporting"
               >
-                https://github.com/hiroaki-suzuki/obsidian-plugin-card-explorer
+                https://github.com/hiroaki-suzuki/obsidian-plugin-card-view-explorer
               </a>
             </p>
           </div>
@@ -164,9 +189,13 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
   /**
    * Handles retry attempts when the user clicks the retry button.
    * Resets error state and increments retry count, or shows permanent error if max retries exceeded.
+   *
+   * This is implemented as an arrow function to preserve the correct 'this' context
+   * when used as an event handler in the JSX.
    */
   handleRetry = () => {
     if (this.state.retryCount < MAX_RETRIES) {
+      // Reset error state but increment retry counter to track attempts
       this.setState({
         hasError: false,
         error: null,
@@ -175,7 +204,8 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
       });
     } else {
       // Max retries reached, show permanent error state
-      console.error("Card Explorer: Max retries reached for error boundary");
+      // This code path should rarely execute since the UI shows a restart button instead
+      console.error("Card View Explorer: Max retries reached for error boundary");
     }
   };
 }

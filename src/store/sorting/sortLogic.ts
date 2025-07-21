@@ -16,8 +16,8 @@ import { MTIME_SORT_KEY } from "../utils";
  * Automatically parses date strings from frontmatter into Date objects.
  *
  * @param {NoteData} note - The note to extract sort value from
- * @param {string} sortKey - The field to sort by ("mtime" for modification time)
- * @returns {any} The value to use for sorting comparison
+ * @param {string} sortKey - The field to sort by ("mtime" for modification time or frontmatter key)
+ * @returns {any} The extracted value to use for sorting comparison (Date, string, number, etc.)
  */
 export const extractSortValue = (note: NoteData, sortKey: string): any => {
   // Special case: sort by file modification time
@@ -51,10 +51,10 @@ export const extractSortValue = (note: NoteData, sortKey: string): any => {
  * Converts different data types to comparable formats:
  * - Dates to timestamps (numbers)
  * - Strings to lowercase for case-insensitive sorting
- * - Other values remain unchanged
+ * - Other values (numbers, booleans, etc.) remain unchanged
  *
- * @param {any} value - The value to normalize
- * @returns {any} Normalized value suitable for comparison
+ * @param {any} value - The value to normalize for comparison
+ * @returns {string|number|boolean|null|undefined} Normalized value suitable for comparison
  */
 export const normalizeForComparison = (value: any): any => {
   if (value instanceof Date) return value.getTime(); // Convert to timestamp
@@ -83,9 +83,10 @@ export const compareValues = (a: any, b: any): number => {
  *
  * Returns a comparison function that can be used with Array.sort().
  * Handles value extraction, normalization, and sort order application.
+ * The returned function maintains immutability by not modifying the original notes.
  *
- * @param {SortConfig} sortConfig - Configuration specifying field and order
- * @returns {Function} Comparator function for Array.sort()
+ * @param {SortConfig} sortConfig - Configuration specifying sort field and order
+ * @returns {(a: NoteData, b: NoteData) => number} Comparator function for Array.sort()
  */
 export const createSortComparator = (sortConfig: SortConfig) => {
   return (a: NoteData, b: NoteData): number => {
@@ -107,7 +108,7 @@ export const createSortComparator = (sortConfig: SortConfig) => {
  *
  * @param {NoteData[]} notes - Array of notes to separate
  * @param {Set<string>} pinnedNotes - Set of pinned note file paths
- * @returns {Object} Object with 'pinned' and 'unpinned' arrays
+ * @returns {{ pinned: NoteData[], unpinned: NoteData[] }} Object with 'pinned' and 'unpinned' arrays
  */
 export const separateNotesByPinStatus = (notes: NoteData[], pinnedNotes: Set<string>) => {
   const pinned: NoteData[] = [];
@@ -129,12 +130,13 @@ export const separateNotesByPinStatus = (notes: NoteData[], pinnedNotes: Set<str
  * Sort notes with pinned notes appearing first
  *
  * Applies the sort configuration to all notes, then ensures pinned notes
- * appear at the top while maintaining their relative sort order.
+ * appear at the top while maintaining their relative sort order within each group.
+ * Creates a new array to maintain immutability.
  *
  * @param {NoteData[]} notes - Array of notes to sort
  * @param {SortConfig} sortConfig - Sort configuration (field and order)
  * @param {Set<string>} pinnedNotes - Set of pinned note file paths
- * @returns {NoteData[]} New sorted array with pinned notes first
+ * @returns {NoteData[]} New sorted array with pinned notes first, followed by unpinned notes
  */
 export const sortNotes = (
   notes: NoteData[],
@@ -143,7 +145,8 @@ export const sortNotes = (
 ): NoteData[] => {
   // Create comparator and sort all notes
   const comparator = createSortComparator(sortConfig);
-  const sortedNotes = [...notes].sort(comparator); // Create new array to avoid mutation
+  // Create new array to avoid mutating the original notes array
+  const sortedNotes = [...notes].sort(comparator);
 
   // Separate into pinned and unpinned groups
   const { pinned, unpinned } = separateNotesByPinStatus(sortedNotes, pinnedNotes);
@@ -157,10 +160,11 @@ export const sortNotes = (
  *
  * Creates a new Set with the pin state toggled for the specified file.
  * Uses immutable update pattern to avoid side effects.
+ * If the note is currently pinned, it will be unpinned, and vice versa.
  *
  * @param {Set<string>} pinnedNotes - Current set of pinned note paths
- * @param {string} filePath - Path of the note to toggle
- * @returns {Set<string>} New Set with updated pin state
+ * @param {string} filePath - Path of the note to toggle pin state
+ * @returns {Set<string>} New Set with updated pin state (original Set is not modified)
  */
 export const togglePinState = (pinnedNotes: Set<string>, filePath: string): Set<string> => {
   // Create new Set to avoid mutating the original
