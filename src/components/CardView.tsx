@@ -2,6 +2,7 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
+import { extractAllTagPaths } from "../utils/tagUtils";
 import { CardViewErrorBoundary } from "./CardViewErrorBoundary";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { FilterPanel } from "./FilterPanel";
@@ -108,18 +109,18 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
 
   /**
    * Compute available tags from all notes for filter dropdown
+   * Includes both parent and full tag paths (e.g., "ai" and "ai/code")
    * Memoized to avoid recomputation on every render
    */
   const availableTags = useMemo(() => {
-    const tagSet = new Set<string>();
+    const allNoteTags: string[] = [];
 
     for (const note of notes) {
-      for (const tag of note.tags) {
-        tagSet.add(tag);
-      }
+      allNoteTags.push(...note.tags);
     }
 
-    return Array.from(tagSet).sort();
+    // Extract all possible tag paths including parent tags
+    return extractAllTagPaths(allNoteTags);
   }, [notes]);
 
   /**
@@ -243,7 +244,6 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
             <VirtualList plugin={plugin} />
           </div>
         </div>
-
       </div>
     </CardViewErrorBoundary>
   );

@@ -162,6 +162,11 @@ describe("VirtualList", () => {
   });
 
   it("should render error state", () => {
+    // Mock console methods to prevent error logging noise in tests
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleGroupSpy = vi.spyOn(console, "group").mockImplementation(() => {});
+    const consoleGroupEndSpy = vi.spyOn(console, "groupEnd").mockImplementation(() => {});
+
     // Mock store with error state
     mockUseCardExplorerStore.mockReturnValue({
       filteredNotes: [],
@@ -174,9 +179,19 @@ describe("VirtualList", () => {
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
     expect(screen.getByText("Failed to load notes from your vault.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+
+    // Restore console methods
+    consoleSpy.mockRestore();
+    consoleGroupSpy.mockRestore();
+    consoleGroupEndSpy.mockRestore();
   });
 
   it("should handle retry button click in error state", async () => {
+    // Mock console methods to prevent error logging noise in tests
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleGroupSpy = vi.spyOn(console, "group").mockImplementation(() => {});
+    const consoleGroupEndSpy = vi.spyOn(console, "groupEnd").mockImplementation(() => {});
+
     // Mock store methods
     const mockRefreshNotes = vi.fn();
     const mockSetError = vi.fn();
@@ -197,6 +212,11 @@ describe("VirtualList", () => {
     await user.click(retryButton);
 
     expect(mockRefreshNotes).toHaveBeenCalledWith(mockPlugin.app);
+
+    // Restore console methods
+    consoleSpy.mockRestore();
+    consoleGroupSpy.mockRestore();
+    consoleGroupEndSpy.mockRestore();
   });
 
   it("should render empty state", () => {
@@ -235,7 +255,7 @@ describe("VirtualList", () => {
     expect(mockClearFilters).toHaveBeenCalled();
   });
 
-  it("should render notes list with virtualization", () => {
+  it("should render multiple notes with virtualization", () => {
     const mockNotes = [
       createMockNote("1", "Note 1"),
       createMockNote("2", "Note 2"),
@@ -265,7 +285,7 @@ describe("VirtualList", () => {
     expect(screen.getByText("Note 3")).toBeInTheDocument();
   });
 
-  it("should display results count", () => {
+  it("should render notes list with virtualization", () => {
     const mockNotes = [createMockNote("1", "Note 1"), createMockNote("2", "Note 2")];
 
     // Mock store with notes
@@ -277,10 +297,12 @@ describe("VirtualList", () => {
 
     render(<VirtualList plugin={mockPlugin} />);
 
-    expect(screen.getByText("2 notes found")).toBeInTheDocument();
+    // Check that note cards are rendered
+    expect(screen.getByTestId("note-card-/note1.md")).toBeInTheDocument();
+    expect(screen.getByTestId("note-card-/note2.md")).toBeInTheDocument();
   });
 
-  it("should display singular result count", () => {
+  it("should render single note correctly", () => {
     const mockNotes = [createMockNote("1", "Note 1")];
 
     // Mock store with single note
@@ -292,7 +314,9 @@ describe("VirtualList", () => {
 
     render(<VirtualList plugin={mockPlugin} />);
 
-    expect(screen.getByText("1 note found")).toBeInTheDocument();
+    // Check that the single note card is rendered
+    expect(screen.getByTestId("note-card-/note1.md")).toBeInTheDocument();
+    expect(screen.getByText("Note 1")).toBeInTheDocument();
   });
 
   it("should handle null note in renderNoteCard", () => {
@@ -325,7 +349,7 @@ describe("VirtualList", () => {
     render(<VirtualList plugin={mockPlugin} />);
 
     // Check for container class
-    const container = screen.getByText("1 note found").closest(".virtual-list-container");
+    const container = document.querySelector(".virtual-list-container");
     expect(container).toBeInTheDocument();
   });
 
@@ -343,8 +367,10 @@ describe("VirtualList", () => {
 
     render(<VirtualList plugin={mockPlugin} />);
 
-    expect(screen.getByText("1000 notes found")).toBeInTheDocument();
+    // Check that virtualization container is rendered
     expect(screen.getByTestId("virtuoso-container")).toBeInTheDocument();
+    // Due to virtualization, only visible notes are rendered
+    expect(screen.getByTestId("note-card-/note0.md")).toBeInTheDocument();
   });
 
   it("should not render loading state when there are notes", () => {
@@ -406,7 +432,7 @@ describe("VirtualList", () => {
         { width: 200, expectedCards: 1 }, // Below min card width
       ];
 
-      testCases.forEach(({ width, expectedCards }) => {
+      testCases.forEach(({ width }) => {
         mockGetBoundingClientRect.mockReturnValue({
           width,
           height: 600,

@@ -114,19 +114,46 @@ describe("CardView", () => {
     });
   });
 
-  it("should render CardView with header, filter panel, and virtual list", () => {
+  it("should render CardView with header, filter toggle, and virtual list", () => {
     render(<CardView plugin={mockPlugin} />);
 
     // Check header
     expect(screen.getByText("Card Explorer")).toBeInTheDocument();
     expect(screen.getByText("2 total notes")).toBeInTheDocument();
 
-    // Check child components
-    expect(screen.getByTestId("filter-panel")).toBeInTheDocument();
+    // Check virtual list is rendered
     expect(screen.getByTestId("virtual-list")).toBeInTheDocument();
+
+    // Check filter toggle button (FilterPanel is collapsed by default)
+    expect(screen.getByText("Filters ▼")).toBeInTheDocument();
 
     // Check refresh button
     expect(screen.getByText("Refresh Notes")).toBeInTheDocument();
+  });
+
+  it("should toggle filter panel when filter toggle button is clicked", async () => {
+    const user = userEvent.setup();
+    render(<CardView plugin={mockPlugin} />);
+
+    // Filter panel should be hidden initially
+    expect(screen.queryByTestId("filter-panel")).not.toBeInTheDocument();
+    expect(screen.getByText("Filters ▼")).toBeInTheDocument();
+
+    // Click filter toggle to show panel
+    const filterToggle = screen.getByText("Filters ▼");
+    await user.click(filterToggle);
+
+    // Filter panel should now be visible
+    expect(screen.getByText("Filters ▲")).toBeInTheDocument();
+    expect(screen.getByTestId("filter-panel")).toBeInTheDocument();
+
+    // Click again to hide panel
+    const filterToggleActive = screen.getByText("Filters ▲");
+    await user.click(filterToggleActive);
+
+    // Filter panel should be hidden again
+    expect(screen.getByText("Filters ▼")).toBeInTheDocument();
+    expect(screen.queryByTestId("filter-panel")).not.toBeInTheDocument();
   });
 
   it("should show loading state when loading", () => {
@@ -169,17 +196,27 @@ describe("CardView", () => {
     expect(screen.getByText("Dismiss")).toBeInTheDocument();
   });
 
-  it("should compute available tags correctly", () => {
+  it("should compute available tags correctly when filter panel is open", async () => {
+    const user = userEvent.setup();
     render(<CardView plugin={mockPlugin} />);
 
-    // Should show 3 unique tags (tag1, tag2, tag3)
+    // Open filter panel first
+    const filterToggle = screen.getByText("Filters ▼");
+    await user.click(filterToggle);
+
+    // Should show 3 unique tags (tag1, tag2, tag3) in the filter panel
     expect(screen.getByText(/Tags: 3/)).toBeInTheDocument();
   });
 
-  it("should compute available folders correctly", () => {
+  it("should compute available folders correctly when filter panel is open", async () => {
+    const user = userEvent.setup();
     render(<CardView plugin={mockPlugin} />);
 
-    // Should show 2 unique folders (Folder1, Folder2)
+    // Open filter panel first
+    const filterToggle = screen.getByText("Filters ▼");
+    await user.click(filterToggle);
+
+    // Should show 2 unique folders (Folder1, Folder2) in the filter panel
     expect(screen.getByText(/Folders: 2/)).toBeInTheDocument();
   });
 
@@ -472,9 +509,14 @@ describe("CardView", () => {
   });
 
   describe("Memoization Behavior", () => {
-    it("should recompute available tags when notes change", () => {
+    it("should recompute available tags when notes change", async () => {
+      const user = userEvent.setup();
       // Initial render with 2 notes
       const { rerender } = render(<CardView plugin={mockPlugin} />);
+
+      // Open filter panel first
+      let filterToggle = screen.getByText("Filters ▼");
+      await user.click(filterToggle);
 
       expect(screen.getByText(/Tags: 3/)).toBeInTheDocument(); // tag1, tag2, tag3
 
@@ -506,13 +548,18 @@ describe("CardView", () => {
 
       rerender(<CardView plugin={mockPlugin} />);
 
-      // Should show new tag count
+      // Filter panel should still be open, check new tag count
       expect(screen.getByText(/Tags: 2/)).toBeInTheDocument(); // newTag1, newTag2
     });
 
-    it("should recompute available folders when notes change", () => {
+    it("should recompute available folders when notes change", async () => {
+      const user = userEvent.setup();
       // Initial render with 2 notes
       const { rerender } = render(<CardView plugin={mockPlugin} />);
+
+      // Open filter panel first
+      let filterToggle = screen.getByText("Filters ▼");
+      await user.click(filterToggle);
 
       expect(screen.getByText(/Folders: 2/)).toBeInTheDocument(); // Folder1, Folder2
 
@@ -544,11 +591,12 @@ describe("CardView", () => {
 
       rerender(<CardView plugin={mockPlugin} />);
 
-      // Should show new folder count
+      // Filter panel should still be open, check new folder count
       expect(screen.getByText(/Folders: 1/)).toBeInTheDocument(); // SingleFolder
     });
 
-    it("should sort available tags alphabetically", () => {
+    it("should sort available tags alphabetically", async () => {
+      const user = userEvent.setup();
       const unsortedNotes: NoteData[] = [
         {
           file: { path: "note1.md" } as any,
@@ -576,11 +624,16 @@ describe("CardView", () => {
 
       render(<CardView plugin={mockPlugin} />);
 
+      // Open filter panel first
+      const filterToggle = screen.getByText("Filters ▼");
+      await user.click(filterToggle);
+
       // Verify tags are passed in sorted order (3 total: alpha, beta, zebra)
       expect(screen.getByText(/Tags: 3/)).toBeInTheDocument();
     });
 
-    it("should sort available folders alphabetically", () => {
+    it("should sort available folders alphabetically", async () => {
+      const user = userEvent.setup();
       const unsortedNotes: NoteData[] = [
         {
           file: { path: "note1.md" } as any,
@@ -617,6 +670,10 @@ describe("CardView", () => {
       });
 
       render(<CardView plugin={mockPlugin} />);
+
+      // Open filter panel first
+      const filterToggle = screen.getByText("Filters ▼");
+      await user.click(filterToggle);
 
       // Verify folders are passed in sorted order (2 total: AFolder, ZFolder)
       expect(screen.getByText(/Folders: 2/)).toBeInTheDocument();
