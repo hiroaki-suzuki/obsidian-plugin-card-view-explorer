@@ -79,38 +79,37 @@ describe("tagUtils", () => {
 
   describe("tagMatchesFilter", () => {
     it("should match exact tag", () => {
-      const tags = ["project", "project/frontend", "project/frontend/react"];
-      const hierarchy = buildTagHierarchy(tags);
-
-      expect(tagMatchesFilter("project", "project", hierarchy)).toBe(true);
-      expect(tagMatchesFilter("project/frontend", "project/frontend", hierarchy)).toBe(true);
+      expect(tagMatchesFilter("project", "project")).toBe(true);
+      expect(tagMatchesFilter("project/frontend", "project/frontend")).toBe(true);
     });
 
-    it("should match parent-child relationship", () => {
-      const tags = ["project", "project/frontend", "project/frontend/react"];
-      const hierarchy = buildTagHierarchy(tags);
-
-      expect(tagMatchesFilter("project/frontend", "project", hierarchy)).toBe(true);
-      expect(tagMatchesFilter("project/frontend/react", "project", hierarchy)).toBe(true);
-      expect(tagMatchesFilter("project/frontend/react", "project/frontend", hierarchy)).toBe(true);
+    it("should match parent-child relationship (parent selected, child matches)", () => {
+      expect(tagMatchesFilter("project/frontend", "project")).toBe(true);
+      expect(tagMatchesFilter("project/frontend/react", "project")).toBe(true);
+      expect(tagMatchesFilter("project/frontend/react", "project/frontend")).toBe(true);
     });
 
     it("should not match unrelated tags", () => {
-      const tags = ["project", "project/frontend", "work", "work/meeting"];
-      const hierarchy = buildTagHierarchy(tags);
-
-      expect(tagMatchesFilter("work", "project", hierarchy)).toBe(false);
-      expect(tagMatchesFilter("project", "work", hierarchy)).toBe(false);
-      expect(tagMatchesFilter("work/meeting", "project", hierarchy)).toBe(false);
+      expect(tagMatchesFilter("work", "project")).toBe(false);
+      expect(tagMatchesFilter("project", "work")).toBe(false);
+      expect(tagMatchesFilter("work/meeting", "project")).toBe(false);
     });
 
-    it("should not match reverse hierarchy", () => {
-      const tags = ["project", "project/frontend", "project/frontend/react"];
-      const hierarchy = buildTagHierarchy(tags);
-
+    it("should not match reverse hierarchy (child selected, parent should NOT match)", () => {
       // Parent should not match child filter
-      expect(tagMatchesFilter("project", "project/frontend", hierarchy)).toBe(false);
-      expect(tagMatchesFilter("project/frontend", "project/frontend/react", hierarchy)).toBe(false);
+      expect(tagMatchesFilter("project", "project/frontend")).toBe(false);
+      expect(tagMatchesFilter("project/frontend", "project/frontend/react")).toBe(false);
+    });
+
+    it("should handle edge cases", () => {
+      // Similar prefix but not hierarchical
+      expect(tagMatchesFilter("projectile", "project")).toBe(false);
+      expect(tagMatchesFilter("project_test", "project")).toBe(false);
+
+      // Empty strings
+      expect(tagMatchesFilter("", "")).toBe(true);
+      expect(tagMatchesFilter("project", "")).toBe(false);
+      expect(tagMatchesFilter("", "project")).toBe(false);
     });
   });
 

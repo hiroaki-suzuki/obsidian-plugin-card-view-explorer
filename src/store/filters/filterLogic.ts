@@ -1,5 +1,5 @@
 import type { FilterState, NoteData } from "../../types";
-import { buildTagHierarchy, tagMatchesFilter } from "../../utils/tagUtils";
+import { tagMatchesFilter } from "../../utils/tagUtils";
 import { MILLISECONDS_PER_DAY } from "../utils";
 
 /**
@@ -70,13 +70,9 @@ export const matchesTagCriteria = (
 
   // If we have all notes available, use hierarchical matching
   if (allNotes && allNotes.length > 0) {
-    // Extract all tags from all notes to build hierarchy
-    const allTags = Array.from(new Set(allNotes.flatMap((n) => n.tags)));
-    const tagHierarchy = buildTagHierarchy(allTags);
-
     // Check if note has any tag that matches the filter criteria (hierarchical)
     return note.tags.some((noteTag) =>
-      tags.some((filterTag) => tagMatchesFilter(noteTag, filterTag, tagHierarchy))
+      tags.some((filterTag) => tagMatchesFilter(noteTag, filterTag))
     );
   }
 
@@ -106,13 +102,9 @@ export const isExcludedByTag = (
 
   // If we have all notes available, use hierarchical matching
   if (allNotes && allNotes.length > 0) {
-    // Extract all tags from all notes to build hierarchy
-    const allTags = Array.from(new Set(allNotes.flatMap((n) => n.tags)));
-    const tagHierarchy = buildTagHierarchy(allTags);
-
     // Check if note has any tag that matches the exclusion criteria (hierarchical)
     return note.tags.some((noteTag) =>
-      excludeTags.some((excludeTag) => tagMatchesFilter(noteTag, excludeTag, tagHierarchy))
+      excludeTags.some((excludeTag) => tagMatchesFilter(noteTag, excludeTag))
     );
   }
 
