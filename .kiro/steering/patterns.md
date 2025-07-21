@@ -150,7 +150,7 @@ export class CardViewErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("Card Explorer Error Boundary:", error, errorInfo);
+    console.error("Card View Explorer Error Boundary:", error, errorInfo);
     this.props.onError?.(error, errorInfo);
   }
 
@@ -406,10 +406,10 @@ export function handleError(
   };
 
   // Console logging and user notifications based on category
-  console.error(`Card Explorer Error:`, errorInfo);
+  console.error(`Card View Explorer Error:`, errorInfo);
 
   if (category !== ErrorCategory.UI) {
-    new Notice(`Card Explorer: ${errorInfo.message}`, 5000);
+    new Notice(`Card View Explorer: ${errorInfo.message}`, 5000);
   }
 
   return errorInfo;

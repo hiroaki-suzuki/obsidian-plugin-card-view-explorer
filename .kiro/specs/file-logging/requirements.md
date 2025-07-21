@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This feature adds file-based logging functionality to the Obsidian Card Explorer plugin. Currently, the plugin logs information to the console using `console.log`, `console.error`, `console.warn`, and `console.info`. This enhancement will extend the existing logging system to also write logs to files with automatic rotation and cleanup.
+This feature adds file-based logging functionality to the Obsidian Card View Explorer plugin. Currently, the plugin logs information to the console using `console.log`, `console.error`, `console.warn`, and `console.info`. This enhancement will extend the existing logging system to also write logs to files with automatic rotation and cleanup.
 
 The logging system will maintain the current console logging behavior while adding persistent file logging with daily rotation and automatic cleanup to prevent disk space issues.
 
@@ -17,7 +17,7 @@ The logging system will maintain the current console logging behavior while addi
 1. WHEN the plugin logs any message to console THEN the system SHALL also write the same message to a log file
 2. WHEN writing to log files THEN the system SHALL preserve the original log level (info, warn, error)
 3. WHEN writing to log files THEN the system SHALL include timestamp information in ISO format
-4. WHEN writing to log files THEN the system SHALL include the plugin prefix "Card Explorer" for consistency
+4. WHEN writing to log files THEN the system SHALL include the plugin prefix "Card View Explorer" for consistency
 
 ### Requirement 2
 
@@ -26,7 +26,7 @@ The logging system will maintain the current console logging behavior while addi
 #### Acceptance Criteria
 
 1. WHEN a new day begins THEN the system SHALL create a new log file with the current date
-2. WHEN creating log files THEN the system SHALL use the naming pattern `card-explorer-YYYY-MM-DD.log`
+2. WHEN creating log files THEN the system SHALL use the naming pattern `card-view-explorer-YYYY-MM-DD.log`
 3. WHEN the plugin starts THEN the system SHALL determine the correct log file based on the current date
 4. WHEN writing logs THEN the system SHALL always write to the current day's log file
 
@@ -58,7 +58,7 @@ The logging system will maintain the current console logging behavior while addi
 
 #### Acceptance Criteria
 
-1. WHEN creating log files THEN the system SHALL store them in `.obsidian/plugins/card-explorer/logs/` directory
+1. WHEN creating log files THEN the system SHALL store them in `.obsidian/plugins/obsidian-card-view-explorer/logs/` directory
 2. WHEN the logs directory doesn't exist THEN the system SHALL create it automatically
 3. WHEN the plugin is uninstalled THEN the log files SHALL be contained within the plugin directory for easy cleanup
 4. WHEN accessing log files THEN users SHALL be able to find them in the standard plugin data location

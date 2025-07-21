@@ -3,7 +3,7 @@
 ## Core Architecture
 
 ### Plugin Architecture Pattern
-The Card Explorer follows Obsidian's standard plugin architecture with React integration:
+The Card View Explorer follows Obsidian's standard plugin architecture with React integration:
 
 ```
 Obsidian Plugin API

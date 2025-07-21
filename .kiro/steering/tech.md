@@ -163,4 +163,4 @@ bun run test:coverage:ui
 - **Automatic Recomputation**: Derived state updates automatically when dependencies change
 - **Optimized Filtering**: Multi-stage filtering pipeline with early exits
 
-This technology stack provides a modern, performant, and maintainable foundation for the Card Explorer plugin with comprehensive error handling and data reliability.
+This technology stack provides a modern, performant, and maintainable foundation for the Card View Explorer plugin with comprehensive error handling and data reliability.

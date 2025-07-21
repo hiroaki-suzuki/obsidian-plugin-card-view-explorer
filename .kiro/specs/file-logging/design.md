@@ -2,7 +2,7 @@
 
 ## Overview
 
-The file logging feature extends the existing console logging system in the Card Explorer plugin to also write logs to persistent files. The design integrates seamlessly with the current error handling architecture while adding file-based persistence with automatic rotation and cleanup.
+The file logging feature extends the existing console logging system in the Card View Explorer plugin to also write logs to persistent files. The design integrates seamlessly with the current error handling architecture while adding file-based persistence with automatic rotation and cleanup.
 
 The system will intercept existing console logging calls and duplicate them to log files, maintaining the current logging behavior while adding persistent storage. Log files will be stored in the plugin's data directory with daily rotation and automatic cleanup of files older than 10 days.
 
@@ -133,29 +133,29 @@ interface LoggingSystem {
 Log files follow a structured format for easy parsing:
 
 ```
-[2024-01-15T10:30:45.123Z] INFO Card Explorer: Plugin initialized
-[2024-01-15T10:30:46.456Z] WARN Card Explorer: Failed to extract metadata for note.md: Error details
-[2024-01-15T10:30:47.789Z] ERROR Card Explorer Error: {"message":"API failure","details":"..."}
+[2024-01-15T10:30:45.123Z] INFO Card View Explorer: Plugin initialized
+[2024-01-15T10:30:46.456Z] WARN Card View Explorer: Failed to extract metadata for note.md: Error details
+[2024-01-15T10:30:47.789Z] ERROR Card View Explorer Error: {"message":"API failure","details":"..."}
 ```
 
 ### File Naming Convention
 
-- **Pattern**: `card-explorer-YYYY-MM-DD.log`
+- **Pattern**: `card-view-explorer-YYYY-MM-DD.log`
 - **Examples**:
-  - `card-explorer-2024-01-15.log`
-  - `card-explorer-2024-01-16.log`
+  - `card-view-explorer-2024-01-15.log`
+  - `card-view-explorer-2024-01-16.log`
 
 ### Directory Structure
 
 ```
 .obsidian/
 └── plugins/
-    └── card-explorer/
+    └── card-view-explorer/
         ├── data.json (existing)
         ├── main.js (existing)
         └── logs/ (new)
-            ├── card-explorer-2024-01-15.log
-            ├── card-explorer-2024-01-16.log
+            ├── card-view-explorer-2024-01-15.log
+            ├── card-view-explorer-2024-01-16.log
             └── ...
 ```
 
@@ -182,7 +182,7 @@ class FileLogger {
     try {
       return await operation();
     } catch (error) {
-      console.warn(`Card Explorer: File logging ${context} failed:`, error);
+      console.warn(`Card View Explorer: File logging ${context} failed:`, error);
       return fallback;
     }
   }

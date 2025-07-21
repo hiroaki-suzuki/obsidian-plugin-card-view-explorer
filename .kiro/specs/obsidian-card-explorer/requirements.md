@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Obsidian Card Explorer is an Obsidian plugin that provides a visual card-based interface for browsing recently edited notes, enabling users to efficiently view, search, and access their notes. This plugin focuses on individual note content and metadata rather than note relationships, offering an intuitive interface for note discovery.
+Obsidian Card View Explorer is an Obsidian plugin that provides a visual card-based interface for browsing recently edited notes, enabling users to efficiently view, search, and access their notes. This plugin focuses on individual note content and metadata rather than note relationships, offering an intuitive interface for note discovery.
 
 ## Requirements
 
@@ -12,7 +12,7 @@ Obsidian Card Explorer is an Obsidian plugin that provides a visual card-based i
 
 #### Acceptance Criteria
 
-1. WHEN the user opens the Card Explorer view THEN the system SHALL display notes in a tile/card layout
+1. WHEN the user opens the Card View Explorer view THEN the system SHALL display notes in a tile/card layout
 2. WHEN displaying each card THEN the system SHALL show the note title, first 3 lines of content, and last modified date
 3. WHEN extracting content preview THEN the system SHALL use the first 3 lines of text without markdown interpretation
 4. WHEN no notes are available THEN the system SHALL display an appropriate empty state message
@@ -54,19 +54,19 @@ Obsidian Card Explorer is an Obsidian plugin that provides a visual card-based i
 
 ### Requirement 5
 
-**User Story:** As an Obsidian user, I want to access the Card Explorer through multiple methods, so that I can integrate it into my workflow.
+**User Story:** As an Obsidian user, I want to access the Card View Explorer through multiple methods, so that I can integrate it into my workflow.
 
 #### Acceptance Criteria
 
-1. WHEN user searches command palette THEN the system SHALL provide a command to open Card Explorer
-2. WHEN user opens Card Explorer THEN the system SHALL display it as a new tab
+1. WHEN user searches command palette THEN the system SHALL provide a command to open Card View Explorer
+2. WHEN user opens Card View Explorer THEN the system SHALL display it as a new tab
 3. WHEN user configures side pane display THEN the system SHALL optionally show in side pane
-4. WHEN user enables auto-start THEN the system SHALL optionally open Card Explorer on Obsidian startup
+4. WHEN user enables auto-start THEN the system SHALL optionally open Card View Explorer on Obsidian startup
 5. WHEN user clicks on a card THEN the system SHALL open the note in the active pane
 
 ### Requirement 6
 
-**User Story:** As an Obsidian user, I want to customize certain aspects of the Card Explorer, so that it fits my workflow preferences.
+**User Story:** As an Obsidian user, I want to customize certain aspects of the Card View Explorer, so that it fits my workflow preferences.
 
 #### Acceptance Criteria
 
