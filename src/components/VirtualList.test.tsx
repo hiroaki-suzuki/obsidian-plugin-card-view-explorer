@@ -11,31 +11,6 @@ import { VirtualList } from "./VirtualList";
 
 // Mock react-virtuoso
 vi.mock("react-virtuoso", () => ({
-  VirtuosoGrid: ({ totalCount, itemContent, components }: any) => {
-    const items = Array.from({ length: totalCount }, (_, index) => itemContent(index));
-    return (
-      <div data-testid="virtuoso-grid-container">
-        {components?.List ? (
-          <components.List>
-            {items.map((item: any, index: number) =>
-              components?.Item ? (
-                <components.Item key={`virtuoso-item-${index}`}>{item}</components.Item>
-              ) : (
-                <div key={`virtuoso-item-${index}`}>{item}</div>
-              )
-            )}
-          </components.List>
-        ) : (
-          <div>
-            {items.map((item: any, index: number) => (
-              <div key={`virtuoso-item-${index}`}>{item}</div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  },
-  // Keep backward compatibility for other tests that might use Virtuoso
   Virtuoso: ({ totalCount, itemContent, components }: any) => {
     const items = Array.from({ length: totalCount }, (_, index) => itemContent(index));
     return (
@@ -401,7 +376,7 @@ describe("VirtualList", () => {
 
     render(<VirtualList plugin={mockPlugin} />);
 
-    expect(screen.queryByText("Error Loading Notes")).not.toBeInTheDocument();
+    expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
     expect(screen.getByText("Note 1")).toBeInTheDocument();
   });
 

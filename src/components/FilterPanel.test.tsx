@@ -44,10 +44,10 @@ describe("FilterPanel", () => {
     render(<FilterPanel {...defaultProps} />);
 
     expect(screen.getByText("Filters")).toBeInTheDocument();
-    expect(screen.getByLabelText("Search filename:")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filename:")).toBeInTheDocument();
     expect(screen.getByText("Folders:")).toBeInTheDocument();
     expect(screen.getByText("Tags:")).toBeInTheDocument();
-    expect(screen.getByText("Date filter:")).toBeInTheDocument();
+    expect(screen.getByText("Date:")).toBeInTheDocument();
   });
 
   it("handles filename search input", async () => {
@@ -76,7 +76,7 @@ describe("FilterPanel", () => {
     const user = userEvent.setup();
     const { rerender } = render(<FilterPanel {...defaultProps} />);
 
-    const filenameInput = screen.getByLabelText("Search filename:");
+    const filenameInput = screen.getByLabelText("Filename:");
     await user.type(filenameInput, "test");
 
     // Force a re-render to pick up the updated mock state
@@ -101,8 +101,8 @@ describe("FilterPanel", () => {
     const user = userEvent.setup();
     render(<FilterPanel {...defaultProps} />);
 
-    const tag1Checkbox = screen.getByRole("checkbox", { name: /#tag1/ });
-    await user.click(tag1Checkbox);
+    const tag1Label = screen.getByText("tag1").closest("label");
+    await user.click(tag1Label!);
 
     expect(mockUpdateFilters).toHaveBeenCalledWith({ tags: ["tag1"] });
   });
@@ -214,17 +214,14 @@ describe("FilterPanel", () => {
     expect(mockUpdateFilters).toHaveBeenLastCalledWith({ dateRange: null });
   });
 
-  it("shows active date filter status in summary", () => {
-    // Mock store with active date filter
+  it("shows clear all button when filters are active", () => {
+    // Mock store with active filters
     mockUseCardExplorerStore.mockReturnValue({
       filters: {
         folders: [],
         tags: [],
-        filename: "",
-        dateRange: {
-          type: "within",
-          value: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-        },
+        filename: "test", // This makes filters active
+        dateRange: null,
         excludeFolders: [],
         excludeTags: [],
         excludeFilenames: [],
@@ -235,21 +232,17 @@ describe("FilterPanel", () => {
 
     render(<FilterPanel {...defaultProps} />);
 
-    expect(screen.getByText("Active filters:")).toBeInTheDocument();
-    expect(screen.getByText("Date: within filter active")).toBeInTheDocument();
+    expect(screen.getByText("Clear All")).toBeInTheDocument();
   });
 
-  it("shows filter summary when filters are active", () => {
-    // Mock store with multiple active filters
+  it("handles clear all filters", async () => {
+    // Mock store with active filters
     mockUseCardExplorerStore.mockReturnValue({
       filters: {
-        folders: ["folder1", "folder2"],
+        folders: ["folder1"],
         tags: ["tag1"],
         filename: "test",
-        dateRange: {
-          type: "within",
-          value: new Date(),
-        },
+        dateRange: null,
         excludeFolders: [],
         excludeTags: [],
         excludeFilenames: [],
@@ -258,16 +251,16 @@ describe("FilterPanel", () => {
       clearFilters: mockClearFilters,
     });
 
+    const user = userEvent.setup();
     render(<FilterPanel {...defaultProps} />);
 
-    expect(screen.getByText("Active filters:")).toBeInTheDocument();
-    expect(screen.getByText('Filename: "test"')).toBeInTheDocument();
-    expect(screen.getByText("Folders: 2 selected")).toBeInTheDocument();
-    expect(screen.getByText("Tags: 1 selected")).toBeInTheDocument();
-    expect(screen.getByText("Date: within filter active")).toBeInTheDocument();
+    const clearAllButton = screen.getByText("Clear All");
+    await user.click(clearAllButton);
+
+    expect(mockClearFilters).toHaveBeenCalled();
   });
 
-  it("shows selected folders and tags", () => {
+  it("shows selected folders and tags as checked", () => {
     // Mock store with selected items
     mockUseCardExplorerStore.mockReturnValue({
       filters: {
@@ -285,8 +278,14 @@ describe("FilterPanel", () => {
 
     render(<FilterPanel {...defaultProps} />);
 
-    expect(screen.getByText("Selected: folder1")).toBeInTheDocument();
-    expect(screen.getByText("Selected: #tag1, #tag2")).toBeInTheDocument();
+    // Check that the checkboxes are checked for selected items
+    const folder1Checkbox = screen.getByText("folder1").previousElementSibling as HTMLInputElement;
+    const tag1Checkbox = screen.getByText("tag1").previousElementSibling as HTMLInputElement;
+    const tag2Checkbox = screen.getByText("tag2").previousElementSibling as HTMLInputElement;
+
+    expect(folder1Checkbox?.checked).toBe(true);
+    expect(tag1Checkbox?.checked).toBe(true);
+    expect(tag2Checkbox?.checked).toBe(true);
   });
 
   it("handles multiple folder selection", async () => {
