@@ -54,7 +54,6 @@ describe("tagUtils", () => {
     });
   });
 
-
   describe("getTagDescendants", () => {
     it("should return all descendants including self", () => {
       const tags = ["project", "project/frontend", "project/frontend/react", "project/backend"];
@@ -119,37 +118,27 @@ describe("tagUtils", () => {
     it("should extract all possible tag paths", () => {
       const tags = ["ai/code", "aws/ec2", "simple"];
       const result = extractAllTagPaths(tags);
-      
-      expect(result).toEqual([
-        "ai",
-        "ai/code", 
-        "aws",
-        "aws/ec2",
-        "simple"
-      ]);
+
+      expect(result).toEqual(["ai", "ai/code", "aws", "aws/ec2", "simple"]);
     });
 
     it("should handle deeply nested tags", () => {
       const tags = ["project/frontend/react/hooks"];
       const result = extractAllTagPaths(tags);
-      
+
       expect(result).toEqual([
         "project",
         "project/frontend",
         "project/frontend/react",
-        "project/frontend/react/hooks"
+        "project/frontend/react/hooks",
       ]);
     });
 
     it("should handle duplicate parent paths", () => {
       const tags = ["ai/code", "ai/ml"];
       const result = extractAllTagPaths(tags);
-      
-      expect(result).toEqual([
-        "ai",
-        "ai/code",
-        "ai/ml"
-      ]);
+
+      expect(result).toEqual(["ai", "ai/code", "ai/ml"]);
     });
 
     it("should return empty array for empty input", () => {
@@ -160,14 +149,8 @@ describe("tagUtils", () => {
     it("should sort results alphabetically", () => {
       const tags = ["z/tag", "a/tag"];
       const result = extractAllTagPaths(tags);
-      
-      expect(result).toEqual([
-        "a",
-        "a/tag",
-        "z",
-        "z/tag"
-      ]);
+
+      expect(result).toEqual(["a", "a/tag", "z", "z/tag"]);
     });
   });
-
 });

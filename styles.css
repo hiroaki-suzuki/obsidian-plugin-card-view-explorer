@@ -98,6 +98,7 @@
   background: var(--background-primary);
   color: var(--text-normal);
   font-family: var(--font-interface);
+  container-type: inline-size; /* Enable container queries for responsive design */
 }
 
 .card-view-header {
@@ -184,6 +185,8 @@
   border-bottom: var(--border-width) solid var(--background-modifier-border);
   animation: slideDown 0.2s ease-out;
   overflow: hidden;
+  width: 100%; /* Ensure full width */
+  min-width: 0; /* Allow shrinking */
 }
 
 @keyframes slideDown {
@@ -407,9 +410,12 @@
 .card-view-filter-panel .filter-panel {
   padding: var(--size-4-3) var(--size-4-4);
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr)); /* Allow columns to shrink */
   gap: var(--size-4-4);
   align-items: start;
+  min-width: 0; /* Allow grid to shrink below content size */
+  overflow-x: hidden; /* Prevent horizontal overflow */
+  width: 100%; /* Ensure full width utilization */
 
   .filter-panel-header {
     grid-column: 1 / -1; /* Span full width */
@@ -425,6 +431,8 @@
     margin-bottom: 0; /* Remove bottom margin for grid layout */
     box-shadow: var(--shadow-s);
     transition: all 0.2s ease;
+    min-width: 0; /* Allow elements to shrink below content size */
+    overflow: hidden; /* Prevent content overflow */
 
     &:hover {
       border-color: var(--background-modifier-border-hover);
@@ -970,7 +978,133 @@
 /* Progressive enhancement for different screen sizes and accessibility needs
    Includes mobile-first responsive design and accessibility features */
 
-/* Tablet and mobile layout - optimized for collapsible filter design */
+/* Container query for narrow spaces (sidebar and small windows) */
+@container (max-width: 500px) {
+  .card-view-header {
+    flex-direction: column;
+    align-items: stretch; /* Stretch to full width */
+    gap: var(--size-2-2);
+
+    .card-view-title {
+      font-size: var(--font-ui-medium); /* Smaller title for narrow spaces */
+    }
+
+    .card-view-stats {
+      justify-content: flex-start; /* Left align stats */
+      flex: none; /* Remove flex grow */
+      font-size: var(--font-ui-smaller); /* Smaller stats text */
+    }
+
+    .card-view-actions {
+      justify-content: space-between; /* Spread buttons */
+      width: 100%;
+
+      .filter-toggle-button,
+      .refresh-button {
+        font-size: var(--font-ui-smaller); /* Smaller button text */
+        padding: var(--size-2-1) var(--size-2-3); /* Smaller padding */
+      }
+
+      .filter-toggle-button {
+        flex: 1; /* Take available space */
+        margin-right: var(--size-2-3);
+      }
+    }
+  }
+
+  /* Filter panel responsive layout for narrow containers */
+  .card-view-filter-panel .filter-panel {
+    grid-template-columns: 1fr; /* Single column for very narrow spaces */
+    gap: var(--size-2-3);
+    padding: var(--size-2-3);
+
+    .filter-group {
+      padding: var(--size-2-3);
+
+      h4 {
+        font-size: var(--font-ui-small);
+        margin-bottom: var(--size-2-2);
+      }
+    }
+  }
+}
+
+/* Container query for medium-narrow spaces (larger sidebar, small desktop) */
+@container (max-width: 700px) {
+  .card-view-filter-panel .filter-panel {
+    grid-template-columns: 1fr 1fr; /* Two columns for medium-narrow spaces */
+    gap: var(--size-4-3);
+  }
+}
+
+/* Fallback media queries for browsers without container query support */
+
+/* Medium-narrow layout (600-700px) - 2 column filter grid */
+@media (max-width: 700px) and (min-width: 601px) {
+  .card-view-filter-panel .filter-panel {
+    grid-template-columns: 1fr 1fr; /* Two columns */
+    gap: var(--size-4-3);
+  }
+}
+
+/* Narrow layout (500-600px) - 2 column filter grid with smaller elements */
+@media (max-width: 600px) and (min-width: 501px) {
+  .card-view-filter-panel .filter-panel {
+    grid-template-columns: 1fr 1fr; /* Two columns */
+    gap: var(--size-2-3);
+    padding: var(--size-4-3);
+
+    .filter-group {
+      padding: var(--size-2-3);
+
+      h4 {
+        font-size: var(--font-ui-small);
+        margin-bottom: var(--size-2-2);
+      }
+    }
+  }
+}
+
+/* Very narrow layout (≤500px) - single column */
+@media (max-width: 500px) {
+  .card-view-header {
+    flex-direction: column;
+    align-items: stretch; /* Stretch to full width */
+    gap: var(--size-2-2);
+
+    .card-view-stats {
+      justify-content: flex-start; /* Left align stats */
+      flex: none; /* Remove flex grow */
+    }
+
+    .card-view-actions {
+      justify-content: space-between; /* Spread buttons */
+      width: 100%;
+
+      .filter-toggle-button {
+        flex: 1; /* Take available space */
+        margin-right: var(--size-2-3);
+      }
+    }
+  }
+
+  .card-view-filter-panel .filter-panel {
+    grid-template-columns: 1fr; /* Single column */
+    gap: var(--size-2-3);
+    padding: var(--size-2-3);
+
+    .filter-group {
+      padding: var(--size-2-3);
+
+      h4 {
+        font-size: var(--font-ui-small);
+        margin-bottom: var(--size-2-2);
+      }
+    }
+  }
+}
+
+/* Mobile and tablet layout - optimized for collapsible filter design */
 @media (max-width: 768px) {
   .card-view-header {
     flex-direction: column;
@@ -992,6 +1126,7 @@
       }
     }
   }
+}
 
   .card-view-filter-panel {
     max-height: 360px;

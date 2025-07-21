@@ -1,4 +1,4 @@
-import type { App, CachedMetadata, TFile } from "obsidian";
+import type { CachedMetadata, TFile } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { extractContentPreview, extractNoteMetadata } from "./metadataExtractor";
 
@@ -389,7 +389,7 @@ More content here`;
 
     it("should handle content without frontmatter", async () => {
       const mockContent = "No frontmatter here\nJust regular content\nMore lines";
-      
+
       const mockApp = {
         vault: {
           cachedRead: vi.fn().mockResolvedValue(mockContent),
@@ -409,7 +409,7 @@ More content here`;
 title: Incomplete frontmatter
 This content should be returned as-is
 Since there's no closing delimiter`;
-      
+
       const mockApp = {
         vault: {
           cachedRead: vi.fn().mockResolvedValue(mockContent),
@@ -430,7 +430,7 @@ title: Empty content
 ---
 
 `;
-      
+
       const mockApp = {
         vault: {
           cachedRead: vi.fn().mockResolvedValue(mockContent),

@@ -1,6 +1,6 @@
 import type { FilterState, NoteData } from "../../types";
-import { MILLISECONDS_PER_DAY } from "../utils";
 import { buildTagHierarchy, tagMatchesFilter } from "../../utils/tagUtils";
+import { MILLISECONDS_PER_DAY } from "../utils";
 
 /**
  * Pure Functions - Filter Logic
@@ -60,14 +60,18 @@ export const isExcludedByFolder = (note: NoteData, excludeFolders: string[]): bo
  * @param {NoteData[]} allNotes - All notes for building tag hierarchy (optional for backwards compatibility)
  * @returns {boolean} True if note has matching tags or no tags specified
  */
-export const matchesTagCriteria = (note: NoteData, tags: string[], allNotes?: NoteData[]): boolean => {
+export const matchesTagCriteria = (
+  note: NoteData,
+  tags: string[],
+  allNotes?: NoteData[]
+): boolean => {
   // No tag filter means include all notes
   if (tags.length === 0) return true;
 
   // If we have all notes available, use hierarchical matching
   if (allNotes && allNotes.length > 0) {
     // Extract all tags from all notes to build hierarchy
-    const allTags = Array.from(new Set(allNotes.flatMap(n => n.tags)));
+    const allTags = Array.from(new Set(allNotes.flatMap((n) => n.tags)));
     const tagHierarchy = buildTagHierarchy(allTags);
 
     // Check if note has any tag that matches the filter criteria (hierarchical)
@@ -92,14 +96,18 @@ export const matchesTagCriteria = (note: NoteData, tags: string[], allNotes?: No
  * @param {NoteData[]} allNotes - All notes for building tag hierarchy (optional for backwards compatibility)
  * @returns {boolean} True if note should be excluded
  */
-export const isExcludedByTag = (note: NoteData, excludeTags: string[], allNotes?: NoteData[]): boolean => {
+export const isExcludedByTag = (
+  note: NoteData,
+  excludeTags: string[],
+  allNotes?: NoteData[]
+): boolean => {
   // No exclusion filter means don't exclude any notes
   if (excludeTags.length === 0) return false;
 
   // If we have all notes available, use hierarchical matching
   if (allNotes && allNotes.length > 0) {
     // Extract all tags from all notes to build hierarchy
-    const allTags = Array.from(new Set(allNotes.flatMap(n => n.tags)));
+    const allTags = Array.from(new Set(allNotes.flatMap((n) => n.tags)));
     const tagHierarchy = buildTagHierarchy(allTags);
 
     // Check if note has any tag that matches the exclusion criteria (hierarchical)
@@ -217,7 +225,11 @@ export const matchesDateRangeCriteria = (
  * @param {NoteData[]} allNotes - All notes for hierarchical tag matching (optional)
  * @returns {boolean} True if note passes all active filters
  */
-export const notePassesFilters = (note: NoteData, filters: FilterState, allNotes?: NoteData[]): boolean => {
+export const notePassesFilters = (
+  note: NoteData,
+  filters: FilterState,
+  allNotes?: NoteData[]
+): boolean => {
   return (
     matchesFolderCriteria(note, filters.folders) && // Must be in included folders
     !isExcludedByFolder(note, filters.excludeFolders) && // Must not be in excluded folders
