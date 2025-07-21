@@ -250,8 +250,11 @@ describe("CardView", () => {
 
     render(<CardView plugin={mockPlugin} />);
 
-    // Wait a tick for the async error to be handled
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Wait for the async error to be handled with act
+    await act(async () => {
+      // Wait multiple ticks for the async operation to complete
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
 
     expect(mockSetError).toHaveBeenCalledWith("Network error");
   });
