@@ -124,8 +124,7 @@
     gap: var(--size-2-2);
     font-size: var(--font-ui-smaller);
     color: var(--text-muted);
-    flex: 1;                    /* Take available space between title and button */
-    justify-content: center;    /* Center the stats */
+    flex: 1;                    /* Take available space between title and actions */
 
     .total-notes {
       font-weight: var(--font-weight-medium);
@@ -136,6 +135,14 @@
     }
   }
 
+  .card-view-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-3);
+    flex-shrink: 0;             /* Prevent actions from shrinking */
+  }
+
+  .filter-toggle-button,
   .refresh-button {
     padding: var(--size-2-1) var(--size-4-3);
     background: var(--interactive-normal);
@@ -145,7 +152,6 @@
     cursor: pointer;
     font-size: var(--font-ui-smaller);
     transition: all 0.2s ease;
-    flex-shrink: 0;             /* Prevent button from shrinking */
     white-space: nowrap;        /* Keep button text on one line */
 
     &:hover:not(:disabled) {
@@ -162,6 +168,33 @@
       cursor: not-allowed;
     }
   }
+
+  .filter-toggle-button {
+    &.active {
+      background: var(--interactive-accent);
+      color: var(--text-on-accent);
+      border-color: var(--interactive-accent);
+    }
+  }
+}
+
+/* Collapsible filter panel positioned below header */
+.card-view-filter-panel {
+  background: var(--background-secondary);
+  border-bottom: var(--border-width) solid var(--background-modifier-border);
+  animation: slideDown 0.2s ease-out;
+  overflow: hidden;
+}
+
+@keyframes slideDown {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 400px;      /* Reasonable max height for filter content */
+    opacity: 1;
+  }
 }
 
 .card-view-content {
@@ -170,22 +203,13 @@
   min-height: 0;
 }
 
-.card-view-sidebar {
-  width: 280px;           /* Fixed width for consistent layout */
-  min-width: 280px;       /* Prevent collapse on small screens */
-  max-width: 320px;       /* Maximum expansion limit */
-  background: var(--background-secondary);
-  border-right: var(--border-width) solid var(--background-modifier-border);
-  overflow-y: auto;       /* Scrollable content when needed */
-  flex-shrink: 0;         /* Never shrink in flex layout */
-}
-
 .card-view-main {
   flex: 1;
   position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  width: 100%;            /* Take full width now that sidebar is moved */
 }
 
 
@@ -374,8 +398,17 @@
 
 .filter-panel {
   padding: var(--size-4-4);
-  height: 100%;
   overflow-y: auto;
+  max-height: 400px;          /* Limit height for collapsible panel */
+}
+
+/* Horizontal layout for filter groups when in top panel */
+.card-view-filter-panel .filter-panel {
+  padding: var(--size-2-3) var(--size-4-4);
+
+  .filter-group {
+    margin-bottom: var(--size-2-3);  /* Reduced spacing for horizontal layout */
+  }
 }
 
 .filter-panel-header {
@@ -929,21 +962,8 @@
 /* Progressive enhancement for different screen sizes and accessibility needs
    Includes mobile-first responsive design and accessibility features */
 
-/* Tablet and mobile layout - transforms horizontal layout to vertical stack */
+/* Tablet and mobile layout - optimized for collapsible filter design */
 @media (max-width: 768px) {
-  .card-view-content {
-    flex-direction: column;          /* Stack sidebar above main content */
-  }
-
-  .card-view-sidebar {
-    width: 100%;                     /* Full width when stacked */
-    max-width: none;                 /* Remove width constraints */
-    min-width: 0;
-    max-height: 200px;               /* Limit height to preserve main content space */
-    border-right: none;              /* Remove right border when stacked */
-    border-bottom: var(--border-width) solid var(--background-modifier-border);
-  }
-
   .card-view-header {
     flex-direction: column;
     align-items: stretch;         /* Stretch to full width */
@@ -954,8 +974,22 @@
       flex: none;                 /* Remove flex grow on mobile */
     }
 
-    .refresh-button {
-      align-self: flex-end;       /* Right align button on mobile */
+    .card-view-actions {
+      justify-content: space-between; /* Spread buttons on mobile */
+      width: 100%;
+      
+      .filter-toggle-button {
+        flex: 1;                  /* Take available space */
+        margin-right: var(--size-2-3);
+      }
+    }
+  }
+
+  .card-view-filter-panel .filter-panel {
+    padding: var(--size-2-2) var(--size-2-3); /* Reduced padding on mobile */
+    
+    .filter-group {
+      margin-bottom: var(--size-2-2);
     }
   }
 

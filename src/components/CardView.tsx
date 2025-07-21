@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import { CardViewErrorBoundary } from "./CardViewErrorBoundary";
@@ -37,6 +37,9 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
     savePinStatesToPlugin,
     pinnedNotes,
   } = useCardExplorerStore();
+
+  // Filter panel collapse state
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
 
   /**
    * Initialize store from plugin data when component mounts
@@ -183,7 +186,7 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
   return (
     <CardViewErrorBoundary onError={handleErrorBoundaryError}>
       <div className="card-view-container">
-        {/* Header with title, stats, and refresh button */}
+        {/* Header with title, stats, filter toggle, and refresh button */}
         <div className="card-view-header">
           <h2 className="card-view-title">Card Explorer</h2>
           <div className="card-view-stats">
@@ -194,25 +197,36 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
               <span className="filtered-notes">• {filteredNotes.length} filtered</span>
             )}
           </div>
-          <button
-            type="button"
-            className="refresh-button"
-            onClick={handleRetry}
-            disabled={isLoading}
-            title="Refresh notes from vault"
-          >
-            {isLoading ? "Refreshing..." : "Refresh Notes"}
-          </button>
+          <div className="card-view-actions">
+            <button
+              type="button"
+              className={`filter-toggle-button ${isFilterPanelOpen ? "active" : ""}`}
+              onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
+              title={isFilterPanelOpen ? "Hide filters" : "Show filters"}
+            >
+              Filters {isFilterPanelOpen ? "▲" : "▼"}
+            </button>
+            <button
+              type="button"
+              className="refresh-button"
+              onClick={handleRetry}
+              disabled={isLoading}
+              title="Refresh notes from vault"
+            >
+              {isLoading ? "Refreshing..." : "Refresh Notes"}
+            </button>
+          </div>
         </div>
 
-        {/* Main content area with filter panel and note list */}
-        <div className="card-view-content">
-          {/* Filter Panel */}
-          <div className="card-view-sidebar">
+        {/* Collapsible filter panel */}
+        {isFilterPanelOpen && (
+          <div className="card-view-filter-panel">
             <FilterPanel availableTags={availableTags} availableFolders={availableFolders} />
           </div>
+        )}
 
-          {/* Note List */}
+        {/* Main content area - now full width */}
+        <div className="card-view-content">
           <div className="card-view-main">
             {/* Loading overlay for refresh operations */}
             {isLoading && (
