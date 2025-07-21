@@ -9,9 +9,15 @@ import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
 import { VirtualList } from "./VirtualList";
 
-// Mock react-virtuoso
+// Mock react-virtuoso with scroll methods
+const mockScrollToIndex = vi.fn();
 vi.mock("react-virtuoso", () => ({
-  Virtuoso: ({ totalCount, itemContent, components }: any) => {
+  Virtuoso: React.forwardRef(({ totalCount, itemContent, components }: any, ref: any) => {
+    // Expose scroll methods through ref
+    React.useImperativeHandle(ref, () => ({
+      scrollToIndex: mockScrollToIndex,
+    }));
+
     const items = Array.from({ length: totalCount }, (_, index) => itemContent(index));
     return (
       <div data-testid="virtuoso-container">
@@ -34,7 +40,7 @@ vi.mock("react-virtuoso", () => ({
         )}
       </div>
     );
-  },
+  }),
 }));
 
 // Mock NoteCard component
@@ -480,6 +486,245 @@ describe("VirtualList", () => {
       unmount();
 
       expect(resizeObserverInstance.disconnect).toHaveBeenCalled();
+    });
+  });
+
+  describe("Scroll Reset on Filter Change", () => {
+    beforeEach(() => {
+      mockScrollToIndex.mockClear();
+    });
+
+    it("should reset scroll position when filters change after initial render", async () => {
+      const mockNotes = [createMockNote("1", "Note 1")];
+      const initialFilters = {
+        tags: [] as string[],
+        folders: [] as string[],
+        filename: "",
+        dateRange: null,
+        excludeTags: [] as string[],
+        excludeFolders: [] as string[],
+        excludeFilenames: [] as string[],
+      };
+
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+        filters: initialFilters,
+      });
+
+      const { rerender } = render(<VirtualList plugin={mockPlugin} />);
+
+      // Wait for initial render to complete
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Clear any initial calls
+      mockScrollToIndex.mockClear();
+
+      // Simulate filter change with new object reference
+      const newFilters = {
+        ...initialFilters,
+        tags: ["project"] as string[],
+      };
+
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+        filters: newFilters, // Use new object directly
+      });
+
+      rerender(<VirtualList plugin={mockPlugin} />);
+
+      // Wait for the timeout and scroll to complete
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Should call scrollToIndex when filters change (with auto behavior)
+      expect(mockScrollToIndex).toHaveBeenCalledWith({
+        index: 0,
+        behavior: "auto",
+      });
+    });
+
+    it("should reset scroll position when clearing filters", async () => {
+      const mockNotes = [createMockNote("1", "Note 1")];
+      const initialFilters = {
+        tags: ["project"] as string[],
+        folders: [] as string[],
+        filename: "",
+        dateRange: null,
+        excludeTags: [] as string[],
+        excludeFolders: [] as string[],
+        excludeFilenames: [] as string[],
+      };
+
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+        filters: initialFilters,
+      });
+
+      const { rerender } = render(<VirtualList plugin={mockPlugin} />);
+
+      // Wait for initial render to complete
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Clear any initial calls
+      mockScrollToIndex.mockClear();
+
+      // Simulate clearing filters with new object reference
+      const clearedFilters = {
+        tags: [] as string[],
+        folders: [] as string[],
+        filename: "",
+        dateRange: null,
+        excludeTags: [] as string[],
+        excludeFolders: [] as string[],
+        excludeFilenames: [] as string[],
+      };
+
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+        filters: clearedFilters,
+      });
+
+      rerender(<VirtualList plugin={mockPlugin} />);
+
+      // Wait for the timeout and scroll to complete
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Should call scrollToIndex when filters are cleared
+      expect(mockScrollToIndex).toHaveBeenCalledWith({
+        index: 0,
+        behavior: "auto",
+      });
+    });
+
+    it("should reset scroll position when changing filename filter", async () => {
+      const mockNotes = [createMockNote("1", "Note 1")];
+      const initialFilters = {
+        tags: [] as string[],
+        folders: [] as string[],
+        filename: "",
+        dateRange: null,
+        excludeTags: [] as string[],
+        excludeFolders: [] as string[],
+        excludeFilenames: [] as string[],
+      };
+
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+        filters: initialFilters,
+      });
+
+      const { rerender } = render(<VirtualList plugin={mockPlugin} />);
+
+      // Wait for initial render to complete
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Clear any initial calls
+      mockScrollToIndex.mockClear();
+
+      // Simulate filename filter change with new object reference
+      const updatedFilters = {
+        ...initialFilters,
+        filename: "test",
+      };
+
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+        filters: updatedFilters,
+      });
+
+      rerender(<VirtualList plugin={mockPlugin} />);
+
+      // Wait for the timeout and scroll to complete
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Should call scrollToIndex when filename filter changes
+      expect(mockScrollToIndex).toHaveBeenCalledWith({
+        index: 0,
+        behavior: "auto",
+      });
+    });
+
+    it("should not reset scroll when filters remain the same", async () => {
+      const mockNotes = [createMockNote("1", "Note 1")];
+      const filters = {
+        tags: ["project"] as string[],
+        folders: [] as string[],
+        filename: "",
+        dateRange: null,
+        excludeTags: [] as string[],
+        excludeFolders: [] as string[],
+        excludeFilenames: [] as string[],
+      };
+
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+        filters,
+      });
+
+      const { rerender } = render(<VirtualList plugin={mockPlugin} />);
+
+      // Wait for initial render to complete
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Clear any initial calls
+      mockScrollToIndex.mockClear();
+
+      // Rerender with same filters
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+        filters, // Same filter object
+      });
+
+      rerender(<VirtualList plugin={mockPlugin} />);
+
+      // Wait for any potential timeout
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Should not call scrollToIndex when filters don't change
+      expect(mockScrollToIndex).not.toHaveBeenCalled();
+    });
+
+    it("should not reset scroll on initial render", async () => {
+      const mockNotes = [createMockNote("1", "Note 1")];
+      const filters = {
+        tags: [] as string[],
+        folders: [] as string[],
+        filename: "",
+        dateRange: null,
+        excludeTags: [] as string[],
+        excludeFolders: [] as string[],
+        excludeFilenames: [] as string[],
+      };
+
+      mockUseCardExplorerStore.mockReturnValue({
+        filteredNotes: mockNotes,
+        isLoading: false,
+        error: null,
+        filters,
+      });
+
+      render(<VirtualList plugin={mockPlugin} />);
+
+      // Wait for initial render to complete
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Should not call scrollToIndex on initial render
+      expect(mockScrollToIndex).not.toHaveBeenCalled();
     });
   });
 });
