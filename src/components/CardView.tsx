@@ -183,7 +183,7 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
   return (
     <CardViewErrorBoundary onError={handleErrorBoundaryError}>
       <div className="card-view-container">
-        {/* Header with title and stats */}
+        {/* Header with title, stats, and refresh button */}
         <div className="card-view-header">
           <h2 className="card-view-title">Card Explorer</h2>
           <div className="card-view-stats">
@@ -194,6 +194,15 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
               <span className="filtered-notes">• {filteredNotes.length} filtered</span>
             )}
           </div>
+          <button
+            type="button"
+            className="refresh-button"
+            onClick={handleRetry}
+            disabled={isLoading}
+            title="Refresh notes from vault"
+          >
+            {isLoading ? "Refreshing..." : "Refresh Notes"}
+          </button>
         </div>
 
         {/* Main content area with filter panel and note list */}
@@ -221,18 +230,6 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
           </div>
         </div>
 
-        {/* Footer with refresh button */}
-        <div className="card-view-footer">
-          <button
-            type="button"
-            className="refresh-button"
-            onClick={handleRetry}
-            disabled={isLoading}
-            title="Refresh notes from vault"
-          >
-            {isLoading ? "Refreshing..." : "Refresh Notes"}
-          </button>
-        </div>
       </div>
     </CardViewErrorBoundary>
   );

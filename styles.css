@@ -108,12 +108,14 @@
   border-bottom: var(--border-width) solid var(--background-modifier-border);
   background: var(--background-secondary);
   flex-shrink: 0;
+  gap: var(--size-4-3);           /* Add gap between elements */
 
   .card-view-title {
     margin: 0;
     font-size: var(--font-ui-large);
     font-weight: var(--font-weight-semibold);
     color: var(--text-normal);
+    flex-shrink: 0;             /* Prevent title from shrinking */
   }
 
   .card-view-stats {
@@ -122,6 +124,8 @@
     gap: var(--size-2-2);
     font-size: var(--font-ui-smaller);
     color: var(--text-muted);
+    flex: 1;                    /* Take available space between title and button */
+    justify-content: center;    /* Center the stats */
 
     .total-notes {
       font-weight: var(--font-weight-medium);
@@ -129,6 +133,33 @@
 
     .filtered-notes {
       color: var(--text-accent);
+    }
+  }
+
+  .refresh-button {
+    padding: var(--size-2-1) var(--size-4-3);
+    background: var(--interactive-normal);
+    color: var(--text-normal);
+    border: var(--border-width) solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    cursor: pointer;
+    font-size: var(--font-ui-smaller);
+    transition: all 0.2s ease;
+    flex-shrink: 0;             /* Prevent button from shrinking */
+    white-space: nowrap;        /* Keep button text on one line */
+
+    &:hover:not(:disabled) {
+      background: var(--interactive-hover);
+    }
+
+    &:active:not(:disabled) {
+      background: var(--interactive-accent);
+      color: var(--text-on-accent);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
   }
 }
@@ -157,40 +188,6 @@
   min-width: 0;
 }
 
-.card-view-footer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: var(--size-2-2) var(--size-4-4);
-  border-top: var(--border-width) solid var(--background-modifier-border);
-  background: var(--background-secondary);
-  flex-shrink: 0;
-
-  .refresh-button {
-    padding: var(--size-2-1) var(--size-4-3);
-    background: var(--interactive-normal);
-    color: var(--text-normal);
-    border: var(--border-width) solid var(--background-modifier-border);
-    border-radius: var(--radius-s);
-    cursor: pointer;
-    font-size: var(--font-ui-smaller);
-    transition: all 0.2s ease;
-
-    &:hover:not(:disabled) {
-      background: var(--interactive-hover);
-    }
-
-    &:active:not(:disabled) {
-      background: var(--interactive-accent);
-      color: var(--text-on-accent);
-    }
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-  }
-}
 
 /* ==========================================================================
    4. UI State Components (Loading & Error States)
@@ -742,21 +739,6 @@
   }
 }
 
-.virtual-list-footer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: var(--size-2-2) var(--size-4-4);
-  border-top: var(--border-width) solid var(--background-modifier-border);
-  background: var(--background-secondary);
-  flex-shrink: 0;
-
-  .results-count {
-    font-size: var(--font-ui-smaller);
-    color: var(--text-muted);
-    font-weight: var(--font-weight-medium);
-  }
-}
 
 /* Individual Note Card Components */
 
@@ -964,11 +946,16 @@
 
   .card-view-header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;         /* Stretch to full width */
     gap: var(--size-2-2);
 
     .card-view-stats {
-      align-self: flex-end;
+      justify-content: flex-start; /* Left align stats on mobile */
+      flex: none;                 /* Remove flex grow on mobile */
+    }
+
+    .refresh-button {
+      align-self: flex-end;       /* Right align button on mobile */
     }
   }
 

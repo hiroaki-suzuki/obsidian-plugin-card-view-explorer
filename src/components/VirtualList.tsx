@@ -297,13 +297,6 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
         defaultItemHeight={192} // Row height including margins
         followOutput="smooth"
       />
-
-      {/* Results summary */}
-      <div className="virtual-list-footer">
-        <span className="results-count">
-          {filteredNotes.length} note{filteredNotes.length !== 1 ? "s" : ""} found
-        </span>
-      </div>
     </div>
   );
 };
