@@ -4,37 +4,37 @@ import { PREVIEW_MAX_LINES } from "../utils";
 
 /**
  * Remove frontmatter from note content
- * 
+ *
  * Frontmatter is YAML content between --- delimiters at the start of the file
- * 
+ *
  * @param content - Raw note content
  * @returns Content with frontmatter removed
  */
 const removeFrontmatter = (content: string): string => {
   // Check if content starts with frontmatter delimiter
-  if (!content.startsWith('---')) {
+  if (!content.startsWith("---")) {
     return content;
   }
-  
+
   // Find the closing delimiter
-  const lines = content.split('\n');
+  const lines = content.split("\n");
   let endIndex = -1;
-  
+
   // Start from line 1 (skip the opening ---)
   for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim() === '---') {
+    if (lines[i].trim() === "---") {
       endIndex = i;
       break;
     }
   }
-  
+
   // If no closing delimiter found, return original content
   if (endIndex === -1) {
     return content;
   }
-  
+
   // Return content after the frontmatter
-  return lines.slice(endIndex + 1).join('\n');
+  return lines.slice(endIndex + 1).join("\n");
 };
 
 /**
@@ -120,7 +120,7 @@ export const extractNoteMetadata = (app: App, file: TFile): NoteMetadata => {
 export const extractContentPreview = async (app: App, file: TFile): Promise<ContentPreview> => {
   try {
     const content = await app.vault.cachedRead(file);
-    
+
     // Remove frontmatter if present
     const contentWithoutFrontmatter = removeFrontmatter(content);
 

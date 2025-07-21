@@ -16,17 +16,17 @@ export interface HierarchicalTag {
  * @returns Parsed tag information
  */
 export const parseHierarchicalTag = (tag: string): HierarchicalTag => {
-  const parts = tag.split('/');
+  const parts = tag.split("/");
   const level = parts.length - 1;
   const displayName = parts[parts.length - 1];
-  const parentTag = level > 0 ? parts.slice(0, -1).join('/') : undefined;
+  const parentTag = level > 0 ? parts.slice(0, -1).join("/") : undefined;
 
   return {
     tag,
     displayName,
     level,
     parentTag,
-    children: []
+    children: [],
   };
 };
 
@@ -37,14 +37,14 @@ export const parseHierarchicalTag = (tag: string): HierarchicalTag => {
  */
 export const buildTagHierarchy = (tags: string[]): Map<string, HierarchicalTag> => {
   const tagMap = new Map<string, HierarchicalTag>();
-  
+
   // First pass: create all tag objects
   for (const tag of tags) {
     if (!tagMap.has(tag)) {
       tagMap.set(tag, parseHierarchicalTag(tag));
     }
   }
-  
+
   // Second pass: build parent-child relationships
   for (const [tagString, tagObj] of tagMap) {
     if (tagObj.parentTag && tagMap.has(tagObj.parentTag)) {
@@ -54,7 +54,7 @@ export const buildTagHierarchy = (tags: string[]): Map<string, HierarchicalTag> 
       }
     }
   }
-  
+
   return tagMap;
 };
 
@@ -66,20 +66,19 @@ export const buildTagHierarchy = (tags: string[]): Map<string, HierarchicalTag> 
  */
 export const extractAllTagPaths = (tags: string[]): string[] => {
   const allPaths = new Set<string>();
-  
+
   for (const tag of tags) {
-    const parts = tag.split('/');
-    
+    const parts = tag.split("/");
+
     // Add all possible paths from root to full tag
     for (let i = 1; i <= parts.length; i++) {
-      const path = parts.slice(0, i).join('/');
+      const path = parts.slice(0, i).join("/");
       allPaths.add(path);
     }
   }
-  
+
   return Array.from(allPaths).sort();
 };
-
 
 /**
  * Get all descendant tags for a given tag
@@ -87,16 +86,19 @@ export const extractAllTagPaths = (tags: string[]): string[] => {
  * @param tagHierarchy - Map from buildTagHierarchy
  * @returns Array of descendant tag strings (including the tag itself)
  */
-export const getTagDescendants = (tag: string, tagHierarchy: Map<string, HierarchicalTag>): string[] => {
+export const getTagDescendants = (
+  tag: string,
+  tagHierarchy: Map<string, HierarchicalTag>
+): string[] => {
   const result = [tag];
   const tagObj = tagHierarchy.get(tag);
-  
+
   if (tagObj) {
     for (const child of tagObj.children) {
       result.push(...getTagDescendants(child, tagHierarchy));
     }
   }
-  
+
   return result;
 };
 
@@ -116,9 +118,8 @@ export const tagMatchesFilter = (
   if (noteTag === filterTag) {
     return true;
   }
-  
+
   // Check if noteTag is a descendant of filterTag
   const descendants = getTagDescendants(filterTag, tagHierarchy);
   return descendants.includes(noteTag);
 };
-

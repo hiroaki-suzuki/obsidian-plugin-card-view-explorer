@@ -515,7 +515,7 @@ describe("CardView", () => {
       const { rerender } = render(<CardView plugin={mockPlugin} />);
 
       // Open filter panel first
-      let filterToggle = screen.getByText("Filters ▼");
+      const filterToggle = screen.getByText("Filters ▼");
       await user.click(filterToggle);
 
       expect(screen.getByText(/Tags: 3/)).toBeInTheDocument(); // tag1, tag2, tag3
@@ -558,7 +558,7 @@ describe("CardView", () => {
       const { rerender } = render(<CardView plugin={mockPlugin} />);
 
       // Open filter panel first
-      let filterToggle = screen.getByText("Filters ▼");
+      const filterToggle = screen.getByText("Filters ▼");
       await user.click(filterToggle);
 
       expect(screen.getByText(/Folders: 2/)).toBeInTheDocument(); // Folder1, Folder2
