@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "obsidian-card-explorer",
+      "name": "obsidian-card-view-explorer",
       "dependencies": {
         "es-toolkit": "^1.39.7",
         "react": "^18.2.0",

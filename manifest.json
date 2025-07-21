@@ -1,11 +1,10 @@
 {
-	"id": "card-explorer",
-	"name": "Card Explorer",
-	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
-	"description": "A card-based interface for browsing recently edited notes with filtering and search capabilities",
-	"author": "Card Explorer Plugin",
-	"authorUrl": "",
-	"fundingUrl": "",
-	"isDesktopOnly": false
+  "id": "card-view-explorer",
+  "name": "Card View Explorer",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "A card-based interface for browsing recently edited notes with filtering and search capabilities",
+  "author": "Hiroaki Suzuki",
+  "authorUrl": "https://github.com/hiroaki-suzuki/obsidian-plugin-card-view-explorer",
+  "isDesktopOnly": false
 }
