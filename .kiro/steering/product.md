@@ -1,37 +1,81 @@
-# Product Overview
+---
+inclusion: always
+---
 
-This is an Obsidian plugin called "Card View Explorer" that provides a card-based view for recently edited notes with comprehensive filtering and management capabilities.
+# Card View Explorer - Product Requirements
 
-## Core Features
-- **Card-Based Display**: Visual tile/card format showing note title, preview (first 3 lines), and metadata
-- **Comprehensive Filtering**: Multi-criteria filtering by tags, folders, filenames, and date ranges
-- **Pin Management**: Pin important notes to keep them at the top of the list
-- **Virtual Scrolling**: High-performance rendering for large note collections
-- **Customizable Sorting**: Sort by frontmatter fields or file modification time
-- **Real-Time Updates**: Automatic refresh when notes are created, modified, or deleted
-- **Error Recovery**: Robust error handling with retry mechanisms and user-friendly messages
-- **Data Reliability**: Automatic backup and recovery system for user data
+**Plugin Identity**: Obsidian Card View Explorer - Visual note browser with advanced filtering for recently edited notes.
 
-## Advanced Features
-- **Date Range Filtering**: Filter notes by "within X days" or "after specific date"
-- **Exclusion Filters**: Exclude specific folders, tags, or filename patterns
-- **Auto-Start Option**: Automatically open Card View Explorer when Obsidian starts
-- **Sidebar Integration**: Option to display in sidebar or main workspace area
-- **Debounced Operations**: Optimized performance with debounced file system events
-- **Persistent State**: Remembers filter settings, pin states, and sort configuration
+## Feature Requirements
 
-## Target Users
-Obsidian users who want to quickly browse and access their recently modified notes in a visual card format, with powerful filtering capabilities for large note collections. Particularly useful for users with extensive vaults who need efficient note discovery and management.
+### Core Display Features
+- **Card Format**: Title + 3-line preview + metadata (tags, folder, modified date)
+- **Pin System**: Pinned notes always appear at top, maintain pin state across sessions
+- **Virtual Scrolling**: REQUIRED for lists >100 notes using react-virtuoso
+- **Real-Time Updates**: Auto-refresh on vault changes (create/modify/delete/rename)
 
-## Technical Highlights
-- **React 18**: Modern React with hooks and functional components
-- **Zustand State Management**: Centralized state with automatic recomputation
-- **TypeScript**: Full type safety with comprehensive interfaces
-- **Comprehensive Testing**: Unit, integration, and component tests with high coverage
-- **Error Boundaries**: React error boundaries for component isolation
-- **Data Migration**: Versioned data with automatic migration between plugin versions
+### Filtering Requirements
+- **Multi-Criteria**: Tags (include/exclude), folders (include/exclude), filename patterns, date ranges
+- **Date Filtering**: "Within X days" and "After specific date" options
+- **Persistent Filters**: Save filter state between sessions
+- **Filter Validation**: Validate filter inputs, show clear error messages
 
-## Key Constraints
-- Does not handle note relationships (links or graph)
-- Fixed design with no CSS customization
-- Requires Obsidian 0.15.0 or higher
+### Sorting Requirements
+- **Sort Options**: Modified date (default), frontmatter fields, filename
+- **Pin Priority**: Pinned notes always sort first regardless of other criteria
+- **Sort Persistence**: Remember sort configuration across sessions
+
+### Performance Requirements
+- **Debounced Updates**: File system events must be debounced (300ms minimum)
+- **Lazy Loading**: Only process visible notes in viewport
+- **Memory Management**: Limit cached note previews to prevent memory leaks
+
+## User Experience Rules
+
+### Error Handling Standards
+- **Graceful Degradation**: Show partial results if some notes fail to load
+- **User-Friendly Messages**: No technical error details in UI
+- **Retry Mechanisms**: Allow users to retry failed operations
+- **Fallback States**: Always provide fallback when data unavailable
+
+### Loading States
+- **Progressive Loading**: Show skeleton cards while loading
+- **Loading Indicators**: Clear visual feedback for all async operations
+- **Empty States**: Helpful messages when no notes match filters
+
+### Data Integrity
+- **Auto-Backup**: Create backups before any data modifications
+- **Migration Support**: Handle plugin data format changes automatically
+- **Validation**: Validate all user data before persistence
+
+## Technical Constraints
+
+### Obsidian Integration
+- **Minimum Version**: Obsidian 0.15.0+
+- **View Integration**: Must extend ItemView, support workspace leaf management
+- **Settings Integration**: Use Obsidian's settings tab system
+- **Command Integration**: Register plugin commands for common actions
+
+### Feature Limitations
+- **No Link Analysis**: Does not process note relationships or backlinks
+- **No Custom Styling**: Fixed CSS design, no user customization
+- **No Export**: Does not provide note export functionality
+- **No Editing**: Read-only view, no inline note editing
+
+### Data Scope
+- **Markdown Only**: Only processes .md files from vault
+- **Recent Focus**: Optimized for recently modified notes (default 30 days)
+- **Metadata Only**: Extracts frontmatter and basic file properties
+
+## Extension Guidelines
+
+### Adding New Features
+- **Filter Types**: New filters must integrate with existing FilterState interface
+- **Sort Options**: New sort criteria must work with pin priority system
+- **UI Components**: Must follow existing error boundary and loading state patterns
+- **Data Fields**: New metadata fields require migration strategy
+
+### Compatibility Rules
+- **Backward Compatibility**: Plugin data must migrate forward, never break existing installations
+- **API Stability**: Store interface changes require deprecation period
+- **Settings Migration**: Settings format changes need automatic migration

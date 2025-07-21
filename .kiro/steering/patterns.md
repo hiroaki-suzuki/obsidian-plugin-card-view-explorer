@@ -1,513 +1,176 @@
+---
+inclusion: always
+---
+
 # Development Patterns & Best Practices
 
-## Code Organization Patterns
+## Core Patterns
 
-### Store Module Pattern
-Each store module follows a consistent structure:
-
+### Store Module Structure
 ```typescript
-// 1. Type definitions
+// 1. Types → 2. Defaults → 3. Logic → 4. Store integration
 interface ModuleState { ... }
-interface ModuleActions { ... }
-
-// 2. Default/factory functions
 const createDefaultState = () => ({ ... });
-
-// 3. Core logic functions
 const processData = (data, config) => { ... };
-
-// 4. Store integration
 export const useModuleStore = create<ModuleState & ModuleActions>()(...);
 ```
 
-### Component Pattern
-React components follow a consistent structure:
-
+### React Component Structure
 ```typescript
-// 1. Interface definition
 interface ComponentProps { ... }
-
-// 2. Component implementation
 export const Component: React.FC<ComponentProps> = ({ prop1, prop2 }) => {
-  // 3. Hooks (state, effects, etc.)
   const storeData = useStore();
-
-  // 4. Memoized computations
   const computedValue = useMemo(() => { ... }, [dependencies]);
-
-  // 5. Event handlers
   const handleAction = useCallback(() => { ... }, [dependencies]);
-
-  // 6. Render
   return <div>...</div>;
 };
 ```
 
-### Type Definition Pattern
-Types are organized by domain with clear separation:
+## State Management Rules
 
+### Immutable Updates (Required)
 ```typescript
-// Core data models
-export interface NoteData { ... }
-
-// Configuration types
-export interface FilterState { ... }
-
-// Utility types
-export type SortableValue = string | number | Date | null | undefined;
-
-// Type guards
-export const isMarkdownFile = (file: TFile): file is MarkdownFile => { ... };
-```
-
-## State Management Patterns
-
-### Immutable Updates
-Always create new objects/arrays for state updates:
-
-```typescript
-// ✅ Correct - immutable update
+// ✅ Correct
 const updateFilters = (newFilters: Partial<FilterState>) => {
-  const updatedFilters = { ...state.filters, ...newFilters };
-  set({ filters: updatedFilters });
+  set({ filters: { ...state.filters, ...newFilters } });
 };
 
-// ❌ Incorrect - direct mutation
-const updateFilters = (newFilters: Partial<FilterState>) => {
-  state.filters.tags.push(newTag); // Mutates existing array
-  set({ filters: state.filters });
-};
-```
-
-### Automatic Recomputation
-Use the recomputation pattern for derived state:
-
-```typescript
-const updateSomething = (newValue) => {
-  set({ someValue: newValue });
-
-  const state = get();
-  const recomputedData = processData(
-    state.rawData,
-    state.config,
-    newValue
-  );
-  set({ processedData: recomputedData });
-};
+// ❌ Wrong - Never mutate directly
+state.filters.tags.push(newTag);
 ```
 
 ### Store Action Pattern
-All store actions follow this pattern:
-
 ```typescript
 const actionName = (params) => {
-  // 1. Update primary state
-  set({ primaryField: newValue });
-
-  // 2. Get current state for recomputation
-  const state = get();
-
-  // 3. Recompute derived state
-  const derivedData = computeFunction(
-    state.data,
-    state.config,
-    newValue
-  );
-
-  // 4. Update derived state
-  set({ derivedField: derivedData });
+  set({ primaryField: newValue });           // 1. Update primary
+  const state = get();                       // 2. Get current state
+  const derived = computeFunction(state);    // 3. Recompute derived
+  set({ derivedField: derived });           // 4. Update derived
 };
 ```
 
-## React Patterns
+## React Requirements
 
-### Error Boundary Pattern
-Always wrap components that might fail:
-
+### Error Boundaries (Required)
+Wrap all components that might fail with `CardViewErrorBoundary`:
 ```typescript
-// CardViewErrorBoundary.tsx - Actual implementation
-interface CardViewErrorBoundaryProps {
-  children: React.ReactNode;
-  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
-}
-
-interface CardViewErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
-
-export class CardViewErrorBoundary extends React.Component<
-  CardViewErrorBoundaryProps,
-  CardViewErrorBoundaryState
-> {
-  constructor(props: CardViewErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error): CardViewErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("Card View Explorer Error Boundary:", error, errorInfo);
-    this.props.onError?.(error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return <ErrorFallback error={this.state.error} onRetry={this.handleRetry} />;
-    }
-    return this.props.children;
-  }
-
-  private handleRetry = () => {
-    this.setState({ hasError: false, error: null });
-  };
-}
+<CardViewErrorBoundary onError={handleError}>
+  <YourComponent />
+</CardViewErrorBoundary>
 ```
 
-### Memoization Pattern
-Use memoization for expensive computations:
-
-```typescript
-const Component = ({ data, config }) => {
-  // Memoize expensive computations
-  const processedData = useMemo(() => {
-    return expensiveProcessing(data, config);
-  }, [data, config]);
-
-  // Memoize event handlers
-  const handleClick = useCallback((id) => {
-    onItemClick(id);
-  }, [onItemClick]);
-
-  return <div>...</div>;
-};
-```
+### Performance Patterns
+- Use `react-virtuoso` for lists >100 items
+- Memoize expensive computations with `useMemo`
+- Memoize event handlers with `useCallback`
+- Follow loading state pattern: error → loading → content
 
 ### Loading State Pattern
-Handle loading states consistently:
-
 ```typescript
-const Component = () => {
-  const { data, isLoading, error } = useStore();
-
-  // Error state
-  if (error && !isLoading) {
-    return <ErrorDisplay error={error} onRetry={...} />;
-  }
-
-  // Initial loading state
-  if (isLoading && !data.length) {
-    return <LoadingSpinner message="Loading..." />;
-  }
-
-  // Loading overlay for refresh
-  return (
-    <div className="container">
-      {isLoading && <LoadingOverlay />}
-      <MainContent data={data} />
-    </div>
-  );
-};
+if (error && !isLoading) return <ErrorDisplay error={error} onRetry={...} />;
+if (isLoading && !data.length) return <LoadingSpinner />;
+return <div>{isLoading && <LoadingOverlay />}<MainContent /></div>;
 ```
 
-## Obsidian Integration Patterns
+## Obsidian Integration
 
-### API Wrapper Pattern
-Wrap Obsidian APIs in store methods:
-
+### API Wrapper Pattern (Required)
+Always wrap Obsidian APIs in store methods with error handling:
 ```typescript
-// Store method
 const refreshNotes = async (app: App) => {
   try {
     set({ isLoading: true, error: null });
-
-    // Use Obsidian APIs
     const notes = await loadNotesFromVault(app);
-
-    // Update store state
     set({ notes, isLoading: false });
   } catch (error) {
-    set({
-      isLoading: false,
-      error: error.message
-    });
+    set({ isLoading: false, error: error.message });
   }
 };
 ```
 
-### Plugin Lifecycle Pattern
-Handle plugin lifecycle properly:
-
+### Plugin Lifecycle
 ```typescript
-export default class Plugin extends ObsidianPlugin {
-  async onload() {
-    // 1. Load settings
-    await this.loadSettings();
-
-    // 2. Register views
-    this.registerView(VIEW_TYPE, (leaf) => new View(leaf, this));
-
-    // 3. Register commands
-    this.addCommand({ ... });
-
-    // 4. Setup auto-start if enabled
-    if (this.settings.autoStart) {
-      this.app.workspace.onLayoutReady(() => {
-        this.activateView();
-      });
-    }
-  }
-
-  async onunload() {
-    // Cleanup views
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE);
-  }
+async onload() {
+  await this.loadSettings();
+  this.registerView(VIEW_TYPE, (leaf) => new View(leaf, this));
+  this.addCommand({ ... });
+}
+async onunload() {
+  this.app.workspace.detachLeavesOfType(VIEW_TYPE);
 }
 ```
 
-## Testing Patterns
+## Error Handling (Critical)
 
-### Store Testing Pattern
-Test store actions and state changes:
+### Use Categorized Error Handling
+```typescript
+import { handleError, ErrorCategory } from '../utils/errorHandling';
 
+// In components/store actions
+try {
+  // operation
+} catch (error) {
+  handleError(error, ErrorCategory.API, { context: 'operation name' });
+}
+```
+
+### Data Operations Must Include Validation & Backup
+- Always validate data before saving: `validatePluginData(data)`
+- Create backups before modifications: `createDataBackup(plugin)`
+- Handle migration: `migratePluginData(rawData)`
+- Provide fallback to defaults on failure
+
+## Testing Requirements
+
+### Store Tests
 ```typescript
 describe('Store Actions', () => {
-  beforeEach(() => {
-    useStore.getState().reset();
-  });
-
+  beforeEach(() => useStore.getState().reset());
   it('should update state correctly', () => {
     const { updateFilters } = useStore.getState();
-
     updateFilters({ tags: ['tag1'] });
-
-    const state = useStore.getState();
-    expect(state.filters.tags).toEqual(['tag1']);
-    expect(state.filteredNotes).toHaveLength(expectedLength);
+    expect(useStore.getState().filters.tags).toEqual(['tag1']);
   });
 });
 ```
 
-### Component Testing Pattern
-Test component behavior and interactions:
-
+### Component Tests
 ```typescript
-describe('Component', () => {
-  it('should render correctly', () => {
-    render(<Component prop1="value" />);
-
-    expect(screen.getByText('Expected Text')).toBeInTheDocument();
-  });
-
-  it('should handle user interactions', async () => {
-    const mockHandler = vi.fn();
-    render(<Component onAction={mockHandler} />);
-
-    await user.click(screen.getByRole('button'));
-
-    expect(mockHandler).toHaveBeenCalledWith(expectedArgs);
-  });
+it('should handle user interactions', async () => {
+  const mockHandler = vi.fn();
+  render(<Component onAction={mockHandler} />);
+  await user.click(screen.getByRole('button'));
+  expect(mockHandler).toHaveBeenCalledWith(expectedArgs);
 });
 ```
 
-### Mock Pattern for Obsidian APIs
-Create consistent mocks for Obsidian APIs:
+### Mock Obsidian APIs
+Use `src/test/obsidian-mock.ts` and clear mocks in `beforeEach(() => vi.clearAllMocks())`
 
-```typescript
-// test/obsidian-mock.ts
-export const mockApp = {
-  vault: {
-    getMarkdownFiles: vi.fn(() => []),
-    cachedRead: vi.fn(() => Promise.resolve('')),
-  },
-  metadataCache: {
-    getFileCache: vi.fn(() => null),
-  },
-};
+## Performance Requirements
 
-// In tests
-beforeEach(() => {
-  vi.clearAllMocks();
-});
-```
-
-## Performance Patterns
-
-### Virtual Scrolling Pattern
-Use virtual scrolling for large lists:
-
+### Virtual Scrolling (Required for lists >100)
 ```typescript
 import { Virtuoso } from 'react-virtuoso';
-
-const VirtualList = ({ items }) => {
-  return (
-    <Virtuoso
-      data={items}
-      itemContent={(index, item) => (
-        <ItemComponent key={item.id} item={item} />
-      )}
-      style={{ height: '100%' }}
-    />
-  );
-};
+<Virtuoso data={items} itemContent={(index, item) => <Item item={item} />} />
 ```
 
-### Debouncing Pattern
-Debounce expensive operations:
-
+### Debouncing
 ```typescript
-const useDebounced = (value, delay) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-};
+const debouncedValue = useDebounced(value, delay);
 ```
 
-## Error Handling Patterns
+## Type Safety Rules
 
-### Comprehensive Error Handling Pattern
-Use centralized error handling with categories and retry logic:
+- No `any` types - use proper interfaces or `unknown`
+- Create type guards for external data: `isMarkdownFile(file)`
+- Organize types by domain in `src/types/`
+- Use runtime validation for plugin data
 
-```typescript
-// errorHandling.ts - Actual implementation
-export enum ErrorCategory {
-  API = "api",
-  DATA = "data",
-  UI = "ui",
-  GENERAL = "general",
-}
+## File Organization
 
-export function handleError(
-  error: unknown,
-  category: ErrorCategory = ErrorCategory.GENERAL,
-  context?: Record<string, any>
-): ErrorInfo {
-  const { message, details } = extractErrorInfo(error);
-
-  const errorInfo: ErrorInfo = {
-    message: getUserFriendlyMessage(message, category),
-    details,
-    category,
-    timestamp: Date.now(),
-    context,
-  };
-
-  // Console logging and user notifications based on category
-  console.error(`Card View Explorer Error:`, errorInfo);
-
-  if (category !== ErrorCategory.UI) {
-    new Notice(`Card View Explorer: ${errorInfo.message}`, 5000);
-  }
-
-  return errorInfo;
-}
-
-// Retry with exponential backoff
-export async function withRetry<T>(
-  operation: () => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
-  const config = { ...DEFAULT_RETRY_OPTIONS, ...options };
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-
-      if (attempt === config.maxRetries || !isRetryable(extractErrorInfo(error).message)) {
-        break;
-      }
-
-      const delay = Math.min(config.baseDelay * 2 ** attempt, config.maxDelay);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-  }
-
-  throw lastError;
-}
-```
-
-### Data Persistence Pattern
-Handle data loading/saving with validation, migration, and backup:
-
-```typescript
-// dataPersistence.ts - Actual implementation
-export async function loadPluginData(
-  plugin: PluginReadOnlyOperations
-): Promise<{ data: PluginData; migration: MigrationResult }> {
-  try {
-    const rawData = await plugin.loadData();
-
-    if (!rawData || Object.keys(rawData).length === 0) {
-      return {
-        data: DEFAULT_DATA,
-        migration: { migrated: false, toVersion: CURRENT_DATA_VERSION },
-      };
-    }
-
-    // Perform migration if needed
-    const { data: migratedData, migration } = await migratePluginData(rawData);
-
-    // Validate migrated data
-    if (!validatePluginData(migratedData)) {
-      return { data: DEFAULT_DATA, migration: { ...migration, warnings: ["Validation failed"] } };
-    }
-
-    return { data: migratedData, migration };
-  } catch (error) {
-    // Try to recover from backup
-    try {
-      const recoveredData = await attemptDataRecovery(plugin);
-      if (recoveredData) {
-        return { data: recoveredData, migration: { migrated: true, warnings: ["Recovered from backup"] } };
-      }
-    } catch (recoveryError) {
-      console.warn("Recovery failed:", recoveryError);
-    }
-
-    return { data: DEFAULT_DATA, migration: { migrated: false, warnings: ["Fallback to defaults"] } };
-  }
-}
-
-export async function savePluginData(
-  plugin: PluginDataOperations,
-  data: PluginData
-): Promise<boolean> {
-  try {
-    if (!validatePluginData(data)) {
-      return false;
-    }
-
-    // Create backup before saving
-    await createDataBackup(plugin);
-
-    const versionedData: VersionedPluginData = {
-      ...data,
-      version: CURRENT_DATA_VERSION,
-    };
-
-    await plugin.saveData(versionedData);
-    return true;
-  } catch (error) {
-    await handleDataError(error, "savePluginData");
-    return false;
-  }
-}
-```
-
-These patterns ensure consistency, maintainability, and reliability across the entire codebase.
+- Store modules: `src/store/[module]/`
+- Components: `src/components/`
+- Types: `src/types/`
+- Utils: `src/utils/`
+- Tests: Co-located `.test.ts` files
