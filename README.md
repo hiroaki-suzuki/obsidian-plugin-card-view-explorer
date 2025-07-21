@@ -1,4 +1,4 @@
-# Obsidian Card Explorer
+# Obsidian Card View Explorer
 
 A card-based interface for browsing recently edited notes in Obsidian with filtering and search capabilities.
 
@@ -17,13 +17,13 @@ A card-based interface for browsing recently edited notes in Obsidian with filte
 
 1. Open Obsidian Settings
 2. Go to Community Plugins and disable Safe Mode
-3. Click Browse and search for "Card Explorer"
+3. Click Browse and search for "Card View Explorer"
 4. Install and enable the plugin
 
 ### Manual Installation
 
 1. Download the latest release from the [releases page](../../releases)
-2. Extract the files to your vault's `.obsidian/plugins/card-explorer/` directory
+2. Extract the files to your vault's `.obsidian/plugins/obsidian-card-view-explorer/` directory
 3. Reload Obsidian and enable the plugin in Settings > Community Plugins
 
 ### Development Installation
@@ -31,8 +31,8 @@ A card-based interface for browsing recently edited notes in Obsidian with filte
 1. Clone this repository into your vault's plugins folder:
    ```bash
    cd /path/to/your/vault/.obsidian/plugins
-   git clone https://github.com/your-username/obsidian-card-explorer.git card-explorer
-   cd card-explorer
+   git clone https://github.com/hiroaki-suzuki/obsidian-plugin-card-view-explorer.git
+   cd obsidian-plugin-card-view-explorer
    ```
 
 2. Install dependencies:
@@ -49,7 +49,7 @@ A card-based interface for browsing recently edited notes in Obsidian with filte
 
 ## Usage
 
-1. Open the Card Explorer view from the command palette: `Card Explorer: Open Card View`
+1. Open the Card View Explorer view from the command palette: `Card View Explorer: Open Card View`
 2. Browse your recently edited notes in card format
 3. Use the search and filter options to find specific notes
 4. Click on any card to open the note
@@ -66,8 +66,8 @@ A card-based interface for browsing recently edited notes in Obsidian with filte
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/obsidian-card-explorer.git
-cd obsidian-card-explorer
+git clone https://github.com/your-username/obsidian-card-view-explorer.git
+cd obsidian-card-view-explorer
 
 # Install dependencies
 bun install
@@ -110,7 +110,7 @@ bun run test:watch
 src/
 ├── main.ts                 # Plugin entry point
 ├── settings.ts             # Plugin settings interface
-├── view.ts                 # Card explorer view implementation
+├── view.ts                 # Card view explorer view implementation
 ├── components/             # React components
 │   ├── CardView.tsx        # Main card container
 │   ├── NoteCard.tsx        # Individual note card

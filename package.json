@@ -1,5 +1,5 @@
 {
-  "name": "obsidian-card-explorer",
+  "name": "obsidian-card-view-explorer",
   "version": "1.0.0",
   "description": "A card-based interface for browsing recently edited notes in Obsidian",
   "main": "main.js",
@@ -23,7 +23,7 @@
     "cards",
     "explorer"
   ],
-  "author": "Card Explorer Plugin",
+  "author": "Hiroaki Suzuki",
   "license": "MIT",
   "devDependencies": {
     "@biomejs/biome": "^2.1.1",
