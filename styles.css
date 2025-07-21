@@ -410,7 +410,10 @@
 .card-view-filter-panel .filter-panel {
   padding: var(--size-4-3) var(--size-4-4);
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)); /* Allow columns to shrink */
+  grid-template-columns: repeat(
+    4,
+    minmax(0, 1fr)
+  ); /* Allow columns to shrink */
   gap: var(--size-4-4);
   align-items: start;
   min-width: 0; /* Allow grid to shrink below content size */
@@ -978,8 +981,16 @@
 /* Progressive enhancement for different screen sizes and accessibility needs
    Includes mobile-first responsive design and accessibility features */
 
-/* Container query for narrow spaces (sidebar and small windows) */
-@container (max-width: 500px) {
+/* Container query for medium-narrow spaces (larger sidebar, small desktop) */
+@container (max-width: 700px) and (min-width: 501px) {
+  .card-view-filter-panel .filter-panel {
+    grid-template-columns: 1fr 1fr; /* Two columns for medium-narrow spaces */
+    gap: var(--size-4-3);
+  }
+}
+
+/* Container query for narrow spaces (small sidebars) */
+@container (max-width: 500px) and (min-width: 401px) {
   .card-view-header {
     flex-direction: column;
     align-items: stretch; /* Stretch to full width */
@@ -1012,11 +1023,11 @@
     }
   }
 
-  /* Filter panel responsive layout for narrow containers */
+  /* Filter panel two column layout for narrow containers */
   .card-view-filter-panel .filter-panel {
-    grid-template-columns: 1fr; /* Single column for very narrow spaces */
+    grid-template-columns: 1fr 1fr; /* Two columns for narrow spaces */
     gap: var(--size-2-3);
-    padding: var(--size-2-3);
+    padding: var(--size-4-3);
 
     .filter-group {
       padding: var(--size-2-3);
@@ -1029,11 +1040,54 @@
   }
 }
 
-/* Container query for medium-narrow spaces (larger sidebar, small desktop) */
-@container (max-width: 700px) {
+/* Container query for very narrow spaces (mobile-like sidebars) - Most specific, placed last */
+@container (max-width: 400px) {
+  .card-view-header {
+    flex-direction: column;
+    align-items: stretch; /* Stretch to full width */
+    gap: var(--size-2-2);
+
+    .card-view-title {
+      font-size: var(--font-ui-medium); /* Smaller title for narrow spaces */
+    }
+
+    .card-view-stats {
+      justify-content: flex-start; /* Left align stats */
+      flex: none; /* Remove flex grow */
+      font-size: var(--font-ui-smaller); /* Smaller stats text */
+    }
+
+    .card-view-actions {
+      justify-content: space-between; /* Spread buttons */
+      width: 100%;
+
+      .filter-toggle-button,
+      .refresh-button {
+        font-size: var(--font-ui-smaller); /* Smaller button text */
+        padding: var(--size-2-1) var(--size-2-3); /* Smaller padding */
+      }
+
+      .filter-toggle-button {
+        flex: 1; /* Take available space */
+        margin-right: var(--size-2-3);
+      }
+    }
+  }
+
+  /* Filter panel single column layout for very narrow containers */
   .card-view-filter-panel .filter-panel {
-    grid-template-columns: 1fr 1fr; /* Two columns for medium-narrow spaces */
-    gap: var(--size-4-3);
+    grid-template-columns: 1fr !important; /* Single column for very narrow spaces - force override */
+    gap: var(--size-2-3);
+    padding: var(--size-2-3);
+
+    .filter-group {
+      padding: var(--size-2-3);
+
+      h4 {
+        font-size: var(--font-ui-small);
+        margin-bottom: var(--size-2-2);
+      }
+    }
   }
 }
 
@@ -1065,8 +1119,8 @@
   }
 }
 
-/* Very narrow layout (≤500px) - single column */
-@media (max-width: 500px) {
+/* Very narrow layout (≤400px) - single column */
+@media (max-width: 400px) {
   .card-view-header {
     flex-direction: column;
     align-items: stretch; /* Stretch to full width */
@@ -1089,7 +1143,7 @@
   }
 
   .card-view-filter-panel .filter-panel {
-    grid-template-columns: 1fr; /* Single column */
+    grid-template-columns: 1fr; /* Single column for very narrow spaces */
     gap: var(--size-2-3);
     padding: var(--size-2-3);
 
@@ -1104,8 +1158,47 @@
   }
 }
 
-/* Mobile and tablet layout - optimized for collapsible filter design */
-@media (max-width: 768px) {
+/* Narrow layout (401-500px) - two column */
+@media (max-width: 500px) and (min-width: 401px) {
+  .card-view-header {
+    flex-direction: column;
+    align-items: stretch; /* Stretch to full width */
+    gap: var(--size-2-2);
+
+    .card-view-stats {
+      justify-content: flex-start; /* Left align stats */
+      flex: none; /* Remove flex grow */
+    }
+
+    .card-view-actions {
+      justify-content: space-between; /* Spread buttons */
+      width: 100%;
+
+      .filter-toggle-button {
+        flex: 1; /* Take available space */
+        margin-right: var(--size-2-3);
+      }
+    }
+  }
+
+  .card-view-filter-panel .filter-panel {
+    grid-template-columns: 1fr 1fr; /* Two columns for narrow spaces */
+    gap: var(--size-2-3);
+    padding: var(--size-4-3);
+
+    .filter-group {
+      padding: var(--size-2-3);
+
+      h4 {
+        font-size: var(--font-ui-small);
+        margin-bottom: var(--size-2-2);
+      }
+    }
+  }
+}
+
+/* Mobile and tablet layout - optimized for collapsible filter design (501-768px) */
+@media (max-width: 768px) and (min-width: 501px) {
   .card-view-header {
     flex-direction: column;
     align-items: stretch; /* Stretch to full width */
@@ -1126,7 +1219,6 @@
       }
     }
   }
-}
 
   .card-view-filter-panel {
     max-height: 360px;
@@ -1174,8 +1266,8 @@
             width: 20px;
           }
 
-          input[type=checkbox]:checked:after {
-            top:-1px;
+          input[type="checkbox"]:checked:after {
+            top: -1px;
             height: 18px;
             width: 18px;
           }
