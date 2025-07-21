@@ -1,6 +1,6 @@
 import { setIcon } from "obsidian";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Virtuoso } from "react-virtuoso";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import { ErrorCategory, handleError } from "../utils/errorHandling";
@@ -28,12 +28,16 @@ interface VirtualListProps {
  * smooth scrolling performance.
  */
 export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
-  const { filteredNotes, isLoading, error, refreshNotes, setError } = useCardExplorerStore();
+  const { filteredNotes, isLoading, error, refreshNotes, setError, filters } =
+    useCardExplorerStore();
   const { error: componentError, resetError, captureError } = useErrorFallback();
   const [retryCount, setRetryCount] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [hasInitiallyRendered, setHasInitiallyRendered] = useState(false);
+  const previousFiltersRef = useRef<any>(null);
 
   /**
    * Calculate dynamic row size based on actual container width.
@@ -51,6 +55,68 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
   }, []);
 
   const [rowSize, setRowSize] = useState(() => getRowSize(containerWidth));
+
+  /**
+   * Track initial render to avoid unnecessary scroll resets
+   */
+  useEffect(() => {
+    if (filteredNotes.length > 0 && !hasInitiallyRendered) {
+      setHasInitiallyRendered(true);
+    }
+  }, [filteredNotes.length, hasInitiallyRendered]);
+
+  /**
+   * Reset scroll position to top when filters change (but not on initial render)
+   * Uses object reference comparison for more reliable change detection
+   */
+  useEffect(() => {
+    // Skip if this is the initial render
+    if (!hasInitiallyRendered) {
+      previousFiltersRef.current = filters;
+      return;
+    }
+
+    // Check if filters object reference has actually changed (Zustand creates new objects)
+    const hasFilterChanged = previousFiltersRef.current !== filters;
+
+    // Skip if filters haven't changed
+    if (!hasFilterChanged) {
+      return;
+    }
+
+    // Always scroll to top when filters change, regardless of result count
+    if (virtuosoRef.current) {
+      // Use immediate scroll with behavior "auto" for more reliable results
+      virtuosoRef.current.scrollToIndex({
+        index: 0,
+        behavior: "auto",
+      });
+
+      // Multiple delayed attempts to ensure scroll persistence
+      const timeouts: NodeJS.Timeout[] = [];
+
+      // Aggressive scroll attempts at different intervals
+      [100, 200, 300, 500].forEach((delay) => {
+        const timeoutId = setTimeout(() => {
+          if (virtuosoRef.current) {
+            virtuosoRef.current.scrollToIndex({
+              index: 0,
+              behavior: "auto",
+            });
+          }
+        }, delay);
+        timeouts.push(timeoutId);
+      });
+
+      // Cleanup all timeouts
+      return () => {
+        timeouts.forEach(clearTimeout);
+      };
+    }
+
+    // Update the reference after processing
+    previousFiltersRef.current = filters;
+  }, [filters, hasInitiallyRendered]);
 
   /**
    * Handle container resize using ResizeObserver for accurate measurements
@@ -275,6 +341,7 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
   return (
     <div className="virtual-list-container" ref={containerRef}>
       <Virtuoso
+        ref={virtuosoRef}
         totalCount={noteRows.length}
         itemContent={renderNoteRow}
         className="virtual-grid"
@@ -295,7 +362,6 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
         // Fixed row height for consistent virtualization
         // 180px (card) + 12px (margin) = 192px
         defaultItemHeight={192} // Row height including margins
-        followOutput="smooth"
       />
     </div>
   );
