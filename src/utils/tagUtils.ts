@@ -106,20 +106,15 @@ export const getTagDescendants = (
  * Check if a tag matches a hierarchical filter
  * @param noteTag - Tag from a note
  * @param filterTag - Tag selected in filter
- * @param tagHierarchy - Map from buildTagHierarchy
- * @returns True if noteTag matches the filter (exact match or descendant)
+ * @returns True if noteTag matches the filter (exact match or noteTag is descendant of filterTag)
  */
-export const tagMatchesFilter = (
-  noteTag: string,
-  filterTag: string,
-  tagHierarchy: Map<string, HierarchicalTag>
-): boolean => {
+export const tagMatchesFilter = (noteTag: string, filterTag: string): boolean => {
   // Exact match
   if (noteTag === filterTag) {
     return true;
   }
 
-  // Check if noteTag is a descendant of filterTag
-  const descendants = getTagDescendants(filterTag, tagHierarchy);
-  return descendants.includes(noteTag);
+  // Check if noteTag is a descendant of filterTag (parent selected, child should match)
+  // But NOT the reverse (child selected, parent should NOT match)
+  return noteTag.startsWith(`${filterTag}/`);
 };
