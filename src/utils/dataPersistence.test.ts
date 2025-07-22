@@ -294,9 +294,6 @@ describe("Data Persistence", () => {
           tags: [],
           filename: "",
           dateRange: null,
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: [],
         },
         sortConfig: {
           key: "invalid-key", // This will cause validation to fail
@@ -432,9 +429,6 @@ describe("Data Persistence", () => {
           tags: ["tag1"],
           filename: "test",
           dateRange: null,
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: [],
         },
         sortConfig: {
           key: "created",

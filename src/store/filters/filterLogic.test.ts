@@ -4,9 +4,6 @@ import {
   applyFilters,
   calculateDaysDifference,
   hasAnyActiveFilter,
-  isExcludedByFilename,
-  isExcludedByFolder,
-  isExcludedByTag,
   matchesDateRangeCriteria,
   matchesFilenameCriteria,
   matchesFolderCriteria,
@@ -38,9 +35,6 @@ const createDefaultFilters = (): FilterState => ({
   tags: [],
   filename: "",
   dateRange: null,
-  excludeFolders: [],
-  excludeTags: [],
-  excludeFilenames: [],
 });
 
 describe("Filter Logic", () => {
@@ -76,28 +70,6 @@ describe("Filter Logic", () => {
     });
   });
 
-  describe("isExcludedByFolder", () => {
-    it("should return false when no exclusions specified", () => {
-      const note = createMockNote("Test", "/test.md", "folder1");
-      expect(isExcludedByFolder(note, [])).toBe(false);
-    });
-
-    it("should exclude exact folder match", () => {
-      const note = createMockNote("Test", "/test.md", "archive");
-      expect(isExcludedByFolder(note, ["archive"])).toBe(true);
-    });
-
-    it("should exclude hierarchical folder", () => {
-      const note = createMockNote("Test", "/test.md", "archive/old");
-      expect(isExcludedByFolder(note, ["archive"])).toBe(true);
-    });
-
-    it("should not exclude different folder", () => {
-      const note = createMockNote("Test", "/test.md", "folder1");
-      expect(isExcludedByFolder(note, ["archive"])).toBe(false);
-    });
-  });
-
   describe("matchesTagCriteria", () => {
     it("should return true when no tags specified", () => {
       const note = createMockNote("Test", "/test.md", "", ["tag1"]);
@@ -125,23 +97,6 @@ describe("Filter Logic", () => {
     });
   });
 
-  describe("isExcludedByTag", () => {
-    it("should return false when no exclusions specified", () => {
-      const note = createMockNote("Test", "/test.md", "", ["tag1"]);
-      expect(isExcludedByTag(note, [])).toBe(false);
-    });
-
-    it("should exclude when note has excluded tag", () => {
-      const note = createMockNote("Test", "/test.md", "", ["draft", "tag1"]);
-      expect(isExcludedByTag(note, ["draft"])).toBe(true);
-    });
-
-    it("should not exclude when note has no excluded tags", () => {
-      const note = createMockNote("Test", "/test.md", "", ["tag1", "tag2"]);
-      expect(isExcludedByTag(note, ["draft"])).toBe(false);
-    });
-  });
-
   describe("matchesFilenameCriteria", () => {
     it("should return true for empty search term", () => {
       const note = createMockNote("Test Note", "/test.md");
@@ -159,24 +114,6 @@ describe("Filter Logic", () => {
     it("should not match when search term not found", () => {
       const note = createMockNote("Test Note", "/test.md");
       expect(matchesFilenameCriteria(note, "xyz")).toBe(false);
-    });
-  });
-
-  describe("isExcludedByFilename", () => {
-    it("should return false when no exclusions specified", () => {
-      const note = createMockNote("Test Note", "/test.md");
-      expect(isExcludedByFilename(note, [])).toBe(false);
-    });
-
-    it("should exclude when filename contains pattern", () => {
-      const note = createMockNote("Draft Note", "/draft.md");
-      expect(isExcludedByFilename(note, ["draft"])).toBe(true);
-      expect(isExcludedByFilename(note, ["DRAFT"])).toBe(true);
-    });
-
-    it("should not exclude when filename doesn't contain pattern", () => {
-      const note = createMockNote("Final Note", "/final.md");
-      expect(isExcludedByFilename(note, ["draft"])).toBe(false);
     });
   });
 
@@ -281,12 +218,6 @@ describe("Filter Logic", () => {
       expect(notePassesFilters(note, filters)).toBe(false);
     });
 
-    it("should fail when folder is excluded", () => {
-      const note = createMockNote("Test", "/test.md", "archive", ["tag1"]);
-      const filters = { ...createDefaultFilters(), excludeFolders: ["archive"] };
-      expect(notePassesFilters(note, filters)).toBe(false);
-    });
-
     it("should pass complex filter combination", () => {
       const note = createMockNote("Test Note", "/test.md", "folder1", ["tag1", "tag2"]);
       const filters: FilterState = {
@@ -294,8 +225,6 @@ describe("Filter Logic", () => {
         folders: ["folder1"],
         tags: ["tag1"],
         filename: "test",
-        excludeTags: ["draft"],
-        excludeFilenames: ["temp"],
       };
       expect(notePassesFilters(note, filters)).toBe(true);
     });
@@ -328,22 +257,14 @@ describe("Filter Logic", () => {
       expect(result[0].title).toBe("Note 1");
     });
 
-    it("should exclude by filename", () => {
-      const filters = { ...createDefaultFilters(), excludeFilenames: ["draft"] };
-      const result = applyFilters(mockNotes, filters);
-      expect(result).toHaveLength(2);
-      expect(result.every((note) => !note.title.toLowerCase().includes("draft"))).toBe(true);
-    });
-
     it("should apply multiple filters", () => {
       const filters: FilterState = {
         ...createDefaultFilters(),
         folders: ["folder1"],
-        excludeFilenames: ["draft"],
       };
       const result = applyFilters(mockNotes, filters);
-      expect(result).toHaveLength(1);
-      expect(result[0].title).toBe("Note 1");
+      expect(result).toHaveLength(2);
+      expect(result.every((note) => note.folder === "folder1")).toBe(true);
     });
   });
 
@@ -379,16 +300,6 @@ describe("Filter Logic", () => {
         dateRange: { type: "within" as const, value: new Date() },
       };
       expect(hasAnyActiveFilter(filters)).toBe(true);
-    });
-
-    it("should return true when exclude filters are active", () => {
-      const filters1 = { ...createDefaultFilters(), excludeFolders: ["archive"] };
-      const filters2 = { ...createDefaultFilters(), excludeTags: ["draft"] };
-      const filters3 = { ...createDefaultFilters(), excludeFilenames: ["temp"] };
-
-      expect(hasAnyActiveFilter(filters1)).toBe(true);
-      expect(hasAnyActiveFilter(filters2)).toBe(true);
-      expect(hasAnyActiveFilter(filters3)).toBe(true);
     });
   });
 });

@@ -105,9 +105,6 @@ export const DEFAULT_DATA: PluginData = {
     tags: [],
     filename: "",
     dateRange: null,
-    excludeFolders: [],
-    excludeTags: [],
-    excludeFilenames: [],
   },
   sortConfig: {
     key: "updated",

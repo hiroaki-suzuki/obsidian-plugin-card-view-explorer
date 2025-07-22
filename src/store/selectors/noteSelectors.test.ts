@@ -35,9 +35,6 @@ const createMockState = (
     tags: [],
     filename: "",
     dateRange: null,
-    excludeFolders: [],
-    excludeTags: [],
-    excludeFilenames: [],
   }
 ): CardExplorerSelectorState => ({
   notes,
@@ -269,9 +266,6 @@ describe("Note Selectors", () => {
           tags: [],
           filename: "",
           dateRange: null,
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: [],
         };
 
         const state = createMockState([], [], new Set(), filters);
@@ -286,9 +280,6 @@ describe("Note Selectors", () => {
           tags: [],
           filename: "",
           dateRange: null,
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: [],
         };
 
         const state = createMockState([], [], new Set(), filters);
@@ -303,9 +294,6 @@ describe("Note Selectors", () => {
           tags: ["tag1"],
           filename: "",
           dateRange: null,
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: [],
         };
 
         const state = createMockState([], [], new Set(), filters);
@@ -320,9 +308,6 @@ describe("Note Selectors", () => {
           tags: [],
           filename: "search term",
           dateRange: null,
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: [],
         };
 
         const state = createMockState([], [], new Set(), filters);
@@ -337,9 +322,6 @@ describe("Note Selectors", () => {
           tags: [],
           filename: "   ",
           dateRange: null,
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: [],
         };
 
         const state = createMockState([], [], new Set(), filters);
@@ -354,9 +336,6 @@ describe("Note Selectors", () => {
           tags: [],
           filename: "",
           dateRange: { type: "within", value: new Date() },
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: [],
         };
 
         const state = createMockState([], [], new Set(), filters);
@@ -365,55 +344,12 @@ describe("Note Selectors", () => {
         expect(result).toBe(true);
       });
 
-      it("should return true when exclude filters are active", () => {
-        const filters1: FilterState = {
-          folders: [],
-          tags: [],
-          filename: "",
-          dateRange: null,
-          excludeFolders: ["archive"],
-          excludeTags: [],
-          excludeFilenames: [],
-        };
-
-        const filters2: FilterState = {
-          folders: [],
-          tags: [],
-          filename: "",
-          dateRange: null,
-          excludeFolders: [],
-          excludeTags: ["draft"],
-          excludeFilenames: [],
-        };
-
-        const filters3: FilterState = {
-          folders: [],
-          tags: [],
-          filename: "",
-          dateRange: null,
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: ["temp"],
-        };
-
-        const state1 = createMockState([], [], new Set(), filters1);
-        const state2 = createMockState([], [], new Set(), filters2);
-        const state3 = createMockState([], [], new Set(), filters3);
-
-        expect(cardExplorerSelectors.hasActiveFilters(state1)).toBe(true);
-        expect(cardExplorerSelectors.hasActiveFilters(state2)).toBe(true);
-        expect(cardExplorerSelectors.hasActiveFilters(state3)).toBe(true);
-      });
-
       it("should return true when multiple filters are active", () => {
         const filters: FilterState = {
           folders: ["folder1"],
           tags: ["tag1"],
           filename: "search",
           dateRange: { type: "after", value: new Date() },
-          excludeFolders: ["archive"],
-          excludeTags: ["draft"],
-          excludeFilenames: ["temp"],
         };
 
         const state = createMockState([], [], new Set(), filters);

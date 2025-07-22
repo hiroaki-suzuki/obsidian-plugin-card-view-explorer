@@ -144,20 +144,6 @@ describe("CardExplorerStore", () => {
       expect(state.filteredNotes[0].tags).toContain("tag1");
     });
 
-    it("should exclude folders", () => {
-      const mockNotes = [
-        createMockNote("Note 1", "/note1.md", "folder1"),
-        createMockNote("Note 2", "/note2.md", "folder2"),
-      ];
-
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      useCardExplorerStore.getState().updateFilters({ excludeFolders: ["folder1"] });
-
-      const state = useCardExplorerStore.getState();
-      expect(state.filteredNotes).toHaveLength(1);
-      expect(state.filteredNotes[0].folder).toBe("folder2");
-    });
-
     it("should filter by date range - within", () => {
       const now = new Date();
       const recent = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days ago
@@ -202,20 +188,6 @@ describe("CardExplorerStore", () => {
       const state = useCardExplorerStore.getState();
       expect(state.filteredNotes).toHaveLength(1);
       expect(state.filteredNotes[0].title).toBe("Recent Note");
-    });
-
-    it("should exclude by filename patterns", () => {
-      const mockNotes = [
-        createMockNote("Draft Note", "/draft.md"),
-        createMockNote("Final Note", "/final.md"),
-      ];
-
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      useCardExplorerStore.getState().updateFilters({ excludeFilenames: ["draft"] });
-
-      const state = useCardExplorerStore.getState();
-      expect(state.filteredNotes).toHaveLength(1);
-      expect(state.filteredNotes[0].title).toBe("Final Note");
     });
   });
 
@@ -402,9 +374,6 @@ describe("CardExplorerStore", () => {
           type: "within" as const,
           value: new Date("2024-01-01"),
         },
-        excludeFolders: ["archive"],
-        excludeTags: ["deleted"],
-        excludeFilenames: ["draft"],
       };
 
       const plugin = createMockPlugin({
@@ -421,9 +390,6 @@ describe("CardExplorerStore", () => {
         type: "within",
         value: new Date("2024-01-01"),
       });
-      expect(state.filters.excludeFolders).toEqual(["archive"]);
-      expect(state.filters.excludeTags).toEqual(["deleted"]);
-      expect(state.filters.excludeFilenames).toEqual(["draft"]);
     });
 
     it("should initialize sort config from plugin data", () => {
@@ -460,9 +426,6 @@ describe("CardExplorerStore", () => {
           tags: [],
           filename: "",
           dateRange: null,
-          excludeFolders: ["archive"],
-          excludeTags: [],
-          excludeFilenames: [],
         },
         sortConfig: {
           key: "updated",
@@ -656,7 +619,6 @@ describe("CardExplorerStore", () => {
         folders: ["work"],
         tags: ["urgent", "todo"],
         filename: "meeting",
-        excludeFolders: ["archive"],
       });
 
       // Set sort config
@@ -676,7 +638,6 @@ describe("CardExplorerStore", () => {
             folders: ["work"],
             tags: ["urgent", "todo"],
             filename: "meeting",
-            excludeFolders: ["archive"],
           }),
           sortConfig: {
             key: "created",
