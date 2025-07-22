@@ -102,9 +102,6 @@ const createDefaultFilters = (): FilterState => ({
   tags: [], // No tag filtering
   filename: "", // No filename search
   dateRange: null, // No date filtering
-  excludeFolders: [], // No folder exclusions
-  excludeTags: [], // No tag exclusions
-  excludeFilenames: [], // No filename exclusions
 });
 
 /**

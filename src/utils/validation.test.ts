@@ -11,9 +11,6 @@ const createValidFilterState = (): FilterState => ({
     type: "within",
     value: new Date("2023-01-01"),
   },
-  excludeFolders: ["exclude1"],
-  excludeTags: ["excludeTag1"],
-  excludeFilenames: ["exclude.md"],
 });
 
 // Helper function to create valid SortConfig
@@ -419,7 +416,7 @@ describe("FilterState validation (via validatePluginData)", () => {
   });
 
   describe("array properties validation", () => {
-    const arrayProps = ["folders", "tags", "excludeFolders", "excludeTags", "excludeFilenames"];
+    const arrayProps = ["folders", "tags"];
 
     arrayProps.forEach((prop) => {
       it(`should reject missing ${prop}`, () => {
@@ -751,9 +748,6 @@ describe("Direct Function Validation", () => {
             type: "after",
             value: new Date("2023-01-01"),
           },
-          excludeFolders: ["exclude1"],
-          excludeTags: ["excludeTag1", "excludeTag2"],
-          excludeFilenames: ["exclude1.md", "exclude2.md"],
         },
         sortConfig: {
           key: "custom-field",
@@ -913,7 +907,7 @@ describe("Validation Edge Cases", () => {
 
     it("should handle data with prototype pollution attempt", () => {
       const maliciousData = JSON.parse(
-        '{"pinnedNotes":[],"lastFilters":{"folders":[],"tags":[],"filename":"","dateRange":null,"excludeFolders":[],"excludeTags":[],"excludeFilenames":[]},"sortConfig":{"key":"updated","order":"desc"},"__proto__":{"polluted":true}}'
+        '{"pinnedNotes":[],"lastFilters":{"folders":[],"tags":[],"filename":"","dateRange":null},"sortConfig":{"key":"updated","order":"desc"},"__proto__":{"polluted":true}}'
       );
       expect(validatePluginData(maliciousData)).toBe(true);
     });
@@ -931,9 +925,6 @@ describe("Validation Edge Cases", () => {
       const filterState = createValidFilterState();
       filterState.folders = largeArray;
       filterState.tags = largeArray;
-      filterState.excludeFolders = largeArray;
-      filterState.excludeTags = largeArray;
-      filterState.excludeFilenames = largeArray;
 
       const data = createDataWithFilterState(filterState);
       expect(validatePluginData(data)).toBe(true);
@@ -1056,9 +1047,6 @@ describe("Validation Edge Cases", () => {
       const filterState = createValidFilterState();
       filterState.folders = ["", "folder1", "very-long-folder-name-with-special-chars-123"];
       filterState.tags = ["a", "tag-with-dashes", "tag_with_underscores"];
-      filterState.excludeFolders = ["exclude"];
-      filterState.excludeTags = ["exclude-tag"];
-      filterState.excludeFilenames = ["file.md", "another-file.txt"];
 
       const data = createDataWithFilterState(filterState);
       expect(validatePluginData(data)).toBe(true);
@@ -1147,9 +1135,6 @@ describe("Validation Edge Cases", () => {
 
       filterState.folders = specialStrings;
       filterState.tags = specialStrings;
-      filterState.excludeFolders = specialStrings;
-      filterState.excludeTags = specialStrings;
-      filterState.excludeFilenames = specialStrings;
 
       const data = createDataWithFilterState(filterState);
       expect(validatePluginData(data)).toBe(true);

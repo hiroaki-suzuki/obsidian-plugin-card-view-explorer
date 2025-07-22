@@ -31,9 +31,6 @@ describe("Data Migration", () => {
           tags: ["tag1"],
           filename: "test",
           dateRange: null,
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: [],
         },
         sortConfig: {
           key: "modified",
@@ -147,9 +144,6 @@ describe("Data Migration", () => {
             type: "after",
             value: new Date("2024-01-01"),
           },
-          excludeFolders: ["Trash"],
-          excludeTags: ["deleted"],
-          excludeFilenames: ["temp"],
         },
         sortConfig: {
           key: "created",

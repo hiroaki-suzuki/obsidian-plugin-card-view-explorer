@@ -38,9 +38,6 @@ vi.mock("./utils/dataPersistence", () => ({
         tags: [],
         filename: "",
         dateRange: null,
-        excludeFolders: [],
-        excludeTags: [],
-        excludeFilenames: [],
       },
       sortConfig: {
         key: "updated",
@@ -343,9 +340,6 @@ describe("Obsidian API Integration Tests", () => {
           tags: [],
           filename: "",
           dateRange: null,
-          excludeFolders: [],
-          excludeTags: [],
-          excludeFilenames: [],
         },
         sortConfig: {
           key: "updated",
@@ -374,9 +368,6 @@ describe("Obsidian API Integration Tests", () => {
             tags: [],
             filename: "",
             dateRange: null,
-            excludeFolders: [],
-            excludeTags: [],
-            excludeFilenames: [],
           },
           sortConfig: {
             key: "updated",

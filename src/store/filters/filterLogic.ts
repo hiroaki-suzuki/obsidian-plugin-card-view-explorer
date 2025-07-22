@@ -36,25 +36,6 @@ export const matchesFolderCriteria = (note: NoteData, folders: string[]): boolea
 };
 
 /**
- * Check if note should be excluded by folder criteria
- *
- * Uses startsWith matching for hierarchical exclusion.
- * For example, excluding "archive" will exclude "archive/old" as well.
- *
- * @param {NoteData} note - The note to check
- * @param {string[]} excludeFolders - Array of folder paths to exclude
- * @returns {boolean} True if note should be excluded
- */
-export const isExcludedByFolder = (note: NoteData, excludeFolders: string[]): boolean => {
-  // No exclusion filter means don't exclude any notes
-  if (excludeFolders.length === 0) return false;
-
-  const noteFolder = note.folder || "";
-  // Check if note's folder starts with any excluded folder
-  return excludeFolders.some((folder) => noteFolder.startsWith(folder));
-};
-
-/**
  * Check if note matches tag inclusion criteria
  *
  * Supports hierarchical tag matching. A note matches if:
@@ -90,38 +71,6 @@ export const matchesTagCriteria = (
 };
 
 /**
- * Check if note should be excluded by tag criteria
- *
- * Supports hierarchical tag matching for exclusion. A note is excluded if:
- * - It has the exact tag specified in the exclusion filter, OR
- * - It has any child tag of the excluded tag (e.g., exclude "project" excludes "project/frontend")
- *
- * @param {NoteData} note - The note to check
- * @param {string[]} excludeTags - Array of tags to exclude
- * @param {NoteData[]} allNotes - All notes for building tag hierarchy (optional for backwards compatibility)
- * @returns {boolean} True if note should be excluded
- */
-export const isExcludedByTag = (
-  note: NoteData,
-  excludeTags: string[],
-  allNotes?: NoteData[]
-): boolean => {
-  // No exclusion filter means don't exclude any notes
-  if (excludeTags.length === 0) return false;
-
-  // If we have all notes available, use hierarchical matching
-  if (allNotes && allNotes.length > 0) {
-    // Check if note has any tag that matches the exclusion criteria (hierarchical)
-    return note.tags.some((noteTag) =>
-      excludeTags.some((excludeTag) => tagMatchesFilter(noteTag, excludeTag))
-    );
-  }
-
-  // Fallback to exact matching for backwards compatibility
-  return excludeTags.some((excludeTag) => note.tags.includes(excludeTag));
-};
-
-/**
  * Check if note matches filename search criteria
  *
  * Performs case-insensitive partial matching on note title.
@@ -138,25 +87,6 @@ export const matchesFilenameCriteria = (note: NoteData, filename: string): boole
 
   // Case-insensitive partial matching
   return note.title.toLowerCase().includes(searchTerm.toLowerCase());
-};
-
-/**
- * Check if note should be excluded by filename criteria
- *
- * Performs case-insensitive partial matching for exclusion patterns.
- * Note is excluded if title contains any of the exclusion patterns.
- *
- * @param {NoteData} note - The note to check
- * @param {string[]} excludeFilenames - Array of filename patterns to exclude
- * @returns {boolean} True if note should be excluded
- */
-export const isExcludedByFilename = (note: NoteData, excludeFilenames: string[]): boolean => {
-  // No exclusion patterns means don't exclude any notes
-  if (excludeFilenames.length === 0) return false;
-
-  const noteTitle = note.title.toLowerCase();
-  // Check if note title contains any exclusion pattern
-  return excludeFilenames.some((pattern) => noteTitle.includes(pattern.toLowerCase()));
 };
 
 /**
@@ -233,11 +163,8 @@ export const notePassesFilters = (
 ): boolean => {
   return (
     matchesFolderCriteria(note, filters.folders) && // Must be in included folders
-    !isExcludedByFolder(note, filters.excludeFolders) && // Must not be in excluded folders
     matchesTagCriteria(note, filters.tags, allNotes) && // Must have required tags (hierarchical)
-    !isExcludedByTag(note, filters.excludeTags, allNotes) && // Must not have excluded tags (hierarchical)
     matchesFilenameCriteria(note, filters.filename) && // Must match filename search
-    !isExcludedByFilename(note, filters.excludeFilenames) && // Must not match excluded patterns
     matchesDateRangeCriteria(note, filters.dateRange) // Must match date criteria
   );
 };
@@ -272,9 +199,6 @@ export const hasAnyActiveFilter = (filters: FilterState): boolean => {
     filters.folders.length > 0 || // Folder inclusion filters
     filters.tags.length > 0 || // Tag inclusion filters
     filters.filename.trim() !== "" || // Filename search
-    filters.dateRange !== null || // Date range filter
-    filters.excludeFolders.length > 0 || // Folder exclusion filters
-    filters.excludeTags.length > 0 || // Tag exclusion filters
-    filters.excludeFilenames.length > 0 // Filename exclusion filters
+    filters.dateRange !== null // Date range filter
   );
 };
