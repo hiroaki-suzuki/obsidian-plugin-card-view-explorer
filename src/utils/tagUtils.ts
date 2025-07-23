@@ -7,75 +7,6 @@
  */
 
 /**
- * Represents a hierarchical tag with its structure and relationships
- */
-export interface HierarchicalTag {
-  /** The full tag path (e.g., "project/frontend/react") */
-  tag: string;
-  /** The name of the current tag level without parent path (e.g., "react") */
-  displayName: string;
-  /** The depth level in the hierarchy (0 for root tags, increases by 1 for each level) */
-  level: number;
-  /** The parent tag path if any (e.g., "project/frontend") */
-  parentTag?: string;
-  /** Array of child tag paths that are direct descendants of this tag */
-  children: string[];
-}
-
-/**
- * Parse a hierarchical tag and extract its components
- *
- * @param tag - Tag string (e.g., "project/frontend/react")
- * @returns Parsed tag information with level, display name, and parent relationships
- */
-export const parseHierarchicalTag = (tag: string): HierarchicalTag => {
-  const parts = tag.split("/");
-  const level = parts.length - 1;
-  const displayName = parts[parts.length - 1];
-  const parentTag = level > 0 ? parts.slice(0, -1).join("/") : undefined;
-
-  return {
-    tag,
-    displayName,
-    level,
-    parentTag,
-    children: [],
-  };
-};
-
-/**
- * Build hierarchical tag structure from flat tag list
- *
- * Creates a complete tag hierarchy with parent-child relationships
- * from a flat list of tag strings.
- *
- * @param tags - Array of tag strings (e.g., ["project", "project/frontend", "project/frontend/react"])
- * @returns Map of tag strings to HierarchicalTag objects with children populated
- */
-export const buildTagHierarchy = (tags: string[]): Map<string, HierarchicalTag> => {
-  const tagMap = new Map<string, HierarchicalTag>();
-
-  // First pass: create all tag objects
-  for (const tag of tags) {
-    if (!tagMap.has(tag)) {
-      tagMap.set(tag, parseHierarchicalTag(tag));
-    }
-  }
-
-  // Second pass: build parent-child relationships
-  for (const [tagString, tagObj] of tagMap) {
-    if (tagObj.parentTag && tagMap.has(tagObj.parentTag)) {
-      const parent = tagMap.get(tagObj.parentTag)!;
-      if (!parent.children.includes(tagString)) {
-        parent.children.push(tagString);
-      }
-    }
-  }
-
-  return tagMap;
-};
-
-/**
  * Extract all possible tags from hierarchical tag paths
  *
  * For each tag, generates all parent paths in the hierarchy.
@@ -90,7 +21,8 @@ export const extractAllTagPaths = (tags: string[]): string[] => {
   for (const tag of tags) {
     const parts = tag.split("/");
 
-    // Add all possible paths from root to full tag
+    // Generate all possible hierarchical paths from root to full tag
+    // e.g., "a/b/c" creates: "a", "a/b", "a/b/c"
     for (let i = 1; i <= parts.length; i++) {
       const path = parts.slice(0, i).join("/");
       allPaths.add(path);
@@ -98,32 +30,6 @@ export const extractAllTagPaths = (tags: string[]): string[] => {
   }
 
   return Array.from(allPaths).sort();
-};
-
-/**
- * Get all descendant tags for a given tag
- *
- * Recursively collects all descendants (children, grandchildren, etc.)
- * of a specified tag in the hierarchy.
- *
- * @param tag - Tag to get descendants for
- * @param tagHierarchy - Map from buildTagHierarchy
- * @returns Array of descendant tag strings (including the tag itself)
- */
-export const getTagDescendants = (
-  tag: string,
-  tagHierarchy: Map<string, HierarchicalTag>
-): string[] => {
-  const result = [tag];
-  const tagObj = tagHierarchy.get(tag);
-
-  if (tagObj) {
-    for (const child of tagObj.children) {
-      result.push(...getTagDescendants(child, tagHierarchy));
-    }
-  }
-
-  return result;
 };
 
 /**
