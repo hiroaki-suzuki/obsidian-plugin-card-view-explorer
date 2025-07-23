@@ -1029,17 +1029,45 @@
   }
 
   /* Filter panel single column layout for very narrow containers */
-  .card-view-filter-panel .filter-panel {
-    grid-template-columns: 1fr !important; /* Single column for very narrow spaces - force override */
-    gap: var(--size-2-3);
-    padding: var(--size-2-3);
+  .card-view-filter-panel {
+    max-height: 360px;
+    overflow-y: auto; /* Allow scrolling on mobile */
 
-    .filter-group {
+    .filter-panel {
+      grid-template-columns: 1fr !important; /* Single column for very narrow spaces - force override */
+      gap: var(--size-2-3);
       padding: var(--size-2-3);
 
-      h4 {
-        font-size: var(--font-ui-small);
-        margin-bottom: var(--size-2-2);
+      .filter-group {
+        padding: var(--size-2-3);
+
+        h4 {
+          font-size: var(--font-ui-small);
+          margin-bottom: var(--size-2-2);
+        }
+
+        .multi-select-options {
+          max-height: 200px; /* Even more compact on mobile */
+
+          .checkbox-label {
+            padding: var(--size-2-3) var(--size-2-3);
+
+            input[type="checkbox"] {
+              height: 20px;
+              width: 20px;
+            }
+
+            input[type="checkbox"]:checked:after {
+              top: -1px;
+              height: 18px;
+              width: 18px;
+            }
+
+            .folder-name {
+              font-size: var(--font-ui-medium);
+            }
+          }
+        }
       }
     }
   }
