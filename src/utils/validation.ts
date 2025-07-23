@@ -50,8 +50,8 @@ export function validatePluginData(data: any): data is PluginData {
     return false;
   }
 
-  // Version is optional but must be number if present
-  if (data.version !== undefined && typeof data.version !== "number") {
+  // Version is optional but must be a valid version number if present
+  if (!isValidOptionalVersion(data.version)) {
     return false;
   }
 
@@ -157,6 +157,28 @@ function validateSortConfig(data: any): data is SortConfig {
 }
 
 /**
+ * Validates whether a value is a valid optional version number.
+ * Version numbers must be non-negative integers (0, 1, 2, ...) or undefined (optional).
+ * Decimal values and negative numbers are not allowed.
+ * @param version - The value to validate as an optional version number
+ * @returns True if the value is a valid version number or undefined
+ */
+function isValidOptionalVersion(version: any): boolean {
+  return version === undefined || isValidVersionNumber(version);
+}
+
+/**
+ * Validates whether a value is a valid version number (required).
+ * Version numbers must be non-negative integers (0, 1, 2, ...).
+ * Decimal values and negative numbers are not allowed.
+ * @param version - The value to validate as a version number
+ * @returns True if the value is a valid version number
+ */
+function isValidVersionNumber(version: any): boolean {
+  return typeof version === "number" && Number.isInteger(version) && version >= 0;
+}
+
+/**
  * Validates a complete backup entry including metadata.
  * @param backup - The backup entry to validate
  * @returns True if the backup entry is valid
@@ -168,7 +190,7 @@ function validateBackup(backup: any): boolean {
 
   return (
     typeof backup.timestamp === "number" &&
-    typeof backup.version === "number" &&
+    isValidVersionNumber(backup.version) &&
     validateBackupData(backup.data)
   );
 }
