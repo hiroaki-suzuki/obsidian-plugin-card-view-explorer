@@ -450,17 +450,28 @@ describe("validatePluginData", () => {
       expect(validatePluginData(data)).toBe(false);
     });
 
-    // Version number edge case tests
-    // Current implementation accepts all numeric values (0, negatives, decimals, large values)
-    it("should validate version property edge cases", () => {
-      const data1 = createDataWithVersion(0);        // Zero is valid
-      const data2 = createDataWithVersion(-1);       // TODO: Should negative values be allowed?
-      const data3 = createDataWithVersion(-1.5);     // TODO: Should decimal values be allowed?
-      const data4 = createDataWithVersion(999999);   // Large values are valid
+    it("should accept valid version numbers (non-negative integers or undefined)", () => {
+      const data1 = createDataWithVersion(undefined); // undefined is valid (optional)
+      const data2 = createDataWithVersion(0); // Zero is valid
+      const data3 = createDataWithVersion(1); // Positive integers are valid
+      const data4 = createDataWithVersion(999999); // Large positive integers are valid
       expect(validatePluginData(data1)).toBe(true);
       expect(validatePluginData(data2)).toBe(true);
       expect(validatePluginData(data3)).toBe(true);
       expect(validatePluginData(data4)).toBe(true);
+    });
+
+    it("should reject invalid version numbers (negative or decimal)", () => {
+      const data1 = createDataWithVersion(-1); // Negative values are invalid
+      const data2 = createDataWithVersion(-1.5); // Negative decimal values are invalid
+      const data3 = createDataWithVersion(1.5); // Positive decimal values are invalid
+      const data4 = createDataWithVersion(Number.NaN); // NaN is invalid
+      const data5 = createDataWithVersion(Number.POSITIVE_INFINITY); // Infinity is invalid
+      expect(validatePluginData(data1)).toBe(false);
+      expect(validatePluginData(data2)).toBe(false);
+      expect(validatePluginData(data3)).toBe(false);
+      expect(validatePluginData(data4)).toBe(false);
+      expect(validatePluginData(data5)).toBe(false);
     });
   });
 
