@@ -1,78 +1,77 @@
 /**
- * Error Handling Utilities
+ * Error handling utilities for Card View Explorer plugin
  *
- * Provides essential error handling functionality for the Card View Explorer plugin.
- * This module implements a comprehensive error handling system with categorization,
- * user-friendly messages, retry mechanisms, and fallback strategies.
+ * This module provides centralized error handling functionality including:
+ * - Categorized error processing with user-friendly messages
+ * - Exponential backoff retry mechanism for transient failures
+ * - Safe execution wrappers with fallback values
+ * - Structured error information with context and timestamps
+ *
+ * All errors are logged to console and optionally displayed as Obsidian notifications,
+ * with different handling strategies based on error category (API, Data, UI, General).
  */
-
 import { Notice } from "obsidian";
 
 /**
- * Error categories for classification and handling behavior
- *
- * Categories determine user notification behavior and retry strategies:
- * - API: Obsidian API communication errors, typically retriable
- * - DATA: Data processing/validation failures, may require user intervention
- * - UI: Interface rendering errors, notifications suppressed to avoid spam
- * - GENERAL: Uncategorized errors, default handling
+ * Categorizes errors for appropriate handling and user messaging.
+ * Used to determine retry behavior and notification display.
  */
 export enum ErrorCategory {
+  /** Obsidian API related errors (vault access, metadata, etc.) */
   API = "api",
+  /** Data processing and validation errors */
   DATA = "data",
+  /** User interface rendering and interaction errors */
   UI = "ui",
+  /** General application errors without specific category */
   GENERAL = "general",
 }
 
 /**
- * Error information structure
- *
- * Standardized format for error reporting and handling throughout the plugin.
+ * Structured error information with context and categorization.
+ * Provides comprehensive error data for logging and user feedback.
  */
 export interface ErrorInfo {
-  /** User-friendly error message displayed to the user */
+  /** User-friendly error message */
   message: string;
-  /** Technical details for debugging (stack trace or serialized error) */
+  /** Technical details including stack trace */
   details?: string;
-  /** Error category determining handling behavior */
+  /** Error category for handling strategy */
   category: ErrorCategory;
-  /** Timestamp when error occurred (milliseconds since epoch) */
+  /** When the error occurred (Unix timestamp) */
   timestamp: number;
-  /** Additional contextual information for debugging */
+  /** Additional context data for debugging */
   context?: Record<string, any>;
 }
 
 /**
- * Configuration for error handling behavior
- *
- * Controls how errors are presented to users and logged for debugging
+ * Configuration for error handling behavior.
+ * Controls notification display and console logging.
  */
 interface ErrorConfig {
-  /** Show user notifications via Obsidian Notice */
+  /** Whether to show Obsidian notifications to user */
   showNotifications: boolean;
-  /** Log detailed error information to console */
+  /** Whether to log errors to browser console */
   logToConsole: boolean;
 }
 
 /**
- * Retry operation options with exponential backoff configuration
- *
- * Used to configure the withRetry function's behavior when retrying failed operations.
+ * Options for retry mechanism configuration.
+ * Implements exponential backoff with configurable limits.
  */
 export interface RetryOptions {
   /** Maximum number of retry attempts (default: 3) */
   maxRetries?: number;
-  /** Initial delay in milliseconds before first retry (default: 1000) */
+  /** Initial delay in milliseconds (default: 1000) */
   baseDelay?: number;
-  /** Maximum delay in milliseconds to prevent excessive waits (default: 10000) */
+  /** Maximum delay cap in milliseconds (default: 10000) */
   maxDelay?: number;
-  /** Error category for proper handling behavior */
+  /** Error category for context (default: GENERAL) */
   category?: ErrorCategory;
-  /** Additional context for error reporting */
+  /** Additional context for error tracking */
   context?: Record<string, any>;
 }
 
-// Default configurations
 const DEFAULT_CONFIG: ErrorConfig = {
   showNotifications: true,
   logToConsole: true,
@@ -87,13 +86,125 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
 };
 
 /**
- * Extract basic error information from various error types
+ * Centralized error handling with categorization and user feedback.
+ * Converts technical errors into user-friendly messages and provides
+ * structured logging with contextual information.
  *
- * Handles Error objects, strings, generic objects, and unknown types safely.
- * Protects against circular reference issues in object serialization.
+ * @param error - The error to handle (Error, string, or unknown object)
+ * @param category - Error category for appropriate handling strategy
+ * @param context - Additional debugging context
+ * @param config - Override default notification and logging behavior
+ * @returns Structured error information for further processing
+ */
+export function handleError(
+  error: unknown,
+  category: ErrorCategory = ErrorCategory.GENERAL,
+  context?: Record<string, any>,
+  config: Partial<ErrorConfig> = {}
+): ErrorInfo {
+  const finalConfig = { ...DEFAULT_CONFIG, ...config };
+  const { message, details } = extractErrorInfo(error);
+
+  const errorInfo: ErrorInfo = {
+    message: getUserFriendlyMessage(message, category),
+    details,
+    category,
+    timestamp: Date.now(),
+    context,
+  };
+
+  if (finalConfig.logToConsole) {
+    console.error(`Card View Explorer Error:`, {
+      message: errorInfo.message,
+      details: errorInfo.details,
+      category: errorInfo.category,
+      context: errorInfo.context,
+    });
+  }
+
+  // UI errors are handled by React error boundaries, no need for notifications
+  if (finalConfig.showNotifications && category !== ErrorCategory.UI) {
+    new Notice(`Card View Explorer: ${errorInfo.message}`, 5000);
+  }
+
+  return errorInfo;
+}
+
+/**
+ * Executes an async operation with exponential backoff retry mechanism.
+ * Automatically retries transient failures while avoiding permanent errors
+ * like permission denials or data corruption.
  *
- * @param error - The error to extract information from (any type)
- * @returns Object containing user-readable message and optional technical details
+ * @param operation - The async operation to execute
+ * @param options - Retry configuration options
+ * @returns Result of the successful operation
+ * @throws The last error if all retry attempts fail
+ */
+export async function withRetry<T>(
+  operation: () => Promise<T>,
+  options: RetryOptions = {}
+): Promise<T> {
+  const config = { ...DEFAULT_RETRY_OPTIONS, ...options };
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === config.maxRetries) {
+        break;
+      }
+
+      const { message } = extractErrorInfo(error);
+      if (!isRetryable(message)) {
+        break;
+      }
+
+      // Exponential backoff: baseDelay * 2^attempt, capped at maxDelay
+      const delay = Math.min(config.baseDelay * 2 ** attempt, config.maxDelay);
+
+      console.warn(
+        `Card View Explorer: Retry attempt ${attempt + 1}/${config.maxRetries} after ${delay}ms`
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Executes a synchronous operation with error handling and fallback.
+ * Provides safe execution for operations that might fail, ensuring
+ * the application continues with a reasonable fallback value.
+ *
+ * @param operation - The synchronous operation to execute
+ * @param fallback - Value to return if operation fails
+ * @param category - Error category for proper handling
+ * @param context - Additional context for error tracking
+ * @returns Result of operation or fallback value on error
+ */
+export function safeSync<T>(
+  operation: () => T,
+  fallback: T,
+  category: ErrorCategory = ErrorCategory.GENERAL,
+  context?: Record<string, any>
+): T {
+  try {
+    return operation();
+  } catch (error) {
+    handleError(error, category, context);
+    return fallback;
+  }
+}
+
+/**
+ * Extracts error information from unknown error types.
+ * Handles various error formats including Error objects, strings,
+ * and plain objects, providing consistent error information structure.
  */
 function extractErrorInfo(error: unknown): { message: string; details?: string } {
   if (error instanceof Error) {
@@ -108,36 +219,24 @@ function extractErrorInfo(error: unknown): { message: string; details?: string }
   }
 
   if (error && typeof error === "object") {
+    const message = (error as any).message || "Unknown error";
+    let details: string;
     try {
-      // Extract message property if available, fallback to generic message
-      const message = (error as any).message || "Unknown error";
-      let details: string;
-      try {
-        // Try to serialize the object, but handle circular references gracefully
-        details = JSON.stringify(error);
-      } catch {
-        // Handle circular references or non-serializable objects
-        details = "[Object with circular reference]";
-      }
-      return { message, details };
+      details = JSON.stringify(error);
     } catch {
-      // Fallback if object processing fails entirely
-      return { message: "Unknown error" };
+      // Handle circular references in error objects
+      details = "[Object with circular reference]";
     }
+    return { message, details };
   }
 
   return { message: "An unexpected error occurred" };
 }
 
 /**
- * Convert technical error messages to user-friendly messages
- *
- * Transforms technical API errors into actionable user guidance based on
- * error category and common Obsidian API failure patterns.
- *
- * @param message - The technical error message to transform
- * @param category - Error category to determine appropriate user message
- * @returns User-friendly error message with actionable guidance
+ * Converts technical error messages into user-friendly messages.
+ * Categorizes errors and provides contextual guidance for resolution.
+ * Falls back to original message for uncategorized errors.
  */
 function getUserFriendlyMessage(message: string, category: ErrorCategory): string {
   const lowerMessage = message.toLowerCase();
@@ -164,18 +263,14 @@ function getUserFriendlyMessage(message: string, category: ErrorCategory): strin
 }
 
 /**
- * Check if an error should be retried
- *
- * Determines retry eligibility based on error patterns. Permanent failures
- * like permission errors and data corruption are excluded from retry attempts.
- *
- * @param message - The error message to analyze for retry eligibility
- * @returns True if the error should be retried, false for permanent failures
+ * Determines if an error is worth retrying based on its message.
+ * Permanent errors like permission denials or data corruption should not be retried,
+ * while transient network or resource errors are suitable for retry.
  */
 function isRetryable(message: string): boolean {
   const lowerMessage = message.toLowerCase();
 
-  // Don't retry permission errors or corruption issues
+  // Permanent errors that should not be retried
   if (lowerMessage.includes("permission") && lowerMessage.includes("denied")) {
     return false;
   }
@@ -183,156 +278,6 @@ function isRetryable(message: string): boolean {
     return false;
   }
 
+  // Default to retryable for unknown errors (likely transient)
   return true;
-}
-
-/**
- * Main error handler with configurable notification and logging behavior
- *
- * Processes errors consistently across the plugin with category-specific handling:
- * - Extracts and transforms error information
- * - Provides user-friendly messages based on error patterns
- * - Logs technical details for debugging
- * - Shows notifications (suppressed for UI errors to prevent spam)
- *
- * @param error - The error to handle (any type: Error object, string, or any other value)
- * @param category - Error category for specialized handling
- * @param context - Additional context for debugging (e.g., component name, operation type)
- * @param config - Override default notification/logging behavior
- * @returns Structured error information
- *
- * @example
- * try {
- *   // Some operation that might fail
- * } catch (error) {
- *   const errorInfo = handleError(error, ErrorCategory.API, { operation: 'loadNotes' });
- *   // Handle the error appropriately
- * }
- */
-export function handleError(
-  error: unknown,
-  category: ErrorCategory = ErrorCategory.GENERAL,
-  context?: Record<string, any>,
-  config: Partial<ErrorConfig> = {}
-): ErrorInfo {
-  const finalConfig = { ...DEFAULT_CONFIG, ...config };
-  const { message, details } = extractErrorInfo(error);
-
-  const errorInfo: ErrorInfo = {
-    message: getUserFriendlyMessage(message, category),
-    details,
-    category,
-    timestamp: Date.now(),
-    context,
-  };
-
-  // Console logging
-  if (finalConfig.logToConsole) {
-    console.error(`Card View Explorer Error:`, {
-      message: errorInfo.message,
-      details: errorInfo.details,
-      category: errorInfo.category,
-      context: errorInfo.context,
-    });
-  }
-
-  // User notifications (suppressed for UI errors to avoid notification spam)
-  if (finalConfig.showNotifications && category !== ErrorCategory.UI) {
-    new Notice(`Card View Explorer: ${errorInfo.message}`, 5000);
-  }
-
-  return errorInfo;
-}
-
-/**
- * Retry mechanism with exponential backoff for transient failures
- *
- * Implements intelligent retry logic for operations that may fail temporarily:
- * - Uses exponential backoff: delay = baseDelay * 2^attempt
- * - Respects maximum delay to prevent excessive waiting
- * - Skips retry for permanent failures (permissions, corruption)
- * - Provides retry attempt logging for debugging
- *
- * @param operation - Async operation to retry on failure
- * @param options - Retry configuration options
- * @returns Promise that resolves with operation result or rejects with final error
- *
- * @example
- * const result = await withRetry(
- *   async () => await api.fetchData(),
- *   { maxRetries: 3, baseDelay: 1000, category: ErrorCategory.API }
- * );
- */
-export async function withRetry<T>(
-  operation: () => Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
-  const config = { ...DEFAULT_RETRY_OPTIONS, ...options };
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-
-      // Don't retry on last attempt
-      if (attempt === config.maxRetries) {
-        break;
-      }
-
-      // Check if error should be retried based on error message patterns
-      const { message } = extractErrorInfo(error);
-      if (!isRetryable(message)) {
-        break;
-      }
-
-      // Calculate delay with exponential backoff: baseDelay * 2^attempt, capped at maxDelay
-      const delay = Math.min(config.baseDelay * 2 ** attempt, config.maxDelay);
-
-      console.warn(
-        `Card View Explorer: Retry attempt ${attempt + 1}/${config.maxRetries} after ${delay}ms`
-      );
-
-      // Wait before next retry attempt
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-  }
-
-  // If we've exhausted all retries or encountered a non-retryable error, throw the last error
-  throw lastError;
-}
-
-/**
- * Safe wrapper for synchronous operations with fallback handling
- *
- * Executes synchronous operations safely and returns fallback value on error.
- * Automatically handles errors through the main error handler.
- *
- * @param operation - Synchronous operation to execute safely
- * @param fallback - Value to return if operation fails
- * @param category - Error category for proper handling
- * @param context - Additional error context
- * @returns Operation result or fallback value
- *
- * @example
- * const parsedData = safeSync(
- *   () => JSON.parse(rawData),
- *   defaultData,
- *   ErrorCategory.DATA,
- *   { source: 'settings.json' }
- * );
- */
-export function safeSync<T>(
-  operation: () => T,
-  fallback: T,
-  category: ErrorCategory = ErrorCategory.GENERAL,
-  context?: Record<string, any>
-): T {
-  try {
-    return operation();
-  } catch (error) {
-    handleError(error, category, context);
-    return fallback;
-  }
 }

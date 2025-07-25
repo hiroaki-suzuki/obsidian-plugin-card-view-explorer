@@ -6,6 +6,19 @@ vi.mock("obsidian", () => ({
   Notice: vi.fn(),
 }));
 
+// Test constants for commonly repeated values
+const TEST_CONSTANTS = {
+  NOTICE_TIMEOUT: 5000,
+  API_ERROR_MESSAGE: "Failed to communicate with Obsidian. Please try refreshing.",
+  NOTICE_PREFIX: "Card View Explorer: ",
+  RETRY_CONFIG: { maxRetries: 2, baseDelay: 10 },
+  EXPONENTIAL_BACKOFF_CONFIG: {
+    maxRetries: 2,
+    baseDelay: 100,
+    maxDelay: 500,
+  },
+} as const;
+
 describe("Error Handling - Simplified", () => {
   let mockNotice: any;
 
@@ -15,7 +28,9 @@ describe("Error Handling - Simplified", () => {
     const obsidianModule = await import("obsidian");
     mockNotice = obsidianModule.Notice;
 
-    // Mock console methods
+    // Mock console methods to suppress log output during tests
+    // This prevents error messages from cluttering test output while still allowing
+    // us to verify that console.error/warn are called correctly
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
   });
@@ -29,30 +44,168 @@ describe("Error Handling - Simplified", () => {
       const error = new Error("Test error");
       const result = handleError(error, ErrorCategory.API);
 
-      expect(result.message).toBe("Failed to communicate with Obsidian. Please try refreshing.");
+      expect(result.message).toBe(TEST_CONSTANTS.API_ERROR_MESSAGE);
       expect(result.category).toBe(ErrorCategory.API);
       expect(result.timestamp).toBeTypeOf("number");
       expect(console.error).toHaveBeenCalled();
       expect(mockNotice).toHaveBeenCalledWith(
-        "Card View Explorer: Failed to communicate with Obsidian. Please try refreshing.",
-        5000
+        `${TEST_CONSTANTS.NOTICE_PREFIX}${TEST_CONSTANTS.API_ERROR_MESSAGE}`,
+        TEST_CONSTANTS.NOTICE_TIMEOUT
       );
     });
 
-    it("should handle string errors", () => {
-      const error = "String error message";
-      const result = handleError(error, ErrorCategory.DATA);
+    it("should include context information", () => {
+      const error = new Error("Test error");
+      const context = { operation: "test", id: "123" };
+      const result = handleError(error, ErrorCategory.API, context);
 
-      expect(result.message).toBe("Data processing failed. Please try refreshing your notes.");
-      expect(result.category).toBe(ErrorCategory.DATA);
+      expect(result.context).toEqual(context);
+    });
+
+    it("should not log to console when logToConsole is false", () => {
+      const error = new Error("Test error");
+      const result = handleError(error, ErrorCategory.API, undefined, { logToConsole: false });
+
+      expect(result.message).toBe(TEST_CONSTANTS.API_ERROR_MESSAGE);
+      expect(result.category).toBe(ErrorCategory.API);
+      expect(console.error).not.toHaveBeenCalled();
+      expect(mockNotice).toHaveBeenCalledWith(
+        `${TEST_CONSTANTS.NOTICE_PREFIX}${TEST_CONSTANTS.API_ERROR_MESSAGE}`,
+        TEST_CONSTANTS.NOTICE_TIMEOUT
+      );
+    });
+
+    it("should not show notifications when showNotifications is false", () => {
+      const error = new Error("Test error");
+      const result = handleError(error, ErrorCategory.API, undefined, { showNotifications: false });
+
+      expect(result.message).toBe(TEST_CONSTANTS.API_ERROR_MESSAGE);
+      expect(result.category).toBe(ErrorCategory.API);
+      expect(console.error).toHaveBeenCalled();
+      expect(mockNotice).not.toHaveBeenCalled();
+    });
+
+    it("should not show notifications for UI errors", () => {
+      const error = new Error("UI error");
+      const result = handleError(error, ErrorCategory.UI);
+
+      expect(mockNotice).not.toHaveBeenCalled();
+      expect(result.message).toBe("Interface error occurred. Please try refreshing the view.");
+    });
+
+    it("should handle both showNotifications and logToConsole being false", () => {
+      const error = new Error("Test error");
+      const result = handleError(error, ErrorCategory.API, undefined, {
+        showNotifications: false,
+        logToConsole: false,
+      });
+
+      expect(result.message).toBe(TEST_CONSTANTS.API_ERROR_MESSAGE);
+      expect(result.category).toBe(ErrorCategory.API);
+      expect(console.error).not.toHaveBeenCalled();
+      expect(mockNotice).not.toHaveBeenCalled();
+    });
+
+    it("should include stack trace in details when Error has stack", () => {
+      const error = new Error("Test error with stack");
+      // Create a mock stack trace
+      error.stack =
+        "Error: Test error with stack\n    at testFunction (test.js:10:5)\n    at Object.<anonymous> (test.js:15:3)";
+
+      const result = handleError(error, ErrorCategory.GENERAL);
+
+      expect(result.message).toBe("Test error with stack");
+      expect(result.details).toBe(error.stack);
+      expect(result.category).toBe(ErrorCategory.GENERAL);
+      expect(result.timestamp).toBeTypeOf("number");
+    });
+
+    it("should fallback to toString when Error has no stack", () => {
+      const error = new Error("Test error without stack");
+      // Remove stack property to simulate error without stack trace
+      delete (error as any).stack;
+
+      const result = handleError(error, ErrorCategory.GENERAL);
+
+      expect(result.message).toBe("Test error without stack");
+      expect(result.details).toBe(error.toString());
+      expect(result.category).toBe(ErrorCategory.GENERAL);
+    });
+
+    it("should handle Error with empty stack", () => {
+      const error = new Error("Test error with empty stack");
+      error.stack = "";
+
+      const result = handleError(error, ErrorCategory.GENERAL);
+
+      expect(result.message).toBe("Test error with empty stack");
+      expect(result.details).toBe(error.toString());
+      expect(result.category).toBe(ErrorCategory.GENERAL);
+    });
+
+    describe.each([
+      [
+        "String error message",
+        ErrorCategory.DATA,
+        "Data processing failed. Please try refreshing your notes.",
+      ],
+      [undefined, ErrorCategory.GENERAL, "An unexpected error occurred"],
+      [null, ErrorCategory.GENERAL, "An unexpected error occurred"],
+      [42, ErrorCategory.GENERAL, "An unexpected error occurred"],
+    ])("handleError with non-Error inputs", (error, category, expectedMessage) => {
+      it(`should handle ${typeof error} errors`, () => {
+        const result = handleError(error, category);
+        expect(result.message).toBe(expectedMessage);
+        expect(result.category).toBe(category);
+      });
     });
 
     it("should handle object errors", () => {
       const errorObj = { message: "Object error", code: 500 };
       const result = handleError(errorObj, ErrorCategory.API);
 
-      expect(result.message).toBe("Failed to communicate with Obsidian. Please try refreshing.");
+      expect(result.message).toBe(TEST_CONSTANTS.API_ERROR_MESSAGE);
       expect(result.category).toBe(ErrorCategory.API);
+    });
+
+    it("should handle object errors without message property", () => {
+      const errorObj = { code: 500, status: "Internal Server Error" };
+      const result = handleError(errorObj, ErrorCategory.API);
+
+      expect(result.message).toBe(TEST_CONSTANTS.API_ERROR_MESSAGE);
+      expect(result.category).toBe(ErrorCategory.API);
+      expect(result.details).toBe(JSON.stringify(errorObj));
+    });
+
+    describe.each([
+      [
+        { message: "", code: 500 },
+        ErrorCategory.DATA,
+        "Data processing failed. Please try refreshing your notes.",
+      ],
+      [{ message: null, code: 500 }, ErrorCategory.GENERAL, "Unknown error"],
+      [{ message: undefined, code: 500 }, ErrorCategory.GENERAL, "Unknown error"],
+    ])(
+      "handleError with object errors with invalid message",
+      (errorObj, category, expectedMessage) => {
+        it(`should handle object with ${errorObj.message === "" ? "empty" : String(errorObj.message)} message`, () => {
+          const result = handleError(errorObj, category);
+          expect(result.message).toBe(expectedMessage);
+          expect(result.category).toBe(category);
+          expect(result.details).toBe(JSON.stringify(errorObj));
+        });
+      }
+    );
+
+    it("should handle circular reference in error objects", () => {
+      const circularError: any = { message: "Circular error" };
+      circularError.self = circularError;
+
+      const result = handleError(circularError, ErrorCategory.DATA);
+
+      expect(result.message).toBe("Data processing failed. Please try refreshing your notes.");
+      expect(result.category).toBe(ErrorCategory.DATA);
+      expect(result.details).toBe("[Object with circular reference]");
     });
 
     it("should provide specific messages for API errors", () => {
@@ -70,26 +223,12 @@ describe("Error Handling - Simplified", () => {
       );
     });
 
-    it("should not show notifications for UI errors", () => {
-      const error = new Error("UI error");
-      handleError(error, ErrorCategory.UI);
-
-      expect(mockNotice).not.toHaveBeenCalled();
-    });
-
-    it("should include context information", () => {
-      const error = new Error("Test error");
-      const context = { operation: "test", id: "123" };
-      const result = handleError(error, ErrorCategory.API, context);
-
-      expect(result.context).toEqual(context);
-    });
-
     it("should use GENERAL category as default", () => {
       const error = new Error("Test error");
       const result = handleError(error);
 
       expect(result.category).toBe(ErrorCategory.GENERAL);
+      expect(result.message).toBe("Test error");
     });
   });
 
@@ -97,7 +236,6 @@ describe("Error Handling - Simplified", () => {
     it("should succeed on first attempt", async () => {
       const operation = vi.fn().mockResolvedValue("success");
       const result = await withRetry(operation);
-
       expect(result).toBe("success");
       expect(operation).toHaveBeenCalledTimes(1);
     });
@@ -107,39 +245,31 @@ describe("Error Handling - Simplified", () => {
         .fn()
         .mockRejectedValueOnce(new Error("Temporary failure"))
         .mockResolvedValue("success");
-
-      const result = await withRetry(operation, { maxRetries: 2, baseDelay: 10 });
-
+      const result = await withRetry(operation, TEST_CONSTANTS.RETRY_CONFIG);
       expect(result).toBe("success");
       expect(operation).toHaveBeenCalledTimes(2);
     });
 
     it("should fail after max retries", async () => {
       const operation = vi.fn().mockRejectedValue(new Error("Persistent failure"));
-
-      await expect(withRetry(operation, { maxRetries: 2, baseDelay: 10 })).rejects.toThrow(
+      await expect(withRetry(operation, TEST_CONSTANTS.RETRY_CONFIG)).rejects.toThrow(
         "Persistent failure"
       );
       expect(operation).toHaveBeenCalledTimes(3); // initial + 2 retries
     });
 
-    it("should not retry non-retryable errors", async () => {
-      const operation = vi.fn().mockRejectedValue(new Error("Permission denied"));
-
-      await expect(withRetry(operation, { maxRetries: 2, baseDelay: 10 })).rejects.toThrow(
-        "Permission denied"
-      );
-      expect(operation).toHaveBeenCalledTimes(1); // no retries
-    });
-
-    it("should not retry corruption errors", async () => {
-      const operation = vi.fn().mockRejectedValue(new Error("Data is corrupt"));
-
-      await expect(withRetry(operation, { maxRetries: 2, baseDelay: 10 })).rejects.toThrow(
-        "Data is corrupt"
-      );
-      expect(operation).toHaveBeenCalledTimes(1); // no retries
-    });
+    describe.each(["Permission denied", "Data is corrupt"])(
+      "withRetry should not retry non-retryable errors",
+      (errorMessage) => {
+        it(`should not retry ${errorMessage} errors`, async () => {
+          const operation = vi.fn().mockRejectedValue(new Error(errorMessage));
+          await expect(withRetry(operation, TEST_CONSTANTS.RETRY_CONFIG)).rejects.toThrow(
+            errorMessage
+          );
+          expect(operation).toHaveBeenCalledTimes(1); // no retries
+        });
+      }
+    );
 
     it("should use exponential backoff", async () => {
       const operation = vi
@@ -147,15 +277,9 @@ describe("Error Handling - Simplified", () => {
         .mockRejectedValueOnce(new Error("Temp error"))
         .mockRejectedValueOnce(new Error("Temp error"))
         .mockResolvedValue("success");
-
       const startTime = Date.now();
-      const result = await withRetry(operation, {
-        maxRetries: 2,
-        baseDelay: 100,
-        maxDelay: 500,
-      });
+      const result = await withRetry(operation, TEST_CONSTANTS.EXPONENTIAL_BACKOFF_CONFIG);
       const duration = Date.now() - startTime;
-
       expect(result).toBe("success");
       expect(duration).toBeGreaterThan(100); // At least one delay
       expect(operation).toHaveBeenCalledTimes(3);
@@ -166,7 +290,6 @@ describe("Error Handling - Simplified", () => {
     it("should return result on success", () => {
       const operation = () => "success";
       const result = safeSync(operation, "fallback");
-
       expect(result).toBe("success");
     });
 
@@ -175,7 +298,6 @@ describe("Error Handling - Simplified", () => {
         throw new Error("Test error");
       };
       const result = safeSync(operation, "fallback");
-
       expect(result).toBe("fallback");
       expect(console.error).toHaveBeenCalled();
     });
@@ -185,7 +307,6 @@ describe("Error Handling - Simplified", () => {
         throw new Error("Test error");
       };
       safeSync(operation, "fallback", ErrorCategory.DATA);
-
       expect(console.error).toHaveBeenCalledWith(
         "Card View Explorer Error:",
         expect.objectContaining({
@@ -200,47 +321,12 @@ describe("Error Handling - Simplified", () => {
       };
       const context = { operation: "test" };
       safeSync(operation, "fallback", ErrorCategory.API, context);
-
       expect(console.error).toHaveBeenCalledWith(
         "Card View Explorer Error:",
         expect.objectContaining({
           context,
         })
       );
-    });
-  });
-
-  describe("ErrorCategory enum", () => {
-    it("should export all expected categories", () => {
-      expect(ErrorCategory.API).toBe("api");
-      expect(ErrorCategory.DATA).toBe("data");
-      expect(ErrorCategory.UI).toBe("ui");
-      expect(ErrorCategory.GENERAL).toBe("general");
-    });
-  });
-
-  describe("Edge Cases", () => {
-    it("should handle undefined errors", () => {
-      const result = handleError(undefined);
-      expect(result.message).toBe("An unexpected error occurred");
-    });
-
-    it("should handle null errors", () => {
-      const result = handleError(null);
-      expect(result.message).toBe("An unexpected error occurred");
-    });
-
-    it("should handle number errors", () => {
-      const result = handleError(42);
-      expect(result.message).toBe("An unexpected error occurred");
-    });
-
-    it("should handle circular reference in error objects", () => {
-      const circularError: any = { message: "Circular error" };
-      circularError.self = circularError;
-
-      const result = handleError(circularError);
-      expect(result.message).toBe("Circular error");
     });
   });
 });
