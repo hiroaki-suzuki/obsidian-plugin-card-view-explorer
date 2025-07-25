@@ -4,70 +4,132 @@
  */
 
 /**
+ * Interface for note frontmatter with optional updated field
+ * Supports both string and Date formats for the updated field to handle
+ * various frontmatter formats from different note-taking workflows
+ */
+interface NoteFrontmatter {
+  /** Updated date in string format (ISO string) or Date object */
+  updated?: string | Date;
+  /** Allow any other frontmatter properties */
+  [key: string]: unknown;
+}
+
+/**
+ * Interface for note data used in date calculations
+ * Represents the minimal data structure required for date operations
+ */
+interface NoteData {
+  /** File system modification timestamp */
+  lastModified: Date;
+  /** Optional frontmatter data containing user-defined metadata */
+  frontmatter?: NoteFrontmatter | null;
+}
+
+/**
+ * Constants for date calculations and formatting
+ * Centralized constants to avoid magic numbers and improve maintainability
+ */
+const DATE_CONSTANTS = {
+  /** Standard hours in a 24-hour day */
+  HOURS_IN_DAY: 24,
+  /** Conversion factor from milliseconds to hours (ms * 60 * 60) */
+  MS_TO_HOURS: 1000 * 60 * 60,
+} as const;
+
+/**
+ * Pre-configured date format options for consistent formatting
+ * Uses Intl.DateTimeFormat options for locale-aware date formatting
+ */
+const DATE_FORMAT_OPTIONS = {
+  /** Format for showing time only (e.g., "14:30") */
+  TIME_ONLY: { hour: "2-digit", minute: "2-digit" } as const,
+  /** Format for showing full date (e.g., "2024/1/15") */
+  FULL_DATE: {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  } as const,
+} as const;
+
+/**
+ * Validates if a value is a valid Date object
+ * Uses type predicate to provide type safety for subsequent operations
+ *
+ * @param date - The value to validate
+ * @returns True if the value is a valid Date object with a valid timestamp
+ */
+const isValidDate = (date: unknown): date is Date => {
+  return date instanceof Date && !Number.isNaN(date.getTime());
+};
+
+/**
+ * Parses a frontmatter updated value into a Date object if possible
+ * Handles both Date objects and string representations gracefully
+ *
+ * @param updatedValue - The updated value from frontmatter (Date, string, or any other type)
+ * @returns A valid Date object or null if parsing fails
+ */
+const parseUpdatedDate = (updatedValue: unknown): Date | null => {
+  // Early return for already valid Date objects
+  if (isValidDate(updatedValue)) {
+    return updatedValue;
+  }
+
+  // Parse string values, but only if they contain actual content
+  if (typeof updatedValue === "string" && updatedValue.trim()) {
+    const parsedDate = new Date(updatedValue);
+    return isValidDate(parsedDate) ? parsedDate : null;
+  }
+
+  return null;
+};
+
+/**
  * Extracts the most appropriate date to display for a note
  *
  * Prioritizes the frontmatter 'updated' field if available and valid,
- * otherwise falls back to the file's lastModified timestamp.
+ * otherwise falls back to the file's lastModified timestamp. This allows
+ * users to override file system dates with custom update dates in frontmatter.
  *
  * @param note - The note data object containing lastModified date and optional frontmatter
  * @returns The most appropriate Date object to display for this note
  */
-export const getDisplayDate = (note: {
-  lastModified: Date;
-  frontmatter?: Record<string, any> | null;
-}): Date => {
-  // Check if there's an 'updated' field in frontmatter
-  const updatedValue = note.frontmatter?.updated;
+export const getDisplayDate = (note: NoteData): Date => {
+  // Try to use user-defined updated date from frontmatter first
+  const updatedDate = parseUpdatedDate(note.frontmatter?.updated);
 
-  if (updatedValue) {
-    // If it's already a Date object, use it directly
-    if (updatedValue instanceof Date) {
-      return updatedValue;
-    }
-
-    // If it's a string, try to parse it as a date
-    if (typeof updatedValue === "string") {
-      const parsedDate = new Date(updatedValue);
-      // Verify the parsed date is valid before using it
-      if (!Number.isNaN(parsedDate.getTime())) {
-        return parsedDate;
-      }
-    }
-  }
-
-  // Fallback to file modification time if frontmatter date is missing or invalid
-  return note.lastModified;
+  // Fallback to file system modification time using nullish coalescing
+  return updatedDate ?? note.lastModified;
 };
 
 /**
  * Formats a date for display with context-aware formatting
  *
- * Uses different formatting based on how recent the date is:
+ * Uses different formatting strategies based on recency:
  * - For dates less than 24 hours old: shows time only (e.g., "14:30")
  * - For all other dates: shows full date with year (e.g., "2024/1/15")
+ *
+ * This provides users with the most relevant information at a glance:
+ * recent changes show precise timing, while older changes show the date.
  *
  * @param date - The Date object to format
  * @returns A formatted string representing the date, or "Invalid date" if input is invalid
  */
 export const formatRelativeDate = (date: Date): string => {
-  // Validate the date is a proper Date object with a valid timestamp
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+  // Guard clause: validate input early to avoid runtime errors
+  if (!isValidDate(date)) {
     return "Invalid date";
   }
 
   const now = new Date();
-  // Calculate difference in hours between now and the provided date
-  const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+  const diffInHours = (now.getTime() - date.getTime()) / DATE_CONSTANTS.MS_TO_HOURS;
 
-  if (diffInHours < 24) {
-    // For recent dates (less than 24 hours), show only the time
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } else {
-    // For older dates, show the full date with year
-    return date.toLocaleDateString([], {
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-    });
+  // Use time-only format for recent updates (within last 24 hours)
+  if (diffInHours < DATE_CONSTANTS.HOURS_IN_DAY) {
+    return date.toLocaleTimeString([], DATE_FORMAT_OPTIONS.TIME_ONLY);
   }
+
+  // Use full date format for older updates
+  return date.toLocaleDateString([], DATE_FORMAT_OPTIONS.FULL_DATE);
 };
