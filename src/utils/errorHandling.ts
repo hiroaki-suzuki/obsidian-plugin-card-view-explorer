@@ -31,7 +31,7 @@ export enum ErrorCategory {
  * Structured error information with context and categorization.
  * Provides comprehensive error data for logging and user feedback.
  */
-export interface ErrorInfo {
+interface ErrorInfo {
   /** User-friendly error message */
   message: string;
   /** Technical details including stack trace */
@@ -59,7 +59,7 @@ interface ErrorConfig {
  * Options for retry mechanism configuration.
  * Implements exponential backoff with configurable limits.
  */
-export interface RetryOptions {
+interface RetryOptions {
   /** Maximum number of retry attempts (default: 3) */
   maxRetries?: number;
   /** Initial delay in milliseconds (default: 1000) */
@@ -200,6 +200,8 @@ export function safeSync<T>(
     return fallback;
   }
 }
+
+// Private Functions
 
 /**
  * Extracts error information from unknown error types.

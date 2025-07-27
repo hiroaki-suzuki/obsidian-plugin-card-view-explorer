@@ -53,39 +53,6 @@ const DATE_FORMAT_OPTIONS = {
 } as const;
 
 /**
- * Validates if a value is a valid Date object
- * Uses type predicate to provide type safety for subsequent operations
- *
- * @param date - The value to validate
- * @returns True if the value is a valid Date object with a valid timestamp
- */
-const isValidDate = (date: unknown): date is Date => {
-  return date instanceof Date && !Number.isNaN(date.getTime());
-};
-
-/**
- * Parses a frontmatter updated value into a Date object if possible
- * Handles both Date objects and string representations gracefully
- *
- * @param updatedValue - The updated value from frontmatter (Date, string, or any other type)
- * @returns A valid Date object or null if parsing fails
- */
-const parseUpdatedDate = (updatedValue: unknown): Date | null => {
-  // Early return for already valid Date objects
-  if (isValidDate(updatedValue)) {
-    return updatedValue;
-  }
-
-  // Parse string values, but only if they contain actual content
-  if (typeof updatedValue === "string" && updatedValue.trim()) {
-    const parsedDate = new Date(updatedValue);
-    return isValidDate(parsedDate) ? parsedDate : null;
-  }
-
-  return null;
-};
-
-/**
  * Extracts the most appropriate date to display for a note
  *
  * Prioritizes the frontmatter 'updated' field if available and valid,
@@ -132,4 +99,37 @@ export const formatRelativeDate = (date: Date): string => {
 
   // Use full date format for older updates
   return date.toLocaleDateString([], DATE_FORMAT_OPTIONS.FULL_DATE);
+};
+
+/**
+ * Validates if a value is a valid Date object
+ * Uses type predicate to provide type safety for subsequent operations
+ *
+ * @param date - The value to validate
+ * @returns True if the value is a valid Date object with a valid timestamp
+ */
+const isValidDate = (date: unknown): date is Date => {
+  return date instanceof Date && !Number.isNaN(date.getTime());
+};
+
+/**
+ * Parses a frontmatter updated value into a Date object if possible
+ * Handles both Date objects and string representations gracefully
+ *
+ * @param updatedValue - The updated value from frontmatter (Date, string, or any other type)
+ * @returns A valid Date object or null if parsing fails
+ */
+const parseUpdatedDate = (updatedValue: unknown): Date | null => {
+  // Early return for already valid Date objects
+  if (isValidDate(updatedValue)) {
+    return updatedValue;
+  }
+
+  // Parse string values, but only if they contain actual content
+  if (typeof updatedValue === "string" && updatedValue.trim()) {
+    const parsedDate = new Date(updatedValue);
+    return isValidDate(parsedDate) ? parsedDate : null;
+  }
+
+  return null;
 };
