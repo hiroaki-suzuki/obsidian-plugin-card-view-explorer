@@ -107,34 +107,6 @@ function validateFilterState(data: any): data is FilterState {
 }
 
 /**
- * Type guard to validate an array of strings.
- * @param arr - The value to validate
- * @returns True if the value is an array containing only strings
- */
-function isStringArray(arr: any): arr is string[] {
-  return isArray(arr) && every(arr, isString);
-}
-
-/**
- * Validates whether a value can be converted to a valid Date.
- * Accepts both Date objects and parseable date strings.
- * @param value - The value to validate as a date
- * @returns True if the value represents a valid date
- */
-function isValidDateValue(value: any): boolean {
-  if (isDate(value)) {
-    return true;
-  }
-
-  if (isString(value)) {
-    // Use Date.parse to check if string is a valid date format
-    return !Number.isNaN(Date.parse(value));
-  }
-
-  return false;
-}
-
-/**
  * Validates sort configuration structure.
  * @param data - The data to validate
  * @returns True if data conforms to SortConfig interface
@@ -154,28 +126,6 @@ function validateSortConfig(data: any): data is SortConfig {
   }
 
   return true;
-}
-
-/**
- * Validates whether a value is a valid optional version number.
- * Version numbers must be non-negative integers (0, 1, 2, ...) or undefined (optional).
- * Decimal values and negative numbers are not allowed.
- * @param version - The value to validate as an optional version number
- * @returns True if the value is a valid version number or undefined
- */
-function isValidOptionalVersion(version: any): boolean {
-  return version === undefined || isValidVersionNumber(version);
-}
-
-/**
- * Validates whether a value is a valid version number (required).
- * Version numbers must be non-negative integers (0, 1, 2, ...).
- * Decimal values and negative numbers are not allowed.
- * @param version - The value to validate as a version number
- * @returns True if the value is a valid version number
- */
-function isValidVersionNumber(version: any): boolean {
-  return typeof version === "number" && Number.isInteger(version) && version >= 0;
 }
 
 /**
@@ -210,4 +160,54 @@ function validateBackupData(data: any): boolean {
     validateFilterState(data.lastFilters) &&
     validateSortConfig(data.sortConfig)
   );
+}
+
+/**
+ * Validates whether a value is a valid optional version number.
+ * Version numbers must be non-negative integers (0, 1, 2, ...) or undefined (optional).
+ * Decimal values and negative numbers are not allowed.
+ * @param version - The value to validate as an optional version number
+ * @returns True if the value is a valid version number or undefined
+ */
+function isValidOptionalVersion(version: any): boolean {
+  return version === undefined || isValidVersionNumber(version);
+}
+
+/**
+ * Validates whether a value is a valid version number (required).
+ * Version numbers must be non-negative integers (0, 1, 2, ...).
+ * Decimal values and negative numbers are not allowed.
+ * @param version - The value to validate as a version number
+ * @returns True if the value is a valid version number
+ */
+function isValidVersionNumber(version: any): boolean {
+  return typeof version === "number" && Number.isInteger(version) && version >= 0;
+}
+
+/**
+ * Validates whether a value can be converted to a valid Date.
+ * Accepts both Date objects and parseable date strings.
+ * @param value - The value to validate as a date
+ * @returns True if the value represents a valid date
+ */
+function isValidDateValue(value: any): boolean {
+  if (isDate(value)) {
+    return true;
+  }
+
+  if (isString(value)) {
+    // Use Date.parse to check if string is a valid date format
+    return !Number.isNaN(Date.parse(value));
+  }
+
+  return false;
+}
+
+/**
+ * Type guard to validate an array of strings.
+ * @param arr - The value to validate
+ * @returns True if the value is an array containing only strings
+ */
+function isStringArray(arr: any): arr is string[] {
+  return isArray(arr) && every(arr, isString);
 }
