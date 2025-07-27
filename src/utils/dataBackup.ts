@@ -1,123 +1,189 @@
+/**
+ * Data backup and recovery utilities for the Card View Explorer plugin.
+ *
+ * This module implements a robust backup system that maintains a rolling history
+ * of plugin data states. The backup system follows a defensive approach where
+ * corrupted or invalid data can be automatically recovered from the most recent
+ * valid backup entry.
+ */
+
 import type { PluginData } from "../types";
+import { ErrorCategory, handleError } from "./errorHandling";
 import { validatePluginData } from "./validation";
 
 /**
- * Data backup and restore utilities for Card View Explorer plugin
- *
- * Handles creating backups before data changes and recovering from backups
- * when data corruption or loading errors occur.
- */
-
-/**
- * Backup entry for data recovery
+ * Represents a single backup entry containing plugin data at a specific point in time.
  */
 export interface DataBackup {
-  /** Timestamp when backup was created */
+  /** Unix timestamp when the backup was created */
   timestamp: number;
-  /** Data version at time of backup */
+  /** Data version at the time of backup creation */
   version: number;
-  /** Backed up data */
+  /** Deep clone of the plugin data at backup time */
   data: PluginData;
 }
 
 /**
- * Plugin interface for backup operations
- *
- * This interface abstracts the plugin's data persistence methods to enable:
- * 1. Testability - Easy mocking for unit tests without full Obsidian Plugin dependency
- * 2. Dependency Inversion - Backup utilities depend on abstraction, not concrete Plugin class
- * 3. Interface Segregation - Only exposes methods needed for backup operations
- * 4. Flexibility - Can be implemented by different plugin systems or contexts
+ * Result object returned by data recovery operations.
  */
-export interface BackupPlugin {
-  /** Load plugin data from storage */
-  loadData(): Promise<any>;
-  /** Save plugin data to storage (optional for read-only operations) */
-  saveData?(data: any): Promise<void>;
+export interface RecoveryResult {
+  /** Whether the recovery operation succeeded */
+  success: boolean;
+  /** Recovered plugin data, or null if recovery failed */
+  data: PluginData | null;
 }
 
 /**
- * Maximum number of backups to keep
+ * Maximum number of backup entries to maintain.
  */
 export const MAX_BACKUPS = 3;
 
 /**
- * Create a backup of current data before making changes
+ * Creates a new backup of the plugin data and returns the updated backup array.
  *
- * @param plugin - Plugin instance with loadData method
- * @returns Promise resolving to the created backup or null if no backup was needed
+ * This function creates a timestamped backup entry and maintains a rolling
+ * history of backups up to MAX_BACKUPS entries. If backup creation fails,
+ * it gracefully returns the existing backups array to prevent data loss.
+ *
+ * @param data - The plugin data to backup
+ * @returns Array of backup entries with the new backup added at the beginning
  */
-export async function createDataBackup(plugin: BackupPlugin): Promise<DataBackup | null> {
+export function createDataBackup(data: PluginData): DataBackup[] {
   try {
-    const existingData = await plugin.loadData();
-
-    // Don't create backup if no existing data
-    if (!existingData || Object.keys(existingData).length === 0) {
-      return null;
-    }
-
-    // Don't create backup if existing data is invalid
-    if (!validatePluginData(existingData)) {
-      console.warn("Card View Explorer: Existing data is invalid, skipping backup creation");
-      return null;
-    }
-
-    const backup: DataBackup = {
-      timestamp: Date.now(),
-      version: existingData.version || 0,
-      data: existingData,
-    };
-
-    // Add backup to existing backups array
-    const backups = existingData._backups || [];
-    backups.unshift(backup);
-
-    // Keep only the most recent backups
-    if (backups.length > MAX_BACKUPS) {
-      backups.splice(MAX_BACKUPS);
-    }
-
-    // Store updated backups array in the data
-    // Note: This will be saved with the next data save operation
-    existingData._backups = backups;
-
-    return backup;
+    return tryCreateDataBackup(data);
   } catch (error) {
-    console.warn("Card View Explorer: Failed to create data backup:", error);
-    return null;
+    handleError(error, ErrorCategory.DATA, {
+      operation: "createDataBackup",
+      dataVersion: data.version,
+      existingBackupsCount: data._backups?.length || 0,
+    });
+    // Return existing backups as fallback to prevent complete data loss
+    return getExistingBackups(data);
   }
 }
 
 /**
- * Attempt to recover data from the most recent valid backup
+ * Attempts to recover valid plugin data from backup entries.
  *
- * @param plugin - Plugin instance with loadData method
- * @returns Promise resolving to recovered data or null if no valid backup found
+ * This function searches through available backups to find the most recent
+ * valid data that passes validation. It's designed to handle scenarios where
+ * the main plugin data becomes corrupted or invalid.
+ *
+ * @param rawData - Raw data object that may contain backup entries
+ * @returns Recovery result indicating success/failure and recovered data
  */
-export async function attemptDataRecovery(plugin: BackupPlugin): Promise<PluginData | null> {
+export function attemptDataRecovery(rawData: any): RecoveryResult {
   try {
-    const rawData = await plugin.loadData();
-    const backups = rawData?._backups as DataBackup[] | undefined;
-
-    if (!backups || !Array.isArray(backups) || backups.length === 0) {
-      console.log("Card View Explorer: No backups available for recovery");
-      return null;
-    }
-
-    // Try to recover from the most recent valid backup
-    for (const backup of backups) {
-      if (backup.data && validatePluginData(backup.data)) {
-        console.log(
-          `Card View Explorer: Recovered data from backup created at ${new Date(backup.timestamp).toISOString()}`
-        );
-        return backup.data;
-      }
-    }
-
-    console.warn("Card View Explorer: No valid backups found for recovery");
-    return null;
+    return tryAttemptDataRecovery(rawData);
   } catch (error) {
-    console.error("Card View Explorer: Failed to recover from backup:", error);
-    return null;
+    handleError(error, ErrorCategory.DATA, {
+      operation: "attemptDataRecovery",
+      backupsCount: rawData?._backups?.length,
+    });
+    return createFailureResult();
   }
+}
+
+/**
+ * Core backup creation logic.
+ */
+function tryCreateDataBackup(data: PluginData): DataBackup[] {
+  const backup = createBackupEntry(data);
+  const existingBackups = getExistingBackups(data);
+
+  // Create new array with new backup at the beginning (most recent first)
+  const updatedBackups = [backup, ...existingBackups];
+  return limitBackupsSize(updatedBackups);
+}
+
+/**
+ * Creates a new backup entry from the current plugin data.
+ */
+function createBackupEntry(data: PluginData): DataBackup {
+  return {
+    timestamp: Date.now(),
+    version: data.version || 0,
+    data: structuredClone(data), // Deep clone prevents mutations affecting backup
+  };
+}
+
+/**
+ * Safely extracts existing backups from plugin data.
+ * Returns empty array if no backups exist to handle initialization gracefully.
+ */
+function getExistingBackups(data: PluginData): DataBackup[] {
+  return data._backups ? structuredClone(data._backups) : [];
+}
+
+/**
+ * Enforces the maximum backup limit by returning a new array with only the most recent entries.
+ */
+function limitBackupsSize(backups: DataBackup[]): DataBackup[] {
+  if (backups.length > MAX_BACKUPS) {
+    return backups.slice(0, MAX_BACKUPS); // Return new array with only allowed entries
+  }
+  return backups;
+}
+
+/**
+ * Core recovery logic.
+ */
+function tryAttemptDataRecovery(rawData: any): RecoveryResult {
+  if (!hasValidBackupsArray(rawData)) {
+    return createFailureResult();
+  }
+
+  const validData = findFirstValidBackup(rawData._backups);
+  return validData ? createSuccessResult(validData) : createFailureResult();
+}
+
+/**
+ * Validates that rawData contains a non-empty, valid backups array.
+ */
+function hasValidBackupsArray(rawData: any): boolean {
+  return (
+    rawData &&
+    typeof rawData === "object" &&
+    "_backups" in rawData &&
+    Array.isArray(rawData._backups) &&
+    rawData._backups.length > 0
+  );
+}
+
+/**
+ * Searches for the first valid backup entry in chronological order.
+ * Returns null if no valid backups are found, allowing caller to handle gracefully.
+ */
+function findFirstValidBackup(backups: any[]): PluginData | null {
+  for (const backup of backups) {
+    if (isValidBackupEntry(backup)) {
+      return backup.data;
+    }
+  }
+  return null;
+}
+
+/**
+ * Validates a single backup entry structure and data integrity.
+ * Uses optional chaining to handle potentially corrupt backup entries.
+ */
+function isValidBackupEntry(backup: any): boolean {
+  return backup?.data && validatePluginData(backup.data);
+}
+
+/**
+ * Returns the failure result object.
+ */
+function createFailureResult(): RecoveryResult {
+  return {
+    success: false,
+    data: null,
+  };
+}
+
+/**
+ * Creates a successful recovery result with the recovered data.
+ */
+function createSuccessResult(data: PluginData): RecoveryResult {
+  return { success: true, data: structuredClone(data) };
 }

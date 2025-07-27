@@ -90,7 +90,6 @@ describe("Data Persistence", () => {
   describe("savePluginData", () => {
     it("should save valid data successfully", async () => {
       const mockPlugin = createMockPlugin();
-      mockPlugin.loadData.mockResolvedValue({});
       mockPlugin.saveData.mockResolvedValue(undefined);
 
       const testData: PluginData = {
@@ -101,10 +100,61 @@ describe("Data Persistence", () => {
       const result = await savePluginData(mockPlugin, testData);
 
       expect(result).toBe(true);
-      expect(mockPlugin.saveData).toHaveBeenCalledWith({
-        ...testData,
-        version: CURRENT_DATA_VERSION,
-      });
+
+      // Check that saveData was called with backup included
+      const savedData = mockPlugin.saveData.mock.calls[0][0];
+      expect(savedData.version).toBe(CURRENT_DATA_VERSION);
+      expect(savedData._backups).toHaveLength(1);
+      expect(savedData._backups[0].data).toEqual(testData);
+      expect(savedData._backups[0].timestamp).toBeTypeOf("number");
+    });
+
+    it("should create backup when saving data", async () => {
+      const mockPlugin = createMockPlugin();
+      mockPlugin.saveData.mockResolvedValue(undefined);
+
+      const newData: PluginData = {
+        ...DEFAULT_DATA,
+        pinnedNotes: ["note1.md", "note2.md"],
+      };
+
+      const result = await savePluginData(mockPlugin, newData);
+
+      expect(result).toBe(true);
+
+      // Check that saveData was called with backup included
+      const savedData = mockPlugin.saveData.mock.calls[0][0];
+      expect(savedData.version).toBe(CURRENT_DATA_VERSION);
+      expect(savedData._backups).toHaveLength(1);
+      expect(savedData._backups[0].data).toEqual(newData); // Backup of the data being saved
+      expect(savedData._backups[0].timestamp).toBeTypeOf("number");
+    });
+
+    it("should preserve existing backups when saving", async () => {
+      const mockPlugin = createMockPlugin();
+      mockPlugin.saveData.mockResolvedValue(undefined);
+
+      const oldBackup = {
+        timestamp: 1000,
+        version: 1,
+        data: { ...DEFAULT_DATA, pinnedNotes: ["very-old-note.md"] },
+      };
+
+      const newData: PluginData = {
+        ...DEFAULT_DATA,
+        pinnedNotes: ["note1.md", "note2.md"],
+        _backups: [oldBackup], // Include existing backups in the data
+      } as any;
+
+      const result = await savePluginData(mockPlugin, newData);
+
+      expect(result).toBe(true);
+
+      // Check that both old and new backups are preserved
+      const savedData = mockPlugin.saveData.mock.calls[0][0];
+      expect(savedData._backups).toHaveLength(2);
+      expect(savedData._backups[0].data).toEqual(newData); // New backup first (backup of newData)
+      expect(savedData._backups[1]).toEqual(oldBackup); // Old backup preserved
     });
 
     it("should reject invalid data", async () => {
@@ -361,19 +411,19 @@ describe("Data Persistence", () => {
 
     it("should handle backup creation failure during save", async () => {
       const mockPlugin = createMockPlugin();
-
-      // Mock loadData to return invalid data that will cause backup creation to fail
-      mockPlugin.loadData.mockResolvedValue("invalid-data-structure");
       mockPlugin.saveData.mockResolvedValue(undefined);
 
-      const result = await savePluginData(mockPlugin, DEFAULT_DATA);
+      // Use data that will cause backup creation to fail (invalid data)
+      const invalidData = {
+        // Missing required fields to make validatePluginData fail
+        invalidField: "test",
+      } as any;
 
-      // Should still succeed even if backup creation fails
-      expect(result).toBe(true);
-      expect(mockPlugin.saveData).toHaveBeenCalledWith({
-        ...DEFAULT_DATA,
-        version: CURRENT_DATA_VERSION,
-      });
+      const result = await savePluginData(mockPlugin, invalidData);
+
+      // Should fail due to data validation, not backup creation
+      expect(result).toBe(false);
+      expect(mockPlugin.saveData).not.toHaveBeenCalled();
     });
 
     it("should handle console fallback when error handling module fails to import", async () => {
