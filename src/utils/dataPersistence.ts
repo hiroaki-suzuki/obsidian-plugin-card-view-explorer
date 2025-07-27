@@ -149,10 +149,11 @@ export async function loadPluginData(
 
     // Try to recover from backup
     try {
-      const recoveredData = await attemptDataRecovery(plugin);
-      if (recoveredData) {
+      const rawData = await plugin.loadData();
+      const recoveryResult = attemptDataRecovery(rawData);
+      if (recoveryResult.success && recoveryResult.data) {
         return {
-          data: recoveredData,
+          data: recoveryResult.data,
           migration: {
             migrated: true,
             fromVersion: 0,
@@ -162,7 +163,7 @@ export async function loadPluginData(
         };
       }
     } catch (recoveryError) {
-      console.warn(`Card View Explorer: ${ERROR_MESSAGES.RECOVERY_FAILED}:`, recoveryError);
+      await handleDataError(recoveryError, "attemptDataRecovery");
     }
 
     // Fall back to defaults
@@ -201,13 +202,14 @@ export async function savePluginData(
       return false;
     }
 
-    // Create backup before saving new data
-    await createDataBackup(plugin);
+    // Create backup of current data and manage backups array
+    const backups = createDataBackup(data);
 
-    // Add version info and save
-    const versionedData: VersionedPluginData = {
+    // Add version info and backups array to new data
+    const versionedData = {
       ...data,
       version: CURRENT_DATA_VERSION,
+      _backups: backups,
     };
 
     await plugin.saveData(versionedData);
