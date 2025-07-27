@@ -19,7 +19,7 @@ const TEST_CONSTANTS = {
   },
 } as const;
 
-describe("Error Handling - Simplified", () => {
+describe("errorHandling", () => {
   let mockNotice: any;
 
   beforeEach(async () => {
