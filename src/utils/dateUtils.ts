@@ -81,16 +81,20 @@ export const getDisplayDate = (note: NoteData): Date => {
  * recent changes show precise timing, while older changes show the date.
  *
  * @param date - The Date object to format
+ * @param referenceTime - The reference time to compare against
  * @returns A formatted string representing the date, or "Invalid date" if input is invalid
  */
-export const formatRelativeDate = (date: Date): string => {
+export const formatRelativeDate = (date: Date, referenceTime: Date): string => {
   // Guard clause: validate input early to avoid runtime errors
   if (!isValidDate(date)) {
     return "Invalid date";
   }
 
-  const now = new Date();
-  const diffInHours = (now.getTime() - date.getTime()) / DATE_CONSTANTS.MS_TO_HOURS;
+  if (!isValidDate(referenceTime)) {
+    return "Invalid date";
+  }
+
+  const diffInHours = (referenceTime.getTime() - date.getTime()) / DATE_CONSTANTS.MS_TO_HOURS;
 
   // Use time-only format for recent updates (within last 24 hours)
   if (diffInHours < DATE_CONSTANTS.HOURS_IN_DAY) {
