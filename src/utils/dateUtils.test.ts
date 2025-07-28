@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NoteData } from "../types";
+import { describe, expect, it } from "vitest";
 import { formatRelativeDate, getDisplayDate } from "./dateUtils";
 
 /**
@@ -53,20 +52,6 @@ const createNoteWithoutFrontmatter = (lastModified = TEST_DATES.BASE_DATE) => ({
 });
 
 describe("dateUtils", () => {
-  let mockNow: Date;
-
-  beforeEach(() => {
-    // Set up deterministic time for consistent test results
-    mockNow = TEST_DATES.MOCK_NOW;
-    vi.useFakeTimers();
-    vi.setSystemTime(mockNow);
-  });
-
-  afterEach(() => {
-    // Clean up fake timers to prevent test interference
-    vi.useRealTimers();
-  });
-
   describe("getDisplayDate", () => {
     describe("when frontmatter contains valid updated dates", () => {
       // Test cases covering different valid date formats that should be parsed successfully
@@ -161,10 +146,15 @@ describe("dateUtils", () => {
       it.each(invalidInputTestCases)(
         "should return 'Invalid date' for $description",
         ({ value }) => {
-          const result = formatRelativeDate(value);
+          const result = formatRelativeDate(value, TEST_DATES.MOCK_NOW);
           expect(result).toBe("Invalid date");
         }
       );
+
+      it("should return 'Invalid date' when referenceTime is invalid", () => {
+        const result = formatRelativeDate(TEST_DATES.BASE_DATE, new Date("invalid"));
+        expect(result).toBe("Invalid date");
+      });
     });
 
     describe("time-based formatting (< 24 hours)", () => {
@@ -174,7 +164,7 @@ describe("dateUtils", () => {
       ];
 
       it.each(recentDateTestCases)("should format $description with time format", ({ date }) => {
-        const result = formatRelativeDate(date);
+        const result = formatRelativeDate(date, TEST_DATES.MOCK_NOW);
         expect(result).toMatch(REGEX_PATTERNS.TIME_FORMAT);
       });
     });
@@ -201,7 +191,7 @@ describe("dateUtils", () => {
       it.each(olderDateTestCases)(
         "should format $description with full date including year",
         ({ date, expectedPattern }) => {
-          const result = formatRelativeDate(date);
+          const result = formatRelativeDate(date, TEST_DATES.MOCK_NOW);
           expect(result).toMatch(expectedPattern);
         }
       );
@@ -233,9 +223,8 @@ describe("dateUtils", () => {
       it.each(edgeCaseTestCases)(
         "should handle $description correctly",
         ({ mockSystemTime, testDate, expectedPattern }) => {
-          // Temporarily override system time for this specific test case
-          vi.setSystemTime(mockSystemTime);
-          const result = formatRelativeDate(testDate);
+          // Use mockSystemTime as reference time instead of system time
+          const result = formatRelativeDate(testDate, mockSystemTime);
           expect(result).toMatch(expectedPattern);
         }
       );

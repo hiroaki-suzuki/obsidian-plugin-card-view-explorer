@@ -98,7 +98,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   const formatDate = useCallback(
     (date: Date): string => {
       return safeSync(
-        () => formatRelativeDate(date),
+        () => formatRelativeDate(date, new Date()),
         "Invalid date", // Fallback value
         ErrorCategory.DATA,
         {
