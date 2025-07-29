@@ -44,9 +44,8 @@ inclusion: always
 - **Empty States**: Helpful messages when no notes match filters
 
 ### Data Integrity
-- **Auto-Backup**: Create backups before any data modifications
-- **Migration Support**: Handle plugin data format changes automatically
 - **Validation**: Validate all user data before persistence
+- **Fallback to Defaults**: Use defaults when data is invalid or missing
 
 ## Technical Constraints
 
@@ -73,9 +72,9 @@ inclusion: always
 - **Filter Types**: New filters must integrate with existing FilterState interface
 - **Sort Options**: New sort criteria must work with pin priority system
 - **UI Components**: Must follow existing error boundary and loading state patterns
-- **Data Fields**: New metadata fields require migration strategy
+- **Data Fields**: New metadata fields with validation and defaults
 
 ### Compatibility Rules
-- **Backward Compatibility**: Plugin data must migrate forward, never break existing installations
+- **Data Validation**: All data must validate against expected schema
 - **API Stability**: Store interface changes require deprecation period
-- **Settings Migration**: Settings format changes need automatic migration
+- **Graceful Fallbacks**: Handle invalid data gracefully with defaults

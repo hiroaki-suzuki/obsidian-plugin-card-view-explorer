@@ -25,7 +25,7 @@ state.filters.tags.push(newTag);
 ### Error Handling
 - Wrap components with `CardViewErrorBoundary`
 - Use `handleError(error, category)` with categories: API, DATA, UI, GENERAL
-- Always: `validatePluginData()` → `createDataBackup()` → save
+- Always: `validatePluginData()` → save with fallback to defaults
 - Provide fallbacks and retry mechanisms
 
 ### Performance
@@ -84,9 +84,8 @@ export const Component: React.FC<Props> = ({ prop1, prop2 }) => {
 
 ## Data Operations Checklist
 1. Validate: `validatePluginData(data)`
-2. Backup: `createDataBackup(plugin)`
-3. Migrate: `migratePluginData(rawData)`
-4. Fallback to defaults on validation failure
+2. Load: `loadPluginData(rawData)` with defaults
+3. Fallback to defaults on validation failure
 
 ## React Standards
 - Functional components with hooks only

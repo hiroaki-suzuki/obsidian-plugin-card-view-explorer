@@ -14,24 +14,13 @@ const createValidPluginSettings = (): PluginSettings => ({
 
 /**
  * Test helper function - Creates a valid PluginData object
- * Contains plugin persistent data (pinned notes, filter state, sort config, backups)
+ * Contains plugin persistent data (pinned notes, filter state, sort config)
  */
 const createValidPluginData = (): PluginData => ({
   pinnedNotes: ["note1.md", "note2.md"],
   lastFilters: createValidFilterState(),
   sortConfig: createValidSortConfig(),
   version: 1,
-  _backups: [
-    {
-      timestamp: Date.now(),
-      version: 1,
-      data: {
-        pinnedNotes: ["backup-note.md"],
-        lastFilters: createValidFilterState(),
-        sortConfig: createValidSortConfig(),
-      },
-    },
-  ],
 });
 
 /**
@@ -473,95 +462,6 @@ describe("validation", () => {
         expect(validatePluginData(data3)).toBe(false);
         expect(validatePluginData(data4)).toBe(false);
         expect(validatePluginData(data5)).toBe(false);
-      });
-    });
-
-    describe("_backups validation", () => {
-      /**
-       * Helper function to create PluginData with specific backup array
-       * Used in backup functionality validation tests
-       */
-      const createDataWithBackups = (backups: any) => ({
-        pinnedNotes: [],
-        lastFilters: createValidFilterState(),
-        sortConfig: createValidSortConfig(),
-        _backups: backups,
-      });
-
-      /**
-       * Creates valid data structure for backups
-       * Used in the data property of backup objects
-       */
-      const createValidBackupData = () => ({
-        pinnedNotes: [],
-        lastFilters: createValidFilterState(),
-        sortConfig: createValidSortConfig(),
-      });
-
-      it("should accept empty backups array", () => {
-        const data = createDataWithBackups([]);
-        expect(validatePluginData(data)).toBe(true);
-      });
-
-      test.each([
-        ["null", null],
-        ["non-array", "not-array"],
-        ["array with undefined element", [undefined]],
-      ])("should reject %s _backups", (_description, backups) => {
-        const data = createDataWithBackups(backups);
-        expect(validatePluginData(data)).toBe(false);
-      });
-
-      it("should reject backup with missing timestamp", () => {
-        const data = createDataWithBackups([
-          {
-            version: 1,
-            data: createValidBackupData(),
-          },
-        ]);
-
-        expect(validatePluginData(data)).toBe(false);
-      });
-      it("should reject backup with non-number timestamp", () => {
-        const data = createDataWithBackups([
-          {
-            timestamp: "not-number",
-            version: 1,
-            data: createValidBackupData(),
-          },
-        ]);
-        expect(validatePluginData(data)).toBe(false);
-      });
-
-      it("should reject backup with missing version", () => {
-        const data = createDataWithBackups([
-          {
-            timestamp: Date.now(),
-            data: createValidBackupData(),
-          },
-        ]);
-        expect(validatePluginData(data)).toBe(false);
-      });
-
-      it("should reject backup with non-number version", () => {
-        const data = createDataWithBackups([
-          {
-            timestamp: Date.now(),
-            version: "1",
-            data: createValidBackupData(),
-          },
-        ]);
-        expect(validatePluginData(data)).toBe(false);
-      });
-
-      it("should reject backup with missing data", () => {
-        const data = createDataWithBackups([
-          {
-            timestamp: Date.now(),
-            version: 1,
-          },
-        ]);
-        expect(validatePluginData(data)).toBe(false);
       });
     });
   });

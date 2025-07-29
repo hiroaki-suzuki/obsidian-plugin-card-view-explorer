@@ -1,7 +1,6 @@
 import type { App, EventRef, TAbstractFile, TFile } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CardExplorerPlugin from "./main";
-import { TAbstractFile as MockTAbstractFile, TFile as MockTFile } from "./test/obsidian-mock";
 import type { FilterState, PluginData, SortConfig } from "./types";
 
 vi.mock("./view", () => ({
@@ -20,8 +19,9 @@ vi.mock("./types/plugin", () => ({
 
 vi.mock("./utils/dataPersistence", () => ({
   loadPluginData: vi.fn().mockResolvedValue({
-    data: { pinnedNotes: [], lastFilters: null, sortConfig: null },
-    migration: { migrated: false },
+    pinnedNotes: [],
+    lastFilters: null,
+    sortConfig: null,
   }),
   loadPluginSettings: vi
     .fn()
@@ -266,38 +266,11 @@ describe("CardExplorerPlugin", () => {
         lastFilters: undefined,
         sortConfig: undefined,
         version: 1,
-        _backups: [],
       } as unknown as PluginData;
 
       plugin.updateData(testData);
 
       expect(plugin.getData()).toEqual(testData);
-    });
-
-    it("should load plugin data with migration", async () => {
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      // Mock loadPluginData to return migrated data
-      const { loadPluginData } = await import("./utils/dataPersistence");
-      vi.mocked(loadPluginData).mockResolvedValueOnce({
-        data: {
-          pinnedNotes: ["migrated.md"],
-          lastFilters: undefined as unknown as FilterState,
-          sortConfig: undefined as unknown as SortConfig,
-          version: 1,
-        },
-        migration: { migrated: true, fromVersion: 0, toVersion: 1, warnings: [] },
-      });
-
-      await plugin.loadPluginData();
-
-      expect(consoleSpy).toHaveBeenCalledWith("Card View Explorer: Data migrated", {
-        from: 0,
-        to: 1,
-        warnings: [],
-      });
-
-      consoleSpy.mockRestore();
     });
 
     it("should save plugin data successfully", async () => {

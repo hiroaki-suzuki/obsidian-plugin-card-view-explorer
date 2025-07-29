@@ -54,10 +54,10 @@ export default class CardExplorerPlugin extends Plugin {
    * - pinnedNotes: Array of file paths for notes pinned to the top of the list
    * - lastFilters: Previously applied filter criteria (tags, folders, date ranges)
    * - sortConfig: Current sort configuration and preferences
-   * - version: Data format version for migration purposes
+   * - version: Data format version for compatibility tracking
    *
    * Managed through loadPluginData() and savePluginData() methods with automatic
-   * backup creation and data migration between plugin versions
+   * data persistence and validation
    */
   private data: PluginData = DEFAULT_DATA;
 
@@ -231,29 +231,11 @@ export default class CardExplorerPlugin extends Plugin {
 
   /**
    * Load plugin data from disk
-   * Handles migration when data format changes between versions
+   * Loads and validates persisted user data with fallback to defaults
    * @returns Promise that resolves when data is loaded
    */
   async loadPluginData(): Promise<void> {
-    const { data, migration } = await loadPluginData(this);
-    this.data = data;
-
-    // Log migration if it occurred
-    if (migration.migrated) {
-      console.log("Card View Explorer: Data migrated", {
-        from: migration.fromVersion,
-        to: migration.toVersion,
-        warnings: migration.warnings || [],
-      });
-
-      // Also log warnings if any
-      if (migration.warnings?.length) {
-        console.warn(
-          "Card View Explorer: Data migration completed with warnings",
-          migration.warnings
-        );
-      }
-    }
+    this.data = await loadPluginData(this);
   }
 
   /**

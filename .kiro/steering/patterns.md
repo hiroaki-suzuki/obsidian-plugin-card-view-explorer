@@ -114,10 +114,9 @@ try {
 }
 ```
 
-### Data Operations Must Include Validation & Backup
+### Data Operations Must Include Validation
 - Always validate data before saving: `validatePluginData(data)`
-- Create backups before modifications: `createDataBackup(plugin)`
-- Handle migration: `migratePluginData(rawData)`
+- Load data with defaults: `loadPluginData(rawData)`
 - Provide fallback to defaults on failure
 
 ## Testing Requirements

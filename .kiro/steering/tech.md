@@ -27,7 +27,7 @@ state.filters.tags.push(newTag);
 ### Error Handling - CRITICAL
 - Wrap components with `CardViewErrorBoundary`
 - Use `handleError(error, category)` with categories: API, DATA, UI, GENERAL
-- Data operations: `validatePluginData()` → `createDataBackup()` → save
+- Data operations: `validatePluginData()` → save with fallback to defaults
 - Always provide fallbacks and retry mechanisms
 
 ### Type Safety - NO EXCEPTIONS
