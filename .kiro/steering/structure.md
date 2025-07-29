@@ -83,7 +83,6 @@ export const useModuleStore = create<State & Actions>()(...);
 ### Utility Organization
 - `errorHandling.ts`: Categorized error handling system
 - `dataPersistence.ts`: Data loading/saving with validation
-- `dataBackup.ts`: Automatic backup before modifications
 - `validation.ts`: Runtime data validation functions
 
 ## Testing Structure

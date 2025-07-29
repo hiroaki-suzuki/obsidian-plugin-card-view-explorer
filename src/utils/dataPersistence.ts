@@ -1,292 +1,218 @@
+/**
+ * Safe data persistence utilities for Obsidian plugin storage operations.
+ *
+ * Provides type-safe wrappers around Obsidian's storage API with validation,
+ * error handling, and automatic fallback to default values on failures.
+ */
+
 import type { PluginData, PluginSettings } from "../types";
 import { DEFAULT_DATA, DEFAULT_SETTINGS } from "../types/plugin";
-import { attemptDataRecovery, createDataBackup } from "./dataBackup";
-import {
-  CURRENT_DATA_VERSION,
-  type MigrationResult,
-  migratePluginData,
-  type VersionedPluginData,
-} from "./dataMigration";
+import { ErrorCategory, handleError } from "./errorHandling";
 import { validatePluginData, validatePluginSettings } from "./validation";
 
 /**
- * Data persistence utilities for Card View Explorer plugin
+ * Interface for data storage operations with both read and write capabilities.
+ * Abstracts over Obsidian's Plugin.loadData() and Plugin.saveData() methods.
  *
- * This module provides functions for saving and loading plugin data and settings
- * with comprehensive validation, automatic migration between versions, and
- * backup/recovery functionality. It ensures data integrity through validation
- * and provides fallback mechanisms when data is corrupted or invalid.
- *
- * The backup and recovery functionality is handled by the dataBackup module,
- * while data migration is handled by the dataMigration module.
+ * @template T - The type of data being stored (may include null for initial state)
  */
-
-/**
- * Plugin interface for data operations
- *
- * Represents an Obsidian plugin instance with both read and write capabilities
- * for plugin data. Used for operations that need to both read and write data.
- */
-interface PluginDataOperations {
-  loadData(): Promise<any>;
-  saveData(data: any): Promise<void>;
+interface DataStorage<T = unknown> {
+  loadData(): Promise<T>;
+  saveData(data: T): Promise<void>;
 }
 
 /**
- * Plugin interface for read-only operations
+ * Interface for read-only data storage operations.
+ * Used when only data loading is required, promoting type safety.
  *
- * Represents an Obsidian plugin instance with only read capabilities
- * for plugin data. Used for operations that only need to read data.
+ * @template T - The type of data being loaded (may include null for initial state)
  */
-interface PluginReadOnlyOperations {
-  loadData(): Promise<any>;
+interface ReadOnlyStorage<T = unknown> {
+  loadData(): Promise<T>;
 }
 
 /**
- * Error messages for consistent logging
+ * Safely loads plugin data from storage with validation and fallback to defaults.
+ * Handles corrupted data, missing files, and validation failures gracefully.
  *
- * Centralized error messages to ensure consistency in error reporting
- * throughout the data persistence operations. Using a const object
- * helps maintain consistency and makes it easier to update messages.
+ * @param plugin - Storage interface providing loadData capability
+ * @returns Promise resolving to valid PluginData (never null due to defaults)
+ * @throws Never throws - all errors are handled internally with fallback to defaults
  */
-const ERROR_MESSAGES = {
-  LOAD_FAILED: "Failed to load plugin data",
-  SAVE_FAILED: "Failed to save plugin data",
-  INVALID_DATA: "Cannot save invalid plugin data",
-  INVALID_SETTINGS: "Cannot save invalid plugin settings",
-  VALIDATION_FAILED: "Data validation failed after migration, using defaults",
-  SETTINGS_INVALID: "Invalid settings data, using defaults",
-  RECOVERY_FAILED: "Failed to recover from backup",
-  BACKUP_RECOVERY: "Recovered from backup due to data loading error",
-  FALLBACK_DEFAULTS: "Failed to load data, using defaults",
-  SETTINGS_LOAD_FAILED: "Failed to load plugin settings",
-  SETTINGS_SAVE_FAILED: "Failed to save plugin settings",
-} as const;
+export async function loadPluginData(
+  plugin: ReadOnlyStorage<PluginData | null>
+): Promise<PluginData> {
+  return safeLoadData(plugin, validatePluginData, DEFAULT_DATA, "loadPluginData");
+}
 
 /**
- * Handle errors with consistent logging and optional error handling utilities
+ * Safely saves plugin data to storage with validation.
+ * Validates data before saving and handles storage errors gracefully.
  *
- * This function provides a consistent way to handle errors in data operations.
- * It attempts to use the centralized error handling system, but falls back to
- * basic console logging if that's not available (e.g., in test environments).
- *
- * @param error - The error that occurred
- * @param operation - Name of the operation that failed (for logging)
- * @param context - Optional additional context information about the error
+ * @param plugin - Storage interface providing loadData and saveData capabilities
+ * @param data - Valid PluginData to save
+ * @returns Promise resolving to true if save succeeded, false if validation failed or save error occurred
  */
-async function handleDataError(
+export async function savePluginData(
+  plugin: DataStorage<PluginData | null>,
+  data: PluginData
+): Promise<boolean> {
+  return safeSaveData(plugin, data, validatePluginData, "savePluginData");
+}
+
+/**
+ * Safely loads plugin settings from storage with validation and fallback to defaults.
+ * Extracts settings from nested data structure (rawData.settings) and handles missing or invalid settings.
+ *
+ * @param plugin - Storage interface providing loadData capability
+ * @returns Promise resolving to valid PluginSettings (never null due to defaults)
+ * @throws Never throws - all errors are handled internally with fallback to defaults
+ */
+export async function loadPluginSettings(plugin: ReadOnlyStorage<any>): Promise<PluginSettings> {
+  return safeLoadData(
+    plugin,
+    validatePluginSettings,
+    DEFAULT_SETTINGS,
+    "loadPluginSettings",
+    (rawData) => rawData?.settings || {}
+  );
+}
+
+/**
+ * Safely saves plugin settings to storage with validation and data merging.
+ * Merges new settings with existing data to preserve other stored information.
+ *
+ * @param plugin - Storage interface providing loadData and saveData capabilities
+ * @param settings - Valid PluginSettings to save
+ * @returns Promise resolving to true if save succeeded, false if validation failed or save error occurred
+ */
+export async function savePluginSettings(
+  plugin: DataStorage<any>,
+  settings: PluginSettings
+): Promise<boolean> {
+  return safeSaveData(
+    plugin,
+    settings,
+    validatePluginSettings,
+    "savePluginSettings",
+    // Merge settings into existing data structure to preserve other fields
+    async (settings, existingData) => ({
+      ...(existingData || {}),
+      settings,
+    })
+  );
+}
+
+/**
+ * Generic safe save operation with validation and optional data transformation.
+ * Validates data before saving and optionally merges with existing data.
+ *
+ * @template T - Type of data being saved
+ * @param plugin - Storage interface providing loadData and saveData capabilities
+ * @param data - Data to validate and save
+ * @param validator - Function to validate data before saving
+ * @param operation - Operation name for error reporting
+ * @param dataTransformer - Optional function to transform data before saving (e.g., merge with existing)
+ * @returns Promise resolving to true if successful, false if validation failed or save error occurred
+ */
+async function safeSaveData<T>(
+  plugin: DataStorage,
+  data: T,
+  validator: (data: T) => boolean,
+  operation: string,
+  dataTransformer?: (data: T, existing?: any) => Promise<any>
+): Promise<boolean> {
+  try {
+    if (!validator(data)) {
+      const errorType = operation.replace("save", "").toLowerCase();
+      handlePersistentError(`Cannot save invalid ${errorType} data`, operation, {
+        data: JSON.stringify(data),
+      });
+      return false;
+    }
+
+    // Apply transformation if provided, otherwise use data as-is
+    const finalData = dataTransformer ? await dataTransformer(data, await plugin.loadData()) : data;
+
+    await plugin.saveData(finalData);
+    return true;
+  } catch (error) {
+    handlePersistentError(error, operation, { data: JSON.stringify(data) });
+    return false;
+  }
+}
+
+/**
+ * Generic safe load operation with validation, extraction, and fallback to defaults.
+ * Handles missing data, corrupted data, and validation failures gracefully.
+ *
+ * @template T - Type of data being loaded
+ * @param plugin - Storage interface providing loadData capability
+ * @param validator - TypeScript type guard function to validate loaded data
+ * @param defaultValue - Fallback value to use if data is missing, invalid, or load fails
+ * @param operation - Operation name for error reporting
+ * @param dataExtractor - Optional function to extract specific data from raw loaded data
+ * @returns Promise resolving to valid data of type T (never null due to fallback)
+ */
+async function safeLoadData<T>(
+  plugin: ReadOnlyStorage,
+  validator: (data: any) => data is T,
+  defaultValue: T,
+  operation: string,
+  dataExtractor?: (rawData: any) => any
+): Promise<T> {
+  let rawData: any;
+  try {
+    rawData = await plugin.loadData();
+
+    if (isEmptyOrMissingData(rawData)) {
+      return defaultValue;
+    }
+
+    // Extract specific data if extractor provided, otherwise use raw data
+    const targetData = dataExtractor ? dataExtractor(rawData) : rawData;
+
+    if (!validator(targetData)) {
+      handlePersistentError(`Invalid ${operation} data, using defaults`, operation, {
+        data: JSON.stringify(targetData),
+      });
+      return defaultValue;
+    }
+
+    // Merge with defaults if extraction was used to ensure all required fields are present
+    return dataExtractor ? { ...defaultValue, ...targetData } : (targetData as T);
+  } catch (error) {
+    handlePersistentError(error, operation, { hasExistingData: !!rawData });
+    return defaultValue;
+  }
+}
+
+/**
+ * Checks if data is empty, null, undefined, or an empty object.
+ * Used to determine if default values should be used instead of loaded data.
+ *
+ * @param data - Data to check for emptiness
+ * @returns True if data is falsy or an empty object, false otherwise
+ */
+function isEmptyOrMissingData(data: any): boolean {
+  return !data || (typeof data === "object" && Object.keys(data).length === 0);
+}
+
+/**
+ * Handles persistent data errors by categorizing them as DATA errors.
+ * Wraps the general error handler with DATA category and operation context.
+ *
+ * @param error - The error that occurred during data operation
+ * @param operation - Name of the operation that failed (for debugging)
+ * @param context - Additional context information for error reporting
+ */
+function handlePersistentError(
   error: unknown,
   operation: string,
   context?: Record<string, any>
-): Promise<void> {
-  try {
-    const { handleError, ErrorCategory } = await import("./errorHandling");
-    handleError(error, ErrorCategory.DATA, {
-      operation,
-      ...context,
-    });
-  } catch {
-    // Fallback for test environments where error handling might not be available
-    console.error(`Card View Explorer: ${operation} failed:`, error);
-  }
-}
-
-/**
- * Loads plugin data with validation and automatic migration between versions
- *
- * This function handles the complete data loading process including:
- * - Loading raw data from Obsidian storage
- * - Handling first-time plugin usage (empty data)
- * - Automatic version detection and migration
- * - Data validation after migration
- * - Fallback to defaults if validation fails
- * - Automatic recovery from backup if loading fails
- *
- * @param plugin - Plugin instance with loadData method
- * @returns Promise resolving to validated plugin data and detailed migration info
- */
-export async function loadPluginData(
-  plugin: PluginReadOnlyOperations
-): Promise<{ data: PluginData; migration: MigrationResult }> {
-  try {
-    const rawData = await plugin.loadData();
-
-    // Handle first-time load (no data file exists)
-    if (!rawData || Object.keys(rawData).length === 0) {
-      return {
-        data: DEFAULT_DATA,
-        migration: {
-          migrated: false,
-          toVersion: CURRENT_DATA_VERSION,
-        },
-      };
-    }
-
-    // Check if data has version info
-    const versionedData = rawData as Partial<VersionedPluginData>;
-    const dataVersion = versionedData.version || 0; // Default to 0 for data without version info
-
-    // Perform migration if needed
-    const { data: migratedData, migration } = await migratePluginData(versionedData, dataVersion);
-
-    // Validate migrated data
-    if (!validatePluginData(migratedData)) {
-      console.warn(`Card View Explorer: ${ERROR_MESSAGES.VALIDATION_FAILED}`);
-      return {
-        data: DEFAULT_DATA,
-        migration: {
-          migrated: true,
-          fromVersion: dataVersion,
-          toVersion: CURRENT_DATA_VERSION,
-          warnings: [ERROR_MESSAGES.VALIDATION_FAILED],
-        },
-      };
-    }
-
-    return { data: migratedData, migration };
-  } catch (error) {
-    await handleDataError(error, "loadPluginData", { hasExistingData: false });
-
-    // Try to recover from backup
-    try {
-      const rawData = await plugin.loadData();
-      const recoveryResult = attemptDataRecovery(rawData);
-      if (recoveryResult.success && recoveryResult.data) {
-        return {
-          data: recoveryResult.data,
-          migration: {
-            migrated: true,
-            fromVersion: 0,
-            toVersion: CURRENT_DATA_VERSION,
-            warnings: [ERROR_MESSAGES.BACKUP_RECOVERY],
-          },
-        };
-      }
-    } catch (recoveryError) {
-      await handleDataError(recoveryError, "attemptDataRecovery");
-    }
-
-    // Fall back to defaults
-    return {
-      data: DEFAULT_DATA,
-      migration: {
-        migrated: false,
-        toVersion: CURRENT_DATA_VERSION,
-        warnings: [ERROR_MESSAGES.FALLBACK_DEFAULTS],
-      },
-    };
-  }
-}
-
-/**
- * Saves plugin data with automatic backup creation and validation
- *
- * This function ensures data integrity through:
- * - Validation of data structure before saving
- * - Automatic backup creation before modifying existing data
- * - Version tagging to support future migrations
- * - Error handling with detailed context information
- *
- * @param plugin - Plugin instance with saveData method
- * @param data - Plugin data to save
- * @returns Promise resolving to boolean indicating success (true) or failure (false)
- */
-export async function savePluginData(
-  plugin: PluginDataOperations,
-  data: PluginData
-): Promise<boolean> {
-  try {
-    // Validate data before saving
-    if (!validatePluginData(data)) {
-      console.error(`Card View Explorer: ${ERROR_MESSAGES.INVALID_DATA}`);
-      return false;
-    }
-
-    // Create backup of current data and manage backups array
-    const backups = createDataBackup(data);
-
-    // Add version info and backups array to new data
-    const versionedData = {
-      ...data,
-      version: CURRENT_DATA_VERSION,
-      _backups: backups,
-    };
-
-    await plugin.saveData(versionedData);
-    return true;
-  } catch (error) {
-    await handleDataError(error, "savePluginData", {
-      dataSize: JSON.stringify(data).length,
-    });
-    return false;
-  }
-}
-
-/**
- * Loads plugin settings with validation and default value merging
- *
- * This function handles settings loading with:
- * - Extraction of settings from the plugin data file
- * - Validation of settings structure and values
- * - Merging with default settings to ensure all fields exist
- * - Fallback to default settings if validation fails
- *
- * @param plugin - Plugin instance with loadData method
- * @returns Promise resolving to validated plugin settings (merged with defaults)
- */
-export async function loadPluginSettings(
-  plugin: PluginReadOnlyOperations
-): Promise<PluginSettings> {
-  try {
-    const rawData = await plugin.loadData();
-
-    // Extract settings from data (settings are stored in the same file)
-    const settings = rawData?.settings || rawData || {};
-
-    // Validate and merge with defaults
-    if (validatePluginSettings(settings)) {
-      return { ...DEFAULT_SETTINGS, ...settings };
-    } else {
-      console.warn(`Card View Explorer: ${ERROR_MESSAGES.SETTINGS_INVALID}`);
-      return DEFAULT_SETTINGS;
-    }
-  } catch (error) {
-    await handleDataError(error, "loadPluginSettings");
-    return DEFAULT_SETTINGS;
-  }
-}
-
-/**
- * Save plugin settings with validation
- *
- * @param plugin - Plugin instance with saveData method
- * @param settings - Plugin settings to save
- * @returns Promise resolving to success status
- */
-export async function savePluginSettings(
-  plugin: PluginDataOperations,
-  settings: PluginSettings
-): Promise<boolean> {
-  try {
-    // Validate settings before saving
-    if (!validatePluginSettings(settings)) {
-      console.error(`Card View Explorer: ${ERROR_MESSAGES.INVALID_SETTINGS}`);
-      return false;
-    }
-
-    // Load existing data to preserve other fields
-    const existingData = (await plugin.loadData()) || {};
-
-    // Merge settings with existing data
-    const updatedData = {
-      ...existingData,
-      settings,
-    };
-
-    await plugin.saveData(updatedData);
-    return true;
-  } catch (error) {
-    await handleDataError(error, "savePluginSettings");
-    return false;
-  }
+): void {
+  handleError(error, ErrorCategory.DATA, {
+    operation,
+    ...context,
+  });
 }

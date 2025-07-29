@@ -55,16 +55,6 @@ export function validatePluginData(data: any): data is PluginData {
     return false;
   }
 
-  // Backups array is optional but must contain valid backup entries if present
-  if (data._backups !== undefined) {
-    if (!Array.isArray(data._backups)) {
-      return false;
-    }
-    if (!data._backups.every(validateBackup)) {
-      return false;
-    }
-  }
-
   return true;
 }
 
@@ -129,59 +119,16 @@ function validateSortConfig(data: any): data is SortConfig {
 }
 
 /**
- * Validates a complete backup entry including metadata.
- * @param backup - The backup entry to validate
- * @returns True if the backup entry is valid
- */
-function validateBackup(backup: any): boolean {
-  if (!isPlainObject(backup)) {
-    return false;
-  }
-
-  return (
-    typeof backup.timestamp === "number" &&
-    isValidVersionNumber(backup.version) &&
-    validateBackupData(backup.data)
-  );
-}
-
-/**
- * Validates the data portion of a backup entry.
- * @param data - The backup data to validate
- * @returns True if the backup data is valid
- */
-function validateBackupData(data: any): boolean {
-  if (!isPlainObject(data)) {
-    return false;
-  }
-
-  return (
-    isStringArray(data.pinnedNotes) &&
-    validateFilterState(data.lastFilters) &&
-    validateSortConfig(data.sortConfig)
-  );
-}
-
-/**
  * Validates whether a value is a valid optional version number.
  * Version numbers must be non-negative integers (0, 1, 2, ...) or undefined (optional).
- * Decimal values and negative numbers are not allowed.
  * @param version - The value to validate as an optional version number
  * @returns True if the value is a valid version number or undefined
  */
 function isValidOptionalVersion(version: any): boolean {
-  return version === undefined || isValidVersionNumber(version);
-}
-
-/**
- * Validates whether a value is a valid version number (required).
- * Version numbers must be non-negative integers (0, 1, 2, ...).
- * Decimal values and negative numbers are not allowed.
- * @param version - The value to validate as a version number
- * @returns True if the value is a valid version number
- */
-function isValidVersionNumber(version: any): boolean {
-  return typeof version === "number" && Number.isInteger(version) && version >= 0;
+  return (
+    version === undefined ||
+    (typeof version === "number" && Number.isInteger(version) && version >= 0)
+  );
 }
 
 /**

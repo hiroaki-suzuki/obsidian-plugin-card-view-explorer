@@ -31,21 +31,18 @@ vi.mock("react-dom/client", () => ({
 // Mock data persistence utilities
 vi.mock("./utils/dataPersistence", () => ({
   loadPluginData: vi.fn().mockResolvedValue({
-    data: {
-      pinnedNotes: [],
-      lastFilters: {
-        folders: [],
-        tags: [],
-        filename: "",
-        dateRange: null,
-      },
-      sortConfig: {
-        key: "updated",
-        order: "desc",
-      },
-      version: 1,
+    pinnedNotes: [],
+    lastFilters: {
+      folders: [],
+      tags: [],
+      filename: "",
+      dateRange: null,
     },
-    migration: { migrated: false },
+    sortConfig: {
+      key: "updated",
+      order: "desc",
+    },
+    version: 1,
   }),
   loadPluginSettings: vi.fn().mockResolvedValue({
     autoStart: false,
@@ -346,47 +343,12 @@ describe("Obsidian API Integration Tests", () => {
           order: "desc",
         },
         version: 1,
-        _backups: [],
       };
       plugin.updateData(testData as any);
 
       await plugin.savePluginData();
 
       expect(savePluginData).toHaveBeenCalledWith(plugin, testData);
-    });
-
-    it("should handle data migration during loading", async () => {
-      const { loadPluginData } = await import("./utils/dataPersistence");
-      const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      // Mock migration scenario
-      vi.mocked(loadPluginData).mockResolvedValueOnce({
-        data: {
-          pinnedNotes: ["migrated.md"],
-          lastFilters: {
-            folders: [],
-            tags: [],
-            filename: "",
-            dateRange: null,
-          },
-          sortConfig: {
-            key: "updated",
-            order: "desc",
-          },
-          version: 1,
-        },
-        migration: { migrated: true, fromVersion: 0, toVersion: 1, warnings: [] },
-      });
-
-      await plugin.loadPluginData();
-
-      expect(consoleSpy).toHaveBeenCalledWith("Card View Explorer: Data migrated", {
-        from: 0,
-        to: 1,
-        warnings: [],
-      });
-
-      consoleSpy.mockRestore();
     });
   });
 

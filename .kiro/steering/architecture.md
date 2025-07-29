@@ -46,8 +46,6 @@ inclusion: always
 **Utilities** (`src/utils/`):
 - `errorHandling.ts`: Categorized error handling with retry logic
 - `dataPersistence.ts`: Data loading/saving with validation
-- `dataBackup.ts`: Automatic backup system
-- `dataMigration.ts`: Versioned data migration
 - `validation.ts`: Runtime data validation
 
 ## Key Principles
@@ -68,7 +66,7 @@ state.filters.tags.push(newTag);
 - Store error state for API/data errors
 - Categorized error handling (API, DATA, UI, GENERAL)
 - Automatic retry with exponential backoff
-- Backup and recovery systems
+- Fallback to defaults for invalid data
 
 **Performance**: Virtual scrolling + memoization
 - Use `react-virtuoso` for lists >100 items
