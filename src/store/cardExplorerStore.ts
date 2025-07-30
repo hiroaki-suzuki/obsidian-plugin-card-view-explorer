@@ -134,7 +134,7 @@ const recomputeFilteredNotes = (
   pinnedNotes: Set<string>
 ): NoteData[] => {
   // Step 1: Apply filters to reduce the dataset
-  const filtered = applyFilters(notes, filters);
+  const filtered = applyFilters(notes, filters, new Date());
   // Step 2: Sort and organize with pinned notes first
   return sortNotes(filtered, sortConfig, pinnedNotes);
 };
