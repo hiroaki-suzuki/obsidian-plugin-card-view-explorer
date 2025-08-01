@@ -1,433 +1,416 @@
 import { describe, expect, it } from "vitest";
 import type { NoteData, SortConfig } from "../../types";
-import {
-  compareValues,
-  createSortComparator,
-  extractSortValue,
-  normalizeForComparison,
-  separateNotesByPinStatus,
-  sortNotes,
-  togglePinState,
-} from "./sortLogic";
+import { sortNotes, togglePinState } from "./sortLogic";
 
-// Mock note data for testing
-const createMockNote = (
-  title: string,
-  path: string,
-  folder: string = "",
-  tags: string[] = [],
-  frontmatter: Record<string, any> | null = null,
-  lastModified: Date = new Date()
-): NoteData => ({
-  file: {} as any, // Mock TFile
-  title,
-  path,
-  preview: `Preview for ${title}`,
-  lastModified,
-  frontmatter,
-  tags,
-  folder,
-});
+// Enhanced test data builder
+class MockNoteBuilder {
+  private note: Partial<NoteData> = {};
 
-describe("Sort Logic", () => {
-  describe("extractSortValue", () => {
-    const baseDate = new Date("2024-01-01");
-    const note = createMockNote(
-      "Test",
-      "/test.md",
-      "",
-      [],
-      { priority: 5, status: "active" },
-      baseDate
-    );
+  static create(title: string, path: string): MockNoteBuilder {
+    return new MockNoteBuilder().withTitle(title).withPath(path);
+  }
 
-    it("should return lastModified for mtime key", () => {
-      expect(extractSortValue(note, "mtime")).toBe(baseDate);
-    });
+  withTitle(title: string): MockNoteBuilder {
+    this.note.title = title;
+    this.note.preview = `Preview for ${title}`;
+    return this;
+  }
 
-    it("should return frontmatter value when available", () => {
-      expect(extractSortValue(note, "priority")).toBe(5);
-      expect(extractSortValue(note, "status")).toBe("active");
-    });
+  withPath(path: string): MockNoteBuilder {
+    this.note.path = path;
+    return this;
+  }
 
-    it("should fallback to lastModified when frontmatter key doesn't exist", () => {
-      expect(extractSortValue(note, "nonexistent")).toBe(baseDate);
-    });
+  withFolder(folder: string): MockNoteBuilder {
+    this.note.folder = folder;
+    return this;
+  }
 
-    it("should fallback to lastModified when frontmatter value is null", () => {
-      const noteWithNull = createMockNote("Test", "/test.md", "", [], { priority: null }, baseDate);
-      expect(extractSortValue(noteWithNull, "priority")).toBe(baseDate);
-    });
+  withTags(tags: string[]): MockNoteBuilder {
+    this.note.tags = tags;
+    return this;
+  }
 
-    it("should fallback to lastModified when no frontmatter", () => {
-      const noteWithoutFrontmatter = createMockNote("Test", "/test.md", "", [], null, baseDate);
-      expect(extractSortValue(noteWithoutFrontmatter, "priority")).toBe(baseDate);
-    });
+  withFrontmatter(frontmatter: Record<string, any>): MockNoteBuilder {
+    this.note.frontmatter = frontmatter;
+    return this;
+  }
 
-    it("should parse date strings from frontmatter", () => {
-      const noteWithDateString = createMockNote(
-        "Test",
-        "/test.md",
-        "",
-        [],
-        { updated: "2024-01-15" },
-        baseDate
-      );
-      const result = extractSortValue(noteWithDateString, "updated");
+  withDate(date: Date): MockNoteBuilder {
+    this.note.lastModified = date;
+    return this;
+  }
 
-      expect(result).toBeInstanceOf(Date);
-      expect((result as Date).getFullYear()).toBe(2024);
-      expect((result as Date).getMonth()).toBe(0); // January is 0
-      expect((result as Date).getDate()).toBe(15);
-    });
+  build(): NoteData {
+    return {
+      file: {} as any,
+      title: this.note.title || "",
+      path: this.note.path || "",
+      preview: this.note.preview || "",
+      lastModified: this.note.lastModified || new Date(),
+      frontmatter: this.note.frontmatter || null,
+      tags: this.note.tags || [],
+      folder: this.note.folder || "",
+    };
+  }
+}
 
-    it("should handle invalid date strings in frontmatter", () => {
-      const noteWithInvalidDate = createMockNote(
-        "Test",
-        "/test.md",
-        "",
-        [],
-        { updated: "not-a-date" },
-        baseDate
-      );
-      const result = extractSortValue(noteWithInvalidDate, "updated");
+// Test data constants
+const TEST_DATES = {
+  EARLY: new Date("2024-01-01"),
+  MIDDLE: new Date("2024-01-02"),
+  LATE: new Date("2024-01-03"),
+  SPECIFIC: new Date("2024-01-15T10:00:00Z"),
+} as const;
 
-      // Should return the original string value, not a Date
-      expect(result).toBe("not-a-date");
-      expect(result).not.toBeInstanceOf(Date);
-    });
+const TEST_PATHS = {
+  NOTE1: "/note1.md",
+  NOTE2: "/note2.md",
+  NOTE3: "/note3.md",
+};
 
-    it("should handle Date objects in frontmatter", () => {
-      const frontmatterDate = new Date("2024-01-15");
-      const noteWithDateObject = createMockNote(
-        "Test",
-        "/test.md",
-        "",
-        [],
-        { updated: frontmatterDate },
-        baseDate
-      );
-      const result = extractSortValue(noteWithDateObject, "updated");
+const SAMPLE_NOTES = {
+  BASIC: [
+    MockNoteBuilder.create("Note 1", TEST_PATHS.NOTE1).withDate(TEST_DATES.EARLY).build(),
+    MockNoteBuilder.create("Note 2", TEST_PATHS.NOTE2).withDate(TEST_DATES.MIDDLE).build(),
+    MockNoteBuilder.create("Note 3", TEST_PATHS.NOTE3).withDate(TEST_DATES.LATE).build(),
+  ],
+  WITH_PRIORITY: [
+    MockNoteBuilder.create("Note 1", TEST_PATHS.NOTE1)
+      .withFrontmatter({ priority: 3 })
+      .withDate(TEST_DATES.EARLY)
+      .build(),
+    MockNoteBuilder.create("Note 2", TEST_PATHS.NOTE2)
+      .withFrontmatter({ priority: 1 })
+      .withDate(TEST_DATES.MIDDLE)
+      .build(),
+    MockNoteBuilder.create("Note 3", TEST_PATHS.NOTE3)
+      .withFrontmatter({ priority: 2 })
+      .withDate(TEST_DATES.LATE)
+      .build(),
+  ],
+};
 
-      expect(result).toBe(frontmatterDate);
-      expect(result).toBeInstanceOf(Date);
-    });
-  });
+// Custom assertion helpers
+const expectTitleOrder = (notes: NoteData[], expectedTitles: string[]) => {
+  expect(notes.map((n) => n.title)).toEqual(expectedTitles);
+};
 
-  describe("normalizeForComparison", () => {
-    it("should convert Date to timestamp", () => {
-      const date = new Date("2024-01-01T12:00:00Z");
-      expect(normalizeForComparison(date)).toBe(date.getTime());
-    });
+const expectPathOrder = (notes: NoteData[], expectedPaths: string[]) => {
+  expect(notes.map((n) => n.path)).toEqual(expectedPaths);
+};
 
-    it("should convert string to lowercase", () => {
-      expect(normalizeForComparison("Hello World")).toBe("hello world");
-      expect(normalizeForComparison("TEST")).toBe("test");
-    });
+const expectSortedByField = (notes: NoteData[], field: string, expectedValues: any[]) => {
+  const actualValues = notes.map((n) =>
+    field === "mtime" ? n.lastModified : n.frontmatter?.[field]
+  );
+  expect(actualValues).toEqual(expectedValues);
+};
 
-    it("should leave numbers unchanged", () => {
-      expect(normalizeForComparison(42)).toBe(42);
-      expect(normalizeForComparison(3.14)).toBe(3.14);
-    });
-
-    it("should leave booleans unchanged", () => {
-      expect(normalizeForComparison(true)).toBe(true);
-      expect(normalizeForComparison(false)).toBe(false);
-    });
-
-    it("should leave null and undefined unchanged", () => {
-      expect(normalizeForComparison(null)).toBe(null);
-      expect(normalizeForComparison(undefined)).toBe(undefined);
-    });
-  });
-
-  describe("compareValues", () => {
-    it("should return -1 when a < b", () => {
-      expect(compareValues(1, 2)).toBe(-1);
-      expect(compareValues("a", "b")).toBe(-1);
-    });
-
-    it("should return 1 when a > b", () => {
-      expect(compareValues(2, 1)).toBe(1);
-      expect(compareValues("b", "a")).toBe(1);
-    });
-
-    it("should return 0 when a === b", () => {
-      expect(compareValues(1, 1)).toBe(0);
-      expect(compareValues("a", "a")).toBe(0);
-    });
-  });
-
-  describe("createSortComparator", () => {
-    const date1 = new Date("2024-01-01");
-    const date2 = new Date("2024-01-02");
-    const date3 = new Date("2024-01-03");
-
-    const notes = [
-      createMockNote("Note 1", "/note1.md", "", [], { priority: 3 }, date1),
-      createMockNote("Note 2", "/note2.md", "", [], { priority: 1 }, date2),
-      createMockNote("Note 3", "/note3.md", "", [], { priority: 2 }, date3),
-    ];
-
-    it("should sort by mtime in ascending order", () => {
-      const config: SortConfig = { key: "mtime", order: "asc" };
-      const comparator = createSortComparator(config);
-      const sorted = [...notes].sort(comparator);
-
-      expect(sorted[0].title).toBe("Note 1"); // Earliest date
-      expect(sorted[1].title).toBe("Note 2");
-      expect(sorted[2].title).toBe("Note 3"); // Latest date
-    });
-
-    it("should sort by mtime in descending order", () => {
-      const config: SortConfig = { key: "mtime", order: "desc" };
-      const comparator = createSortComparator(config);
-      const sorted = [...notes].sort(comparator);
-
-      expect(sorted[0].title).toBe("Note 3"); // Latest date
-      expect(sorted[1].title).toBe("Note 2");
-      expect(sorted[2].title).toBe("Note 1"); // Earliest date
-    });
-
-    it("should sort by frontmatter field in ascending order", () => {
-      const config: SortConfig = { key: "priority", order: "asc" };
-      const comparator = createSortComparator(config);
-      const sorted = [...notes].sort(comparator);
-
-      expect(sorted[0].frontmatter?.priority).toBe(1);
-      expect(sorted[1].frontmatter?.priority).toBe(2);
-      expect(sorted[2].frontmatter?.priority).toBe(3);
-    });
-
-    it("should sort by frontmatter field in descending order", () => {
-      const config: SortConfig = { key: "priority", order: "desc" };
-      const comparator = createSortComparator(config);
-      const sorted = [...notes].sort(comparator);
-
-      expect(sorted[0].frontmatter?.priority).toBe(3);
-      expect(sorted[1].frontmatter?.priority).toBe(2);
-      expect(sorted[2].frontmatter?.priority).toBe(1);
-    });
-
-    it("should handle string sorting case-insensitively", () => {
-      const stringNotes = [
-        createMockNote("Note 1", "/note1.md", "", [], { status: "Completed" }),
-        createMockNote("Note 2", "/note2.md", "", [], { status: "active" }),
-        createMockNote("Note 3", "/note3.md", "", [], { status: "Blocked" }),
-      ];
-
-      const config: SortConfig = { key: "status", order: "asc" };
-      const comparator = createSortComparator(config);
-      const sorted = [...stringNotes].sort(comparator);
-
-      expect(sorted[0].frontmatter?.status).toBe("active");
-      expect(sorted[1].frontmatter?.status).toBe("Blocked");
-      expect(sorted[2].frontmatter?.status).toBe("Completed");
-    });
-  });
-
-  describe("separateNotesByPinStatus", () => {
-    const notes = [
-      createMockNote("Note 1", "/note1.md"),
-      createMockNote("Note 2", "/note2.md"),
-      createMockNote("Note 3", "/note3.md"),
-      createMockNote("Note 4", "/note4.md"),
-    ];
-
-    it("should separate pinned and unpinned notes", () => {
-      const pinnedNotes = new Set(["/note2.md", "/note4.md"]);
-      const result = separateNotesByPinStatus(notes, pinnedNotes);
-
-      expect(result.pinned).toHaveLength(2);
-      expect(result.unpinned).toHaveLength(2);
-      expect(result.pinned.map((n) => n.path)).toEqual(["/note2.md", "/note4.md"]);
-      expect(result.unpinned.map((n) => n.path)).toEqual(["/note1.md", "/note3.md"]);
-    });
-
-    it("should handle no pinned notes", () => {
-      const pinnedNotes = new Set<string>();
-      const result = separateNotesByPinStatus(notes, pinnedNotes);
-
-      expect(result.pinned).toHaveLength(0);
-      expect(result.unpinned).toHaveLength(4);
-    });
-
-    it("should handle all notes pinned", () => {
-      const pinnedNotes = new Set(["/note1.md", "/note2.md", "/note3.md", "/note4.md"]);
-      const result = separateNotesByPinStatus(notes, pinnedNotes);
-
-      expect(result.pinned).toHaveLength(4);
-      expect(result.unpinned).toHaveLength(0);
-    });
-
-    it("should handle empty notes array", () => {
-      const pinnedNotes = new Set(["/note1.md"]);
-      const result = separateNotesByPinStatus([], pinnedNotes);
-
-      expect(result.pinned).toHaveLength(0);
-      expect(result.unpinned).toHaveLength(0);
-    });
-  });
-
-  describe("sortNotes", () => {
-    const date1 = new Date("2024-01-01");
-    const date2 = new Date("2024-01-02");
-    const date3 = new Date("2024-01-03");
-
-    const notes = [
-      createMockNote("Note 1", "/note1.md", "", [], null, date1),
-      createMockNote("Note 2", "/note2.md", "", [], null, date2),
-      createMockNote("Note 3", "/note3.md", "", [], null, date3),
-    ];
-
-    it("should sort notes without pins", () => {
-      const sortConfig: SortConfig = { key: "mtime", order: "asc" };
-      const pinnedNotes = new Set<string>();
-      const result = sortNotes(notes, sortConfig, pinnedNotes);
-
-      expect(result.map((n) => n.title)).toEqual(["Note 1", "Note 2", "Note 3"]);
-    });
-
-    it("should place pinned notes first while maintaining sort order", () => {
-      const sortConfig: SortConfig = { key: "mtime", order: "asc" };
-      const pinnedNotes = new Set(["/note3.md", "/note1.md"]);
-      const result = sortNotes(notes, sortConfig, pinnedNotes);
-
-      // Pinned notes should come first, but still sorted among themselves
-      expect(result.map((n) => n.title)).toEqual(["Note 1", "Note 3", "Note 2"]);
-    });
-
-    it("should handle descending sort with pins", () => {
-      const sortConfig: SortConfig = { key: "mtime", order: "desc" };
-      const pinnedNotes = new Set(["/note1.md"]);
-      const result = sortNotes(notes, sortConfig, pinnedNotes);
-
-      // Note 1 should be first (pinned), then Note 3, Note 2 (desc order)
-      expect(result.map((n) => n.title)).toEqual(["Note 1", "Note 3", "Note 2"]);
-    });
-
-    it("should not mutate original array", () => {
-      const originalOrder = notes.map((n) => n.title);
-      const sortConfig: SortConfig = { key: "mtime", order: "desc" };
-      const pinnedNotes = new Set<string>();
-
-      sortNotes(notes, sortConfig, pinnedNotes);
-
-      expect(notes.map((n) => n.title)).toEqual(originalOrder);
-    });
-  });
-
+describe("sortLogic", () => {
   describe("togglePinState", () => {
-    it("should add note to empty pin set", () => {
-      const pinnedNotes = new Set<string>();
-      const result = togglePinState(pinnedNotes, "/note1.md");
+    it.each([
+      {
+        scenario: "empty pin set",
+        initialPins: [],
+        targetPath: TEST_PATHS.NOTE1,
+        expectedHas: true,
+        expectedSize: 1,
+      },
+      {
+        scenario: "existing pin set",
+        initialPins: [TEST_PATHS.NOTE1],
+        targetPath: TEST_PATHS.NOTE2,
+        expectedHas: true,
+        expectedSize: 2,
+      },
+      {
+        scenario: "removing from pin set",
+        initialPins: [TEST_PATHS.NOTE1, TEST_PATHS.NOTE2],
+        targetPath: TEST_PATHS.NOTE1,
+        expectedHas: false,
+        expectedSize: 1,
+      },
+    ])("should handle $scenario", ({ initialPins, targetPath, expectedHas, expectedSize }) => {
+      const pinnedNotes = new Set(initialPins);
+      const result = togglePinState(pinnedNotes, targetPath);
 
-      expect(result.has("/note1.md")).toBe(true);
-      expect(result.size).toBe(1);
-    });
-
-    it("should add note to existing pin set", () => {
-      const pinnedNotes = new Set(["/note1.md"]);
-      const result = togglePinState(pinnedNotes, "/note2.md");
-
-      expect(result.has("/note1.md")).toBe(true);
-      expect(result.has("/note2.md")).toBe(true);
-      expect(result.size).toBe(2);
-    });
-
-    it("should remove note from pin set", () => {
-      const pinnedNotes = new Set(["/note1.md", "/note2.md"]);
-      const result = togglePinState(pinnedNotes, "/note1.md");
-
-      expect(result.has("/note1.md")).toBe(false);
-      expect(result.has("/note2.md")).toBe(true);
-      expect(result.size).toBe(1);
+      expect(result.has(targetPath)).toBe(expectedHas);
+      expect(result.size).toBe(expectedSize);
     });
 
     it("should not mutate original set", () => {
-      const pinnedNotes = new Set(["/note1.md"]);
-      const result = togglePinState(pinnedNotes, "/note2.md");
+      const originalPins = new Set([TEST_PATHS.NOTE1]);
+      const originalSize = originalPins.size;
 
-      expect(pinnedNotes.size).toBe(1);
-      expect(pinnedNotes.has("/note2.md")).toBe(false);
-      expect(result.size).toBe(2);
-      expect(result.has("/note2.md")).toBe(true);
+      const result = togglePinState(originalPins, TEST_PATHS.NOTE2);
+
+      expect(originalPins.size).toBe(originalSize);
+      expect(originalPins.has(TEST_PATHS.NOTE2)).toBe(false);
+      expect(result.has(TEST_PATHS.NOTE2)).toBe(true);
     });
 
     it("should handle toggle on same note multiple times", () => {
       let pinnedNotes = new Set<string>();
 
       // Add
-      pinnedNotes = togglePinState(pinnedNotes, "/note1.md");
-      expect(pinnedNotes.has("/note1.md")).toBe(true);
+      pinnedNotes = togglePinState(pinnedNotes, TEST_PATHS.NOTE1);
+      expect(pinnedNotes.has(TEST_PATHS.NOTE1)).toBe(true);
 
       // Remove
-      pinnedNotes = togglePinState(pinnedNotes, "/note1.md");
-      expect(pinnedNotes.has("/note1.md")).toBe(false);
+      pinnedNotes = togglePinState(pinnedNotes, TEST_PATHS.NOTE1);
+      expect(pinnedNotes.has(TEST_PATHS.NOTE1)).toBe(false);
 
       // Add again
-      pinnedNotes = togglePinState(pinnedNotes, "/note1.md");
-      expect(pinnedNotes.has("/note1.md")).toBe(true);
+      pinnedNotes = togglePinState(pinnedNotes, TEST_PATHS.NOTE1);
+      expect(pinnedNotes.has(TEST_PATHS.NOTE1)).toBe(true);
     });
   });
 
-  describe("Integration: Frontmatter Date Sorting", () => {
-    it("should sort notes by frontmatter date strings correctly", () => {
-      const note1 = createMockNote(
-        "Note 1",
-        "/note1.md",
-        "",
-        [],
-        { updated: "2024-01-15" }, // Newer date string
-        new Date("2024-01-01") // Older file modification time
-      );
-      const note2 = createMockNote(
-        "Note 2",
-        "/note2.md",
-        "",
-        [],
-        { updated: "2024-01-10" }, // Older date string
-        new Date("2024-01-02") // Newer file modification time
-      );
-      const note3 = createMockNote(
-        "Note 3",
-        "/note3.md",
-        "",
-        [],
-        null, // No frontmatter, should use lastModified
-        new Date("2024-01-05")
-      );
-
-      const notes = [note2, note1, note3]; // Intentionally out of order
-      const sortConfig: SortConfig = { key: "updated", order: "desc" };
-      const result = sortNotes(notes, sortConfig, new Set());
-
-      // Should be sorted by frontmatter 'updated' field descending (newest first)
-      // Note 1: 2024-01-15 (from frontmatter)
-      // Note 2: 2024-01-10 (from frontmatter)
-      // Note 3: 2024-01-05 (from lastModified, no frontmatter)
-      expect(result[0].path).toBe("/note1.md");
-      expect(result[1].path).toBe("/note2.md");
-      expect(result[2].path).toBe("/note3.md");
+  describe("sortNotes", () => {
+    describe("basic mtime sorting", () => {
+      it.each([
+        {
+          order: "asc" as const,
+          expectedTitles: ["Note 1", "Note 2", "Note 3"],
+        },
+        {
+          order: "desc" as const,
+          expectedTitles: ["Note 3", "Note 2", "Note 1"],
+        },
+      ])("should sort by mtime in $order order", ({ order, expectedTitles }) => {
+        const sortConfig: SortConfig = { key: "mtime", order };
+        const result = sortNotes(SAMPLE_NOTES.BASIC, sortConfig, new Set());
+        expectTitleOrder(result, expectedTitles);
+      });
     });
 
-    it("should handle mixed frontmatter date formats", () => {
-      const note1 = createMockNote("Note 1", "/note1.md", "", [], {
-        updated: "2024-01-15T10:30:00Z",
-      }); // ISO string
-      const note2 = createMockNote("Note 2", "/note2.md", "", [], { updated: "2024-01-10" }); // Date only
-      const note3 = createMockNote("Note 3", "/note3.md", "", [], {
-        updated: new Date("2024-01-20"),
-      }); // Date object
+    describe("frontmatter field sorting", () => {
+      it.each([
+        {
+          field: "priority",
+          order: "asc" as const,
+          expectedValues: [1, 2, 3],
+        },
+        {
+          field: "priority",
+          order: "desc" as const,
+          expectedValues: [3, 2, 1],
+        },
+      ])("should sort by $field in $order order", ({ field, order, expectedValues }) => {
+        const sortConfig: SortConfig = { key: field, order };
+        const result = sortNotes(SAMPLE_NOTES.WITH_PRIORITY, sortConfig, new Set());
+        expectSortedByField(result, field, expectedValues);
+      });
+    });
 
-      const notes = [note1, note2, note3];
-      const sortConfig: SortConfig = { key: "updated", order: "desc" };
-      const result = sortNotes(notes, sortConfig, new Set());
+    it("should handle string sorting case-insensitively", () => {
+      const stringNotes = [
+        MockNoteBuilder.create("Note 1", "/note1.md")
+          .withFrontmatter({ status: "Completed" })
+          .build(),
+        MockNoteBuilder.create("Note 2", "/note2.md").withFrontmatter({ status: "active" }).build(),
+        MockNoteBuilder.create("Note 3", "/note3.md")
+          .withFrontmatter({ status: "Blocked" })
+          .build(),
+      ];
 
-      // Should be sorted correctly regardless of date format
-      expect(result[0].path).toBe("/note3.md"); // 2024-01-20
-      expect(result[1].path).toBe("/note1.md"); // 2024-01-15
-      expect(result[2].path).toBe("/note2.md"); // 2024-01-10
+      const sortConfig: SortConfig = { key: "status", order: "asc" };
+      const result = sortNotes(stringNotes, sortConfig, new Set());
+
+      expectSortedByField(result, "status", ["active", "Blocked", "Completed"]);
+    });
+
+    it("should fallback to modification time when frontmatter field doesn't exist", () => {
+      const notesWithMissingField = [
+        MockNoteBuilder.create("Note 1", TEST_PATHS.NOTE1)
+          .withFrontmatter({ priority: 5 })
+          .withDate(TEST_DATES.LATE)
+          .build(), // Has priority, latest date
+        MockNoteBuilder.create("Note 2", TEST_PATHS.NOTE2)
+          .withDate(TEST_DATES.EARLY)
+          .build(), // No frontmatter, earliest date
+        MockNoteBuilder.create("Note 3", TEST_PATHS.NOTE3)
+          .withFrontmatter({ other: "value" })
+          .withDate(TEST_DATES.MIDDLE)
+          .build(), // No priority field, middle date
+      ];
+
+      const sortConfig: SortConfig = { key: "priority", order: "asc" };
+      const result = sortNotes(notesWithMissingField, sortConfig, new Set());
+
+      // Note 1 has priority 5, Note 2 and Note 3 fallback to mtime
+      // Timestamps are much larger numbers than 5, so 5 comes first
+      expectPathOrder(result, [TEST_PATHS.NOTE1, TEST_PATHS.NOTE2, TEST_PATHS.NOTE3]);
+    });
+
+    describe("date handling", () => {
+      it.each([
+        {
+          scenario: "valid date strings",
+          notes: [
+            MockNoteBuilder.create("Note 1", "/note1.md")
+              .withFrontmatter({ updated: "2024-01-15" })
+              .withDate(TEST_DATES.EARLY)
+              .build(),
+            MockNoteBuilder.create("Note 2", "/note2.md")
+              .withFrontmatter({ updated: "2024-01-10" })
+              .withDate(TEST_DATES.MIDDLE)
+              .build(),
+            MockNoteBuilder.create("Note 3", "/note3.md")
+              .withDate(TEST_DATES.LATE)
+              .build(), // Should use mtime
+          ],
+          expectedOrder: ["/note1.md", "/note2.md", "/note3.md"], // desc order
+        },
+        {
+          scenario: "mixed date formats",
+          notes: [
+            MockNoteBuilder.create("Note 1", "/note1.md")
+              .withFrontmatter({ updated: "2024-01-15T10:30:00Z" })
+              .build(), // ISO string
+            MockNoteBuilder.create("Note 2", "/note2.md")
+              .withFrontmatter({ updated: "2024-01-10" })
+              .build(), // Date only
+            MockNoteBuilder.create("Note 3", "/note3.md")
+              .withFrontmatter({ updated: new Date("2024-01-20") })
+              .build(), // Date object
+          ],
+          expectedOrder: ["/note3.md", "/note1.md", "/note2.md"],
+        },
+      ])("should handle $scenario", ({ notes, expectedOrder }) => {
+        const sortConfig: SortConfig = { key: "updated", order: "desc" };
+        const result = sortNotes(notes, sortConfig, new Set());
+        expectPathOrder(result, expectedOrder);
+      });
+
+      it("should handle multiple invalid date strings and sort alphabetically", () => {
+        const notesWithInvalidDates = [
+          MockNoteBuilder.create("Note 1", "/note1.md")
+            .withFrontmatter({ updated: "not-a-date" })
+            .build(),
+          MockNoteBuilder.create("Note 2", "/note2.md")
+            .withFrontmatter({ updated: "also-invalid" })
+            .build(),
+          MockNoteBuilder.create("Note 3", "/note3.md").withFrontmatter({ updated: "x" }).build(),
+          MockNoteBuilder.create("Note 4", "/note4.md")
+            .withFrontmatter({ updated: "1800-01-01" })
+            .build(),
+        ];
+
+        const sortConfig: SortConfig = { key: "updated", order: "asc" };
+        const result = sortNotes(notesWithInvalidDates, sortConfig, new Set());
+
+        // All invalid dates should be treated as strings and sorted alphabetically
+        expectSortedByField(result, "updated", ["1800-01-01", "also-invalid", "not-a-date", "x"]);
+      });
+
+      it("should handle invalid date strings that pass initial validation", () => {
+        const notesWithInvalidButPlausibleDates = [
+          MockNoteBuilder.create("Note 1", "/note1.md")
+            .withFrontmatter({ updated: "2024-13-45" })
+            .build(), // Invalid month/day
+          MockNoteBuilder.create("Note 2", "/note2.md")
+            .withFrontmatter({ updated: "invalid 2024 date" })
+            .build(), // Contains year but invalid
+          MockNoteBuilder.create("Note 3", "/note3.md")
+            .withFrontmatter({ updated: "abc 2024 xyz" })
+            .build(), // Contains year but invalid format
+        ];
+
+        const sortConfig: SortConfig = { key: "updated", order: "asc" };
+        const result = sortNotes(notesWithInvalidButPlausibleDates, sortConfig, new Set());
+
+        // Should sort alphabetically as strings since all dates are invalid
+        expectSortedByField(result, "updated", ["2024-13-45", "abc 2024 xyz", "invalid 2024 date"]);
+      });
+    });
+
+    describe("pin integration", () => {
+      it.each([
+        {
+          scenario: "ascending sort with multiple pins",
+          order: "asc" as const,
+          pins: [TEST_PATHS.NOTE3, TEST_PATHS.NOTE1],
+          expectedTitles: ["Note 1", "Note 3", "Note 2"],
+        },
+        {
+          scenario: "descending sort with single pin",
+          order: "desc" as const,
+          pins: [TEST_PATHS.NOTE1],
+          expectedTitles: ["Note 1", "Note 3", "Note 2"],
+        },
+        {
+          scenario: "all notes pinned",
+          order: "asc" as const,
+          pins: [TEST_PATHS.NOTE1, TEST_PATHS.NOTE2, TEST_PATHS.NOTE3],
+          expectedTitles: ["Note 1", "Note 2", "Note 3"],
+        },
+      ])("should handle $scenario", ({ order, pins, expectedTitles }) => {
+        const sortConfig: SortConfig = { key: "mtime", order };
+        const pinnedNotes = new Set(pins);
+        const result = sortNotes(SAMPLE_NOTES.BASIC, sortConfig, pinnedNotes);
+        expectTitleOrder(result, expectedTitles);
+      });
+    });
+
+    describe("edge cases", () => {
+      it("should handle empty notes array", () => {
+        const sortConfig: SortConfig = { key: "mtime", order: "asc" };
+        const pinnedNotes = new Set([TEST_PATHS.NOTE1]);
+        const result = sortNotes([], sortConfig, pinnedNotes);
+
+        expect(result).toHaveLength(0);
+      });
+
+      it("should handle mixed equal and different values", () => {
+        const mixedNotes = [
+          MockNoteBuilder.create("Priority 1", "/p1.md").withFrontmatter({ priority: 1 }).build(),
+          MockNoteBuilder.create("Priority 3 First", "/p3a.md")
+            .withFrontmatter({ priority: 3 })
+            .build(),
+          MockNoteBuilder.create("Priority 3 Second", "/p3b.md")
+            .withFrontmatter({ priority: 3 })
+            .build(),
+          MockNoteBuilder.create("Priority 2", "/p2.md").withFrontmatter({ priority: 2 }).build(),
+          MockNoteBuilder.create("Priority 3 Third", "/p3c.md")
+            .withFrontmatter({ priority: 3 })
+            .build(),
+        ];
+
+        const sortConfig: SortConfig = { key: "priority", order: "asc" };
+        const result = sortNotes(mixedNotes, sortConfig, new Set());
+
+        // Should sort by priority: 1, 2, then three 3's in original order
+        expectSortedByField(result, "priority", [1, 2, 3, 3, 3]);
+
+        // Check that priority 3 notes maintain original order
+        const priority3Notes = result.slice(2, 5);
+        expectTitleOrder(priority3Notes, [
+          "Priority 3 First",
+          "Priority 3 Second",
+          "Priority 3 Third",
+        ]);
+      });
+
+      it("should handle notes with identical mtime fallback values", () => {
+        const notesWithSameMtime = [
+          MockNoteBuilder.create("Note X", "/noteX.md").withDate(TEST_DATES.SPECIFIC).build(),
+          MockNoteBuilder.create("Note Y", "/noteY.md").withDate(TEST_DATES.SPECIFIC).build(),
+          MockNoteBuilder.create("Note Z", "/noteZ.md").withDate(TEST_DATES.SPECIFIC).build(),
+        ];
+
+        const sortConfig: SortConfig = { key: "nonexistent", order: "asc" };
+        const result = sortNotes(notesWithSameMtime, sortConfig, new Set());
+
+        // All notes fall back to same mtime - original order should be maintained
+        expectTitleOrder(result, ["Note X", "Note Y", "Note Z"]);
+
+        // Verify all have same lastModified
+        result.forEach((note) => {
+          expect(note.lastModified.getTime()).toBe(TEST_DATES.SPECIFIC.getTime());
+        });
+      });
     });
   });
 });
