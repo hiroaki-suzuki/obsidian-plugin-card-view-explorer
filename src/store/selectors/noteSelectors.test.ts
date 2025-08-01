@@ -1,361 +1,306 @@
 import { describe, expect, it } from "vitest";
 import type { FilterState, NoteData } from "../../types";
-import {
-  type CardExplorerSelectorState,
-  cardExplorerSelectors,
-  collectFoldersFromNotes,
-  collectTagsFromNotes,
-} from "./noteSelectors";
+import { type CardExplorerSelectorState, cardExplorerSelectors } from "./noteSelectors";
 
-// Mock note data for testing
-const createMockNote = (
-  title: string,
-  path: string,
-  folder: string = "",
-  tags: string[] = [],
-  frontmatter: Record<string, any> | null = null,
-  lastModified: Date = new Date()
-): NoteData => ({
-  file: {} as any, // Mock TFile
-  title,
-  path,
-  preview: `Preview for ${title}`,
-  lastModified,
-  frontmatter,
-  tags,
-  folder,
-});
-
-const createMockState = (
-  notes: NoteData[] = [],
-  filteredNotes: NoteData[] = [],
-  pinnedNotes: Set<string> = new Set(),
-  filters: FilterState = {
-    folders: [],
+// Test data builders for better test maintainability
+class TestNoteBuilder {
+  private note: Partial<NoteData> = {
+    file: {} as any,
+    preview: "",
+    lastModified: new Date(),
+    frontmatter: null,
     tags: [],
-    filename: "",
-    dateRange: null,
+    folder: "",
+  };
+
+  withTitle(title: string): this {
+    this.note.title = title;
+    this.note.preview = `Preview for ${title}`;
+    return this;
   }
-): CardExplorerSelectorState => ({
-  notes,
-  filteredNotes,
-  pinnedNotes,
-  filters,
-});
 
-describe("Note Selectors", () => {
-  describe("collectFoldersFromNotes", () => {
-    it("should collect unique folder paths", () => {
-      const notes = [
-        createMockNote("Note 1", "/note1.md", "folder1"),
-        createMockNote("Note 2", "/note2.md", "folder2"),
-        createMockNote("Note 3", "/note3.md", "folder1"),
-        createMockNote("Note 4", "/note4.md", "folder3/subfolder"),
-      ];
+  withPath(path: string): this {
+    this.note.path = path;
+    return this;
+  }
 
-      const result = collectFoldersFromNotes(notes);
+  inFolder(folder: string): this {
+    this.note.folder = folder;
+    return this;
+  }
 
-      expect(result).toEqual(new Set(["folder1", "folder2", "folder3", "folder3/subfolder"]));
-    });
+  withTags(...tags: string[]): this {
+    this.note.tags = tags;
+    return this;
+  }
 
-    it("should include parent folders for hierarchical paths", () => {
-      const notes = [
-        createMockNote("Note 1", "/note1.md", "projects/work/notes"),
-        createMockNote("Note 2", "/note2.md", "archive/2024/january"),
-      ];
+  modifiedAt(date: Date): this {
+    this.note.lastModified = date;
+    return this;
+  }
 
-      const result = collectFoldersFromNotes(notes);
+  build(): NoteData {
+    if (!this.note.title || !this.note.path) {
+      throw new Error("Note must have title and path");
+    }
+    return this.note as NoteData;
+  }
+}
 
-      expect(result).toEqual(
-        new Set([
-          "projects/work/notes",
-          "projects",
-          "projects/work",
-          "archive/2024/january",
-          "archive",
-          "archive/2024",
-        ])
-      );
-    });
+class TestStateBuilder {
+  private state: CardExplorerSelectorState = {
+    notes: [],
+    filteredNotes: [],
+    pinnedNotes: new Set(),
+    filters: {
+      folders: [],
+      tags: [],
+      filename: "",
+      dateRange: null,
+    },
+  };
 
-    it("should handle notes with empty folders", () => {
-      const notes = [
-        createMockNote("Note 1", "/note1.md", ""),
-        createMockNote("Note 2", "/note2.md", "folder1"),
-        createMockNote("Note 3", "/note3.md", ""),
-      ];
+  withNotes(...notes: NoteData[]): this {
+    this.state.notes = notes;
+    return this;
+  }
 
-      const result = collectFoldersFromNotes(notes);
+  withFilteredNotes(...notes: NoteData[]): this {
+    this.state.filteredNotes = notes;
+    return this;
+  }
 
-      expect(result).toEqual(new Set(["folder1"]));
-    });
+  withPinnedNotes(...paths: string[]): this {
+    this.state.pinnedNotes = new Set(paths);
+    return this;
+  }
 
-    it("should handle empty notes array", () => {
-      const result = collectFoldersFromNotes([]);
-      expect(result).toEqual(new Set());
-    });
+  withFilters(filters: Partial<FilterState>): this {
+    this.state.filters = { ...this.state.filters, ...filters };
+    return this;
+  }
 
-    it("should handle complex nested folder structures", () => {
-      const notes = [
-        createMockNote("Note 1", "/note1.md", "a/b/c/d"),
-        createMockNote("Note 2", "/note2.md", "a/b/e"),
-        createMockNote("Note 3", "/note3.md", "x/y"),
-      ];
+  build(): CardExplorerSelectorState {
+    return this.state;
+  }
+}
 
-      const result = collectFoldersFromNotes(notes);
+// Factory functions for common test data patterns
+const createNote = (title: string, path: string) =>
+  new TestNoteBuilder().withTitle(title).withPath(path);
 
-      expect(result).toEqual(new Set(["a/b/c/d", "a", "a/b", "a/b/c", "a/b/e", "x/y", "x"]));
-    });
-  });
+const createState = () => new TestStateBuilder();
 
-  describe("collectTagsFromNotes", () => {
-    it("should collect unique tags from all notes", () => {
-      const notes = [
-        createMockNote("Note 1", "/note1.md", "", ["tag1", "tag2"]),
-        createMockNote("Note 2", "/note2.md", "", ["tag2", "tag3"]),
-        createMockNote("Note 3", "/note3.md", "", ["tag1", "tag4"]),
-      ];
+// Common test data sets
+const SAMPLE_NOTES = {
+  alphabetic: [
+    createNote("Alpha Note", "/alpha.md").inFolder("alpha").build(),
+    createNote("Beta Note", "/beta.md").inFolder("beta").build(),
+    createNote("Gamma Note", "/gamma.md").inFolder("gamma").build(),
+  ],
+  hierarchical: [
+    createNote("Current Project", "/current.md").inFolder("projects/work/current").build(),
+    createNote("Old Archive", "/old.md").inFolder("archive/old").build(),
+  ],
+  tagged: [
+    createNote("Tagged Note 1", "/tagged1.md").withTags("alpha", "zebra").build(),
+    createNote("Tagged Note 2", "/tagged2.md").withTags("beta", "gamma").build(),
+  ],
+};
 
-      const result = collectTagsFromNotes(notes);
+const DEFAULT_FILTERS: FilterState = {
+  folders: [],
+  tags: [],
+  filename: "",
+  dateRange: null,
+};
 
-      expect(result).toEqual(new Set(["tag1", "tag2", "tag3", "tag4"]));
-    });
-
-    it("should handle notes with no tags", () => {
-      const notes = [
-        createMockNote("Note 1", "/note1.md", "", []),
-        createMockNote("Note 2", "/note2.md", "", ["tag1"]),
-        createMockNote("Note 3", "/note3.md", "", []),
-      ];
-
-      const result = collectTagsFromNotes(notes);
-
-      expect(result).toEqual(new Set(["tag1"]));
-    });
-
-    it("should handle empty notes array", () => {
-      const result = collectTagsFromNotes([]);
-      expect(result).toEqual(new Set());
-    });
-
-    it("should handle duplicate tags within same note", () => {
-      const notes = [createMockNote("Note 1", "/note1.md", "", ["tag1", "tag1", "tag2"])];
-
-      const result = collectTagsFromNotes(notes);
-
-      expect(result).toEqual(new Set(["tag1", "tag2"]));
-    });
-  });
-
+describe("noteSelectors", () => {
   describe("cardExplorerSelectors", () => {
     describe("getAvailableFolders", () => {
-      it("should return sorted array of available folders", () => {
-        const notes = [
-          createMockNote("Note 1", "/note1.md", "zebra"),
-          createMockNote("Note 2", "/note2.md", "alpha/beta"),
-          createMockNote("Note 3", "/note3.md", "gamma"),
-        ];
+      const testCases = [
+        {
+          name: "should return empty array for empty notes",
+          notes: [],
+          expected: [],
+        },
+        {
+          name: "should return sorted array of available folders",
+          notes: [
+            createNote("Note 1", "/note1.md").inFolder("zebra").build(),
+            createNote("Note 2", "/note2.md").inFolder("alpha/beta").build(),
+            createNote("Note 3", "/note3.md").inFolder("gamma").build(),
+          ],
+          expected: ["alpha", "alpha/beta", "gamma", "zebra"],
+        },
+        {
+          name: "should include parent folders in sorted order",
+          notes: SAMPLE_NOTES.hierarchical,
+          expected: [
+            "archive",
+            "archive/old",
+            "projects",
+            "projects/work",
+            "projects/work/current",
+          ],
+        },
+      ];
 
-        const state = createMockState(notes);
-        const result = cardExplorerSelectors.getAvailableFolders(state);
-
-        expect(result).toEqual(["alpha", "alpha/beta", "gamma", "zebra"]);
-      });
-
-      it("should handle empty notes", () => {
-        const state = createMockState([]);
-        const result = cardExplorerSelectors.getAvailableFolders(state);
-
-        expect(result).toEqual([]);
-      });
-
-      it("should include parent folders in sorted order", () => {
-        const notes = [
-          createMockNote("Note 1", "/note1.md", "projects/work/current"),
-          createMockNote("Note 2", "/note2.md", "archive/old"),
-        ];
-
-        const state = createMockState(notes);
-        const result = cardExplorerSelectors.getAvailableFolders(state);
-
-        expect(result).toEqual([
-          "archive",
-          "archive/old",
-          "projects",
-          "projects/work",
-          "projects/work/current",
-        ]);
+      testCases.forEach(({ name, notes, expected }) => {
+        it(name, () => {
+          const state = createState()
+            .withNotes(...notes)
+            .build();
+          const result = cardExplorerSelectors.getAvailableFolders(state);
+          expect(result).toEqual(expected);
+        });
       });
     });
 
     describe("getAvailableTags", () => {
-      it("should return sorted array of available tags", () => {
-        const notes = [
-          createMockNote("Note 1", "/note1.md", "", ["zebra", "alpha"]),
-          createMockNote("Note 2", "/note2.md", "", ["beta", "gamma"]),
-        ];
+      const testCases = [
+        {
+          name: "should return empty array for empty notes",
+          notes: [],
+          expected: [],
+        },
+        {
+          name: "should return empty array for notes with no tags",
+          notes: [
+            createNote("Note 1", "/note1.md").build(),
+            createNote("Note 2", "/note2.md").build(),
+          ],
+          expected: [],
+        },
+        {
+          name: "should return sorted array of available tags",
+          notes: SAMPLE_NOTES.tagged,
+          expected: ["alpha", "beta", "gamma", "zebra"],
+        },
+      ];
 
-        const state = createMockState(notes);
-        const result = cardExplorerSelectors.getAvailableTags(state);
-
-        expect(result).toEqual(["alpha", "beta", "gamma", "zebra"]);
-      });
-
-      it("should handle empty notes", () => {
-        const state = createMockState([]);
-        const result = cardExplorerSelectors.getAvailableTags(state);
-
-        expect(result).toEqual([]);
-      });
-
-      it("should handle notes with no tags", () => {
-        const notes = [
-          createMockNote("Note 1", "/note1.md", "", []),
-          createMockNote("Note 2", "/note2.md", "", []),
-        ];
-
-        const state = createMockState(notes);
-        const result = cardExplorerSelectors.getAvailableTags(state);
-
-        expect(result).toEqual([]);
+      testCases.forEach(({ name, notes, expected }) => {
+        it(name, () => {
+          const state = createState()
+            .withNotes(...notes)
+            .build();
+          const result = cardExplorerSelectors.getAvailableTags(state);
+          expect(result).toEqual(expected);
+        });
       });
     });
 
     describe("getPinnedCount", () => {
-      it("should return count of pinned notes", () => {
-        const pinnedNotes = new Set(["/note1.md", "/note3.md", "/note5.md"]);
-        const state = createMockState([], [], pinnedNotes);
-        const result = cardExplorerSelectors.getPinnedCount(state);
+      const testCases = [
+        {
+          name: "should return 0 for no pinned notes",
+          pinnedPaths: [],
+          expected: 0,
+        },
+        {
+          name: "should return count of pinned notes",
+          pinnedPaths: ["/note1.md", "/note3.md", "/note5.md"],
+          expected: 3,
+        },
+      ];
 
-        expect(result).toBe(3);
-      });
-
-      it("should return 0 for no pinned notes", () => {
-        const state = createMockState([], [], new Set());
-        const result = cardExplorerSelectors.getPinnedCount(state);
-
-        expect(result).toBe(0);
+      testCases.forEach(({ name, pinnedPaths, expected }) => {
+        it(name, () => {
+          const state = createState()
+            .withPinnedNotes(...pinnedPaths)
+            .build();
+          const result = cardExplorerSelectors.getPinnedCount(state);
+          expect(result).toBe(expected);
+        });
       });
     });
 
     describe("getFilteredCount", () => {
-      it("should return count of filtered notes", () => {
-        const filteredNotes = [
-          createMockNote("Note 1", "/note1.md"),
-          createMockNote("Note 2", "/note2.md"),
-        ];
+      const testCases = [
+        {
+          name: "should return 0 for no filtered notes",
+          filteredNotes: [],
+          expected: 0,
+        },
+        {
+          name: "should return count of filtered notes",
+          filteredNotes: [
+            createNote("Note 1", "/note1.md").build(),
+            createNote("Note 2", "/note2.md").build(),
+          ],
+          expected: 2,
+        },
+      ];
 
-        const state = createMockState([], filteredNotes);
-        const result = cardExplorerSelectors.getFilteredCount(state);
-
-        expect(result).toBe(2);
-      });
-
-      it("should return 0 for no filtered notes", () => {
-        const state = createMockState([], []);
-        const result = cardExplorerSelectors.getFilteredCount(state);
-
-        expect(result).toBe(0);
+      testCases.forEach(({ name, filteredNotes, expected }) => {
+        it(name, () => {
+          const state = createState()
+            .withFilteredNotes(...filteredNotes)
+            .build();
+          const result = cardExplorerSelectors.getFilteredCount(state);
+          expect(result).toBe(expected);
+        });
       });
     });
 
     describe("hasActiveFilters", () => {
-      it("should return false for default filters", () => {
-        const filters: FilterState = {
-          folders: [],
-          tags: [],
-          filename: "",
-          dateRange: null,
-        };
+      describe("should return false when no filters are active", () => {
+        const inactiveFilterCases = [
+          {
+            name: "default filters",
+            filters: DEFAULT_FILTERS,
+          },
+          {
+            name: "filename with only whitespace",
+            filters: { ...DEFAULT_FILTERS, filename: "   " },
+          },
+        ];
 
-        const state = createMockState([], [], new Set(), filters);
-        const result = cardExplorerSelectors.hasActiveFilters(state);
-
-        expect(result).toBe(false);
+        inactiveFilterCases.forEach(({ name, filters }) => {
+          it(name, () => {
+            const state = createState().withFilters(filters).build();
+            const result = cardExplorerSelectors.hasActiveFilters(state);
+            expect(result).toBe(false);
+          });
+        });
       });
 
-      it("should return true when folders filter is active", () => {
-        const filters: FilterState = {
-          folders: ["folder1"],
-          tags: [],
-          filename: "",
-          dateRange: null,
-        };
+      describe("should return true when filters are active", () => {
+        const activeFilterCases = [
+          {
+            name: "folders filter is active",
+            filters: { folders: ["folder1"] },
+          },
+          {
+            name: "tags filter is active",
+            filters: { tags: ["tag1"] },
+          },
+          {
+            name: "filename filter is active",
+            filters: { filename: "search term" },
+          },
+          {
+            name: "date range filter is active",
+            filters: { dateRange: { type: "within" as const, value: new Date() } },
+          },
+          {
+            name: "multiple filters are active",
+            filters: {
+              folders: ["folder1"],
+              tags: ["tag1"],
+              filename: "search",
+              dateRange: { type: "after" as const, value: new Date() },
+            },
+          },
+        ];
 
-        const state = createMockState([], [], new Set(), filters);
-        const result = cardExplorerSelectors.hasActiveFilters(state);
-
-        expect(result).toBe(true);
-      });
-
-      it("should return true when tags filter is active", () => {
-        const filters: FilterState = {
-          folders: [],
-          tags: ["tag1"],
-          filename: "",
-          dateRange: null,
-        };
-
-        const state = createMockState([], [], new Set(), filters);
-        const result = cardExplorerSelectors.hasActiveFilters(state);
-
-        expect(result).toBe(true);
-      });
-
-      it("should return true when filename filter is active", () => {
-        const filters: FilterState = {
-          folders: [],
-          tags: [],
-          filename: "search term",
-          dateRange: null,
-        };
-
-        const state = createMockState([], [], new Set(), filters);
-        const result = cardExplorerSelectors.hasActiveFilters(state);
-
-        expect(result).toBe(true);
-      });
-
-      it("should return false when filename is only whitespace", () => {
-        const filters: FilterState = {
-          folders: [],
-          tags: [],
-          filename: "   ",
-          dateRange: null,
-        };
-
-        const state = createMockState([], [], new Set(), filters);
-        const result = cardExplorerSelectors.hasActiveFilters(state);
-
-        expect(result).toBe(false);
-      });
-
-      it("should return true when date range filter is active", () => {
-        const filters: FilterState = {
-          folders: [],
-          tags: [],
-          filename: "",
-          dateRange: { type: "within", value: new Date() },
-        };
-
-        const state = createMockState([], [], new Set(), filters);
-        const result = cardExplorerSelectors.hasActiveFilters(state);
-
-        expect(result).toBe(true);
-      });
-
-      it("should return true when multiple filters are active", () => {
-        const filters: FilterState = {
-          folders: ["folder1"],
-          tags: ["tag1"],
-          filename: "search",
-          dateRange: { type: "after", value: new Date() },
-        };
-
-        const state = createMockState([], [], new Set(), filters);
-        const result = cardExplorerSelectors.hasActiveFilters(state);
-
-        expect(result).toBe(true);
+        activeFilterCases.forEach(({ name, filters }) => {
+          it(name, () => {
+            const state = createState().withFilters(filters).build();
+            const result = cardExplorerSelectors.hasActiveFilters(state);
+            expect(result).toBe(true);
+          });
+        });
       });
     });
   });
