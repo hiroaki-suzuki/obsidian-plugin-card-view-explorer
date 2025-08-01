@@ -1,7 +1,3 @@
-import type { FilterState, NoteData } from "../../types";
-import { tagMatchesFilter } from "../../utils/tagUtils";
-import { MILLISECONDS_PER_DAY } from "../utils";
-
 /**
  * Pure Functions - Filter Logic
  *
@@ -15,6 +11,10 @@ import { MILLISECONDS_PER_DAY } from "../utils";
  * - Filename pattern matching (inclusion/exclusion)
  * - Date range filtering (within X days or after specific date)
  */
+
+import type { FilterState, NoteData } from "../../types";
+import { tagMatchesFilter } from "../../utils/tagUtils";
+import { MILLISECONDS_PER_DAY } from "../utils";
 
 /**
  * Check if any filter criteria is currently active

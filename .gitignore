@@ -206,3 +206,5 @@ data.json
 
 # Test coverage
 coverage/
+
+.serena
