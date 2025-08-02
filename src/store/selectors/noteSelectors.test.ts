@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { FilterState, NoteData } from "../../types";
+import type { NoteData } from "../../types";
 import { type CardExplorerSelectorState, cardExplorerSelectors } from "./noteSelectors";
 
 // Test data builders for better test maintainability
@@ -52,12 +52,6 @@ class TestStateBuilder {
     notes: [],
     filteredNotes: [],
     pinnedNotes: new Set(),
-    filters: {
-      folders: [],
-      tags: [],
-      filename: "",
-      dateRange: null,
-    },
   };
 
   withNotes(...notes: NoteData[]): this {
@@ -72,11 +66,6 @@ class TestStateBuilder {
 
   withPinnedNotes(...paths: string[]): this {
     this.state.pinnedNotes = new Set(paths);
-    return this;
-  }
-
-  withFilters(filters: Partial<FilterState>): this {
-    this.state.filters = { ...this.state.filters, ...filters };
     return this;
   }
 
@@ -106,13 +95,6 @@ const SAMPLE_NOTES = {
     createNote("Tagged Note 1", "/tagged1.md").withTags("alpha", "zebra").build(),
     createNote("Tagged Note 2", "/tagged2.md").withTags("beta", "gamma").build(),
   ],
-};
-
-const DEFAULT_FILTERS: FilterState = {
-  folders: [],
-  tags: [],
-  filename: "",
-  dateRange: null,
 };
 
 describe("noteSelectors", () => {
@@ -190,31 +172,6 @@ describe("noteSelectors", () => {
       });
     });
 
-    describe("getPinnedCount", () => {
-      const testCases = [
-        {
-          name: "should return 0 for no pinned notes",
-          pinnedPaths: [],
-          expected: 0,
-        },
-        {
-          name: "should return count of pinned notes",
-          pinnedPaths: ["/note1.md", "/note3.md", "/note5.md"],
-          expected: 3,
-        },
-      ];
-
-      testCases.forEach(({ name, pinnedPaths, expected }) => {
-        it(name, () => {
-          const state = createState()
-            .withPinnedNotes(...pinnedPaths)
-            .build();
-          const result = cardExplorerSelectors.getPinnedCount(state);
-          expect(result).toBe(expected);
-        });
-      });
-    });
-
     describe("getFilteredCount", () => {
       const testCases = [
         {
@@ -239,67 +196,6 @@ describe("noteSelectors", () => {
             .build();
           const result = cardExplorerSelectors.getFilteredCount(state);
           expect(result).toBe(expected);
-        });
-      });
-    });
-
-    describe("hasActiveFilters", () => {
-      describe("should return false when no filters are active", () => {
-        const inactiveFilterCases = [
-          {
-            name: "default filters",
-            filters: DEFAULT_FILTERS,
-          },
-          {
-            name: "filename with only whitespace",
-            filters: { ...DEFAULT_FILTERS, filename: "   " },
-          },
-        ];
-
-        inactiveFilterCases.forEach(({ name, filters }) => {
-          it(name, () => {
-            const state = createState().withFilters(filters).build();
-            const result = cardExplorerSelectors.hasActiveFilters(state);
-            expect(result).toBe(false);
-          });
-        });
-      });
-
-      describe("should return true when filters are active", () => {
-        const activeFilterCases = [
-          {
-            name: "folders filter is active",
-            filters: { folders: ["folder1"] },
-          },
-          {
-            name: "tags filter is active",
-            filters: { tags: ["tag1"] },
-          },
-          {
-            name: "filename filter is active",
-            filters: { filename: "search term" },
-          },
-          {
-            name: "date range filter is active",
-            filters: { dateRange: { type: "within" as const, value: new Date() } },
-          },
-          {
-            name: "multiple filters are active",
-            filters: {
-              folders: ["folder1"],
-              tags: ["tag1"],
-              filename: "search",
-              dateRange: { type: "after" as const, value: new Date() },
-            },
-          },
-        ];
-
-        activeFilterCases.forEach(({ name, filters }) => {
-          it(name, () => {
-            const state = createState().withFilters(filters).build();
-            const result = cardExplorerSelectors.hasActiveFilters(state);
-            expect(result).toBe(true);
-          });
         });
       });
     });

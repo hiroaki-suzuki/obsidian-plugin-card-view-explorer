@@ -1,5 +1,5 @@
-import type { FilterState, NoteData } from "../../types";
-import { hasAnyActiveFilter } from "../filters";
+import type { NoteData } from "../../types";
+import { extractAllTagPaths } from "../filters/tagUtils";
 
 /**
  * Selector Helper Functions
@@ -20,8 +20,6 @@ export interface CardExplorerSelectorState {
   filteredNotes: NoteData[];
   /** Set of note paths that are pinned by the user */
   pinnedNotes: Set<string>;
-  /** Current filter configuration */
-  filters: FilterState;
 }
 
 /**
@@ -44,23 +42,21 @@ export const cardExplorerSelectors = {
 
   /**
    * Extracts all unique tags from the notes collection for filter options.
+   * Includes hierarchical tag expansion where parent tags are automatically included.
+   * For example, "ai/ml/neural" includes ["ai", "ai/ml", "ai/ml/neural"].
    *
    * @param state - The current state containing notes data
-   * @returns Sorted array of unique tag names
+   * @returns Sorted array of unique tag paths including hierarchical expansion
    */
   getAvailableTags: (state: CardExplorerSelectorState): string[] => {
-    const tags = collectTagsFromNotes(state.notes);
-    return Array.from(tags).sort(); // Convert Set to sorted Array for consistent UI ordering
-  },
+    const allNoteTags: string[] = [];
 
-  /**
-   * Returns the count of currently pinned notes for UI display.
-   *
-   * @param state - The current state containing pinned notes set
-   * @returns Number of pinned notes
-   */
-  getPinnedCount: (state: CardExplorerSelectorState): number => {
-    return state.pinnedNotes.size;
+    for (const note of state.notes) {
+      allNoteTags.push(...note.tags);
+    }
+
+    // Extract all possible tag paths including parent tags
+    return extractAllTagPaths(allNoteTags);
   },
 
   /**
@@ -71,16 +67,6 @@ export const cardExplorerSelectors = {
    */
   getFilteredCount: (state: CardExplorerSelectorState): number => {
     return state.filteredNotes.length;
-  },
-
-  /**
-   * Determines if any filters are currently active to control UI state and display.
-   *
-   * @param state - The current state containing filter configuration
-   * @returns True if any filters are active, false otherwise
-   */
-  hasActiveFilters: (state: CardExplorerSelectorState): boolean => {
-    return hasAnyActiveFilter(state.filters);
   },
 };
 
@@ -124,21 +110,4 @@ const extractParentFolders = (folderPath: string): string[] => {
   }
 
   return parentFolders;
-};
-
-/**
- * Collects all unique tags from the notes collection for filter options.
- * Tags are extracted from both frontmatter and inline tag references.
- *
- * @param notes - Array of note data to extract tags from
- * @returns Set of unique tag names
- */
-const collectTagsFromNotes = (notes: NoteData[]): Set<string> => {
-  const tags = new Set<string>();
-
-  for (const note of notes) {
-    note.tags.forEach((tag) => tags.add(tag));
-  }
-
-  return tags;
 };
