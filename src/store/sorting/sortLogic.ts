@@ -6,7 +6,7 @@
  */
 
 import type { NoteData, SortConfig } from "../../types";
-import { MTIME_SORT_KEY } from "../utils";
+import { MTIME_SORT_KEY } from "../constants";
 
 /**
  * Type for sortable values that can be extracted from notes

@@ -2,7 +2,7 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
-import { extractAllTagPaths } from "../utils/tagUtils";
+import { extractAllTagPaths } from "../store/filters/tagUtils";
 import { CardViewErrorBoundary } from "./CardViewErrorBoundary";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { FilterPanel } from "./FilterPanel";

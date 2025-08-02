@@ -13,8 +13,8 @@
  */
 
 import type { FilterState, NoteData } from "../../types";
-import { tagMatchesFilter } from "../../utils/tagUtils";
-import { MILLISECONDS_PER_DAY } from "../utils";
+import { MILLISECONDS_PER_DAY } from "../constants";
+import { tagMatchesFilter } from "./tagUtils";
 
 /**
  * Check if any filter criteria is currently active
