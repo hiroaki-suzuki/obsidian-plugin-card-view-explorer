@@ -3,11 +3,11 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type CardExplorerPlugin from "../main";
 import type { FilterState, NoteData, SortConfig } from "../types";
+import { DEFAULT_SORT_KEY, DEFAULT_SORT_ORDER } from "./constants";
 import { applyFilters } from "./filters";
 import { loadNotesFromVault } from "./noteProcessing";
 import { cardExplorerSelectors } from "./selectors";
 import { sortNotes, togglePinState } from "./sorting";
-import { DEFAULT_SORT_KEY, DEFAULT_SORT_ORDER } from "./utils";
 
 /**
  * Card View Explorer Store State Interface
