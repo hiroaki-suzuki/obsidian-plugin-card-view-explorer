@@ -53,24 +53,6 @@ const DATE_FORMAT_OPTIONS = {
 } as const;
 
 /**
- * Extracts the most appropriate date to display for a note
- *
- * Prioritizes the frontmatter 'updated' field if available and valid,
- * otherwise falls back to the file's lastModified timestamp. This allows
- * users to override file system dates with custom update dates in frontmatter.
- *
- * @param note - The note data object containing lastModified date and optional frontmatter
- * @returns The most appropriate Date object to display for this note
- */
-export const getDisplayDate = (note: NoteData): Date => {
-  // Try to use user-defined updated date from frontmatter first
-  const updatedDate = parseUpdatedDate(note.frontmatter?.updated);
-
-  // Fallback to file system modification time using nullish coalescing
-  return updatedDate ?? note.lastModified;
-};
-
-/**
  * Formats a date for display with context-aware formatting
  *
  * Uses different formatting strategies based on recency:
@@ -106,14 +88,21 @@ export const formatRelativeDate = (date: Date, referenceTime: Date): string => {
 };
 
 /**
- * Validates if a value is a valid Date object
- * Uses type predicate to provide type safety for subsequent operations
+ * Extracts the most appropriate date to display for a note
  *
- * @param date - The value to validate
- * @returns True if the value is a valid Date object with a valid timestamp
+ * Prioritizes the frontmatter 'updated' field if available and valid,
+ * otherwise falls back to the file's lastModified timestamp. This allows
+ * users to override file system dates with custom update dates in frontmatter.
+ *
+ * @param note - The note data object containing lastModified date and optional frontmatter
+ * @returns The most appropriate Date object to display for this note
  */
-const isValidDate = (date: unknown): date is Date => {
-  return date instanceof Date && !Number.isNaN(date.getTime());
+export const getDisplayDate = (note: NoteData): Date => {
+  // Try to use user-defined updated date from frontmatter first
+  const updatedDate = parseUpdatedDate(note.frontmatter?.updated);
+
+  // Fallback to file system modification time using nullish coalescing
+  return updatedDate ?? note.lastModified;
 };
 
 /**
@@ -136,4 +125,15 @@ const parseUpdatedDate = (updatedValue: unknown): Date | null => {
   }
 
   return null;
+};
+
+/**
+ * Validates if a value is a valid Date object
+ * Uses type predicate to provide type safety for subsequent operations
+ *
+ * @param date - The value to validate
+ * @returns True if the value is a valid Date object with a valid timestamp
+ */
+const isValidDate = (date: unknown): date is Date => {
+  return date instanceof Date && !Number.isNaN(date.getTime());
 };
