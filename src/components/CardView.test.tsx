@@ -104,6 +104,8 @@ describe("CardView", () => {
     mockUseCardExplorerStore.mockReturnValue({
       notes: mockNotes,
       filteredNotes: mockNotes,
+      availableTags: ["ai", "ai/ml", "project"],
+      availableFolders: ["folder1", "folder2"],
       isLoading: false,
       error: null,
       refreshNotes: mockRefreshNotes,
@@ -160,6 +162,8 @@ describe("CardView", () => {
     mockUseCardExplorerStore.mockReturnValue({
       notes: [],
       filteredNotes: [],
+      availableTags: [],
+      availableFolders: [],
       isLoading: true,
       error: null,
       refreshNotes: mockRefreshNotes,
@@ -179,6 +183,8 @@ describe("CardView", () => {
     mockUseCardExplorerStore.mockReturnValue({
       notes: [],
       filteredNotes: [],
+      availableTags: [],
+      availableFolders: [],
       isLoading: false,
       error: "Failed to load notes",
       refreshNotes: mockRefreshNotes,
@@ -224,6 +230,8 @@ describe("CardView", () => {
     mockUseCardExplorerStore.mockReturnValue({
       notes: mockNotes,
       filteredNotes: [mockNotes[0]], // Only one filtered note
+      availableTags: ["ai", "ai/ml", "project"],
+      availableFolders: ["folder1", "folder2"],
       isLoading: false,
       error: null,
       refreshNotes: mockRefreshNotes,
@@ -263,6 +271,8 @@ describe("CardView", () => {
     mockUseCardExplorerStore.mockReturnValue({
       notes: mockNotes,
       filteredNotes: mockNotes,
+      availableTags: ["ai", "ai/ml", "project"],
+      availableFolders: ["folder1", "folder2"],
       isLoading: true, // Loading while notes exist
       error: null,
       refreshNotes: mockRefreshNotes,
@@ -281,6 +291,8 @@ describe("CardView", () => {
     mockUseCardExplorerStore.mockReturnValue({
       notes: [mockNotes[0]], // Only one note
       filteredNotes: [mockNotes[0]],
+      availableTags: ["ai"],
+      availableFolders: ["folder1"],
       isLoading: false,
       error: null,
       refreshNotes: mockRefreshNotes,
@@ -540,6 +552,8 @@ describe("CardView", () => {
       mockUseCardExplorerStore.mockReturnValue({
         notes: newNotes,
         filteredNotes: newNotes,
+        availableTags: ["newTag1", "newTag2"],
+        availableFolders: ["NewFolder"],
         isLoading: false,
         error: null,
         refreshNotes: mockRefreshNotes,
@@ -583,6 +597,8 @@ describe("CardView", () => {
       mockUseCardExplorerStore.mockReturnValue({
         notes: newNotes,
         filteredNotes: newNotes,
+        availableTags: ["tag1"],
+        availableFolders: ["SingleFolder"],
         isLoading: false,
         error: null,
         refreshNotes: mockRefreshNotes,
@@ -616,6 +632,8 @@ describe("CardView", () => {
       mockUseCardExplorerStore.mockReturnValue({
         notes: unsortedNotes,
         filteredNotes: unsortedNotes,
+        availableTags: ["alpha", "beta", "zebra"], // Sorted order
+        availableFolders: ["Folder1"],
         isLoading: false,
         error: null,
         refreshNotes: mockRefreshNotes,
@@ -663,6 +681,8 @@ describe("CardView", () => {
       mockUseCardExplorerStore.mockReturnValue({
         notes: unsortedNotes,
         filteredNotes: unsortedNotes,
+        availableTags: ["tag1", "tag2"],
+        availableFolders: ["AFolder", "ZFolder"], // Sorted order
         isLoading: false,
         error: null,
         refreshNotes: mockRefreshNotes,

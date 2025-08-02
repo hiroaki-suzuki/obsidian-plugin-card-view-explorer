@@ -4,7 +4,7 @@ import { subscribeWithSelector } from "zustand/middleware";
 import type CardExplorerPlugin from "../main";
 import type { FilterState, NoteData, SortConfig } from "../types";
 import { DEFAULT_SORT_KEY, DEFAULT_SORT_ORDER } from "./constants";
-import { applyFilters } from "./filters";
+import { applyFilters, hasAnyActiveFilter } from "./filters";
 import { loadNotesFromVault } from "./noteProcessing";
 import { cardExplorerSelectors } from "./selectors";
 import { sortNotes, togglePinState } from "./sorting";
@@ -23,6 +23,12 @@ export interface CardExplorerState {
   filteredNotes: NoteData[];
   /** Set of file paths for notes that are pinned to the top */
   pinnedNotes: Set<string>;
+
+  // Computed State for UI
+  /** All available tags for filter options (includes hierarchical expansion) */
+  availableTags: string[];
+  /** All available folders for filter options (includes parent folders) */
+  availableFolders: string[];
 
   // UI State
   /** Current active filter configuration */
@@ -84,6 +90,12 @@ export interface CardExplorerState {
   clearFilters: () => void;
   /** Reset entire store to initial state */
   reset: () => void;
+
+  // Computed State Getters
+  /** Get count of pinned notes */
+  getPinnedCount: () => number;
+  /** Check if any filters are currently active */
+  hasActiveFilters: () => boolean;
 }
 
 /**
@@ -140,6 +152,29 @@ const recomputeFilteredNotes = (
 };
 
 /**
+ * Compute available tags and folders from notes collection
+ *
+ * Uses selectors to derive computed state for UI components.
+ * This enables consistent data processing and efficient memoization.
+ *
+ * @param notes - Array of all notes to analyze
+ * @returns Object containing available tags and folders arrays
+ */
+const computeAvailableOptions = (
+  notes: NoteData[]
+): { availableTags: string[]; availableFolders: string[] } => {
+  const state = {
+    notes,
+    filteredNotes: [],
+    pinnedNotes: new Set<string>(),
+  };
+  return {
+    availableTags: cardExplorerSelectors.getAvailableTags(state),
+    availableFolders: cardExplorerSelectors.getAvailableFolders(state),
+  };
+};
+
+/**
  * Card View Explorer Zustand Store
  *
  * Main state management store for the Card View Explorer plugin.
@@ -160,6 +195,8 @@ export const useCardExplorerStore = create<CardExplorerState>()(
     notes: [], // No notes loaded initially
     filteredNotes: [], // No filtered results initially
     pinnedNotes: new Set<string>(), // No pinned notes initially
+    availableTags: [], // No tags available initially
+    availableFolders: [], // No folders available initially
     filters: createDefaultFilters(), // Default filter state (all disabled)
     sortConfig: createDefaultSortConfig(), // Default sort config (updated desc)
     isLoading: false, // Not loading initially
@@ -169,13 +206,16 @@ export const useCardExplorerStore = create<CardExplorerState>()(
 
     /**
      * Set the complete notes array from Obsidian
-     * Automatically recomputes filtered results with current filters/sort
+     * Automatically recomputes filtered results and available options
      *
      * @param notes - Array of note data objects loaded from Obsidian vault
      */
     setNotes: (notes: NoteData[]) => {
-      set({ notes }); // Update raw notes array
       const state = get(); // Get current state for filters/sort
+
+      // Compute available options for UI
+      const { availableTags, availableFolders } = computeAvailableOptions(notes);
+
       // Recompute filtered results with new notes
       const filteredNotes = recomputeFilteredNotes(
         notes,
@@ -183,7 +223,9 @@ export const useCardExplorerStore = create<CardExplorerState>()(
         state.sortConfig,
         state.pinnedNotes
       );
-      set({ filteredNotes }); // Update computed results
+
+      // Update all computed state in one operation
+      set({ notes, availableTags, availableFolders, filteredNotes });
     },
 
     /**
@@ -350,7 +392,9 @@ export const useCardExplorerStore = create<CardExplorerState>()(
 
         // Update store with new notes (this will trigger recomputation)
         const state = get();
-        set({ notes });
+
+        // Compute available options for UI
+        const { availableTags, availableFolders } = computeAvailableOptions(notes);
 
         // Recompute filtered results with current filters/sort
         const filteredNotes = recomputeFilteredNotes(
@@ -359,7 +403,9 @@ export const useCardExplorerStore = create<CardExplorerState>()(
           state.sortConfig,
           state.pinnedNotes
         );
-        set({ filteredNotes });
+
+        // Update all computed state in one operation
+        set({ notes, availableTags, availableFolders, filteredNotes });
 
         // Clear loading state
         set({ isLoading: false });
@@ -409,14 +455,35 @@ export const useCardExplorerStore = create<CardExplorerState>()(
         notes: [], // Clear all notes
         filteredNotes: [], // Clear filtered results
         pinnedNotes: new Set<string>(), // Clear pinned notes
+        availableTags: [], // Clear available tags
+        availableFolders: [], // Clear available folders
         filters: createDefaultFilters(), // Reset filters to default
         sortConfig: createDefaultSortConfig(), // Reset sort to default
         isLoading: false, // Clear loading state
         error: null, // Clear error state
       });
     },
+
+    // Computed State Getters - Direct access to computed values
+
+    /**
+     * Get the count of currently pinned notes
+     * Simple accessor for UI display
+     *
+     * @returns Number of pinned notes
+     */
+    getPinnedCount: () => {
+      return get().pinnedNotes.size;
+    },
+
+    /**
+     * Check if any filters are currently active
+     * Used to control UI state (e.g., show/hide clear filters button)
+     *
+     * @returns True if any filters are active, false otherwise
+     */
+    hasActiveFilters: () => {
+      return hasAnyActiveFilter(get().filters);
+    },
   }))
 );
-
-// Re-export selectors for convenience
-export { cardExplorerSelectors };

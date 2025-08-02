@@ -2,7 +2,7 @@ import type { App } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type CardExplorerPlugin from "../main";
 import type { NoteData } from "../types";
-import { cardExplorerSelectors, useCardExplorerStore } from "./cardExplorerStore";
+import { useCardExplorerStore } from "./cardExplorerStore";
 
 // Mock note data for testing
 const createMockNote = (
@@ -294,7 +294,7 @@ describe("CardExplorerStore", () => {
 
       useCardExplorerStore.getState().setNotes(mockNotes);
       const state = useCardExplorerStore.getState();
-      const folders = cardExplorerSelectors.getAvailableFolders(state);
+      const folders = state.availableFolders;
 
       expect(folders).toContain("folder1");
       expect(folders).toContain("folder1/subfolder");
@@ -309,18 +309,17 @@ describe("CardExplorerStore", () => {
 
       useCardExplorerStore.getState().setNotes(mockNotes);
       const state = useCardExplorerStore.getState();
-      const tags = cardExplorerSelectors.getAvailableTags(state);
+      const tags = state.availableTags;
 
       expect(tags).toEqual(["tag1", "tag2", "tag3"]);
     });
 
     it("should detect active filters", () => {
-      const state1 = useCardExplorerStore.getState();
-      expect(cardExplorerSelectors.hasActiveFilters(state1)).toBe(false);
+      const store = useCardExplorerStore.getState();
+      expect(store.hasActiveFilters()).toBe(false);
 
-      useCardExplorerStore.getState().updateFilters({ filename: "test" });
-      const state2 = useCardExplorerStore.getState();
-      expect(cardExplorerSelectors.hasActiveFilters(state2)).toBe(true);
+      store.updateFilters({ filename: "test" });
+      expect(store.hasActiveFilters()).toBe(true);
     });
 
     it("should count pinned notes", () => {
@@ -329,11 +328,11 @@ describe("CardExplorerStore", () => {
         createMockNote("Note 2", "/note2.md"),
       ];
 
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      useCardExplorerStore.getState().togglePin("/note1.md");
+      const store = useCardExplorerStore.getState();
+      store.setNotes(mockNotes);
+      store.togglePin("/note1.md");
 
-      const state = useCardExplorerStore.getState();
-      expect(cardExplorerSelectors.getPinnedCount(state)).toBe(1);
+      expect(store.getPinnedCount()).toBe(1);
     });
   });
 

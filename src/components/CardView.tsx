@@ -1,8 +1,7 @@
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
-import { extractAllTagPaths } from "../store/filters/tagUtils";
 import { CardViewErrorBoundary } from "./CardViewErrorBoundary";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { FilterPanel } from "./FilterPanel";
@@ -47,6 +46,8 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
   const {
     notes, // All notes loaded from the vault
     filteredNotes, // Notes after applying filters
+    availableTags, // Available tags for filter options (computed)
+    availableFolders, // Available folders for filter options (computed)
     isLoading, // Loading state indicator
     error, // Error state for API/data operations
     refreshNotes, // Action to reload notes from vault
@@ -159,56 +160,6 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
       clearTimeout(timeoutId);
     };
   }, [pinnedNotes.size, savePinStatesToPlugin, plugin]); // Use pinnedNotes.size to avoid Set reference issues
-
-  /**
-   * Compute available tags from all notes for filter dropdown options.
-   *
-   * This memoized computation:
-   * 1. Collects all tags from all notes
-   * 2. Extracts both full tag paths and parent tags (hierarchical tags)
-   *    For example, from "#ai/ml/neural" it extracts ["ai", "ai/ml", "ai/ml/neural"]
-   * 3. Returns a sorted, unique list of all available tags
-   *
-   * The extractAllTagPaths utility handles the hierarchical tag extraction logic.
-   *
-   * @memoized
-   * @dependency notes - Recomputes when notes collection changes
-   * @returns {string[]} Array of unique tag paths for filter options
-   */
-  const availableTags = useMemo(() => {
-    const allNoteTags: string[] = [];
-
-    for (const note of notes) {
-      allNoteTags.push(...note.tags);
-    }
-
-    // Extract all possible tag paths including parent tags
-    return extractAllTagPaths(allNoteTags);
-  }, [notes]);
-
-  /**
-   * Compute available folders from all notes for filter dropdown options.
-   *
-   * This memoized computation:
-   * 1. Creates a Set to collect unique folder paths
-   * 2. Adds each note's folder to the Set (automatically deduplicates)
-   * 3. Converts the Set to a sorted array for the filter dropdown
-   *
-   * Using a Set ensures we only have unique folder paths before sorting.
-   *
-   * @memoized
-   * @dependency notes - Recomputes when notes collection changes
-   * @returns {string[]} Sorted array of unique folder paths
-   */
-  const availableFolders = useMemo(() => {
-    const folderSet = new Set<string>();
-
-    for (const note of notes) {
-      folderSet.add(note.folder);
-    }
-
-    return Array.from(folderSet).sort();
-  }, [notes]);
 
   /**
    * Handle errors caught by the React error boundary.
