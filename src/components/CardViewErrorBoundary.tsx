@@ -96,7 +96,7 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
     // Import error handling utilities for internal processing
     // Dynamic import prevents circular dependencies and ensures error handling
     // utilities are available even if there are issues with static imports
-    import("../utils/errorHandling")
+    import("../core/errors/errorHandling")
       .then(({ handleError, ErrorCategory }) => {
         handleError(error, ErrorCategory.UI, {
           componentStack: errorInfo.componentStack || "No component stack available",

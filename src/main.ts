@@ -6,14 +6,14 @@ import {
   type TFile,
   type WorkspaceLeaf,
 } from "obsidian";
-import { type CardExplorerSettings, CardExplorerSettingTab, DEFAULT_SETTINGS } from "./settings";
-import { DEFAULT_DATA, type PluginData } from "./types/plugin";
 import {
   loadPluginData,
   loadPluginSettings,
   savePluginData,
   savePluginSettings,
-} from "./utils/dataPersistence";
+} from "./core/storage/dataPersistence";
+import { type CardExplorerSettings, CardExplorerSettingTab, DEFAULT_SETTINGS } from "./settings";
+import { DEFAULT_DATA, type PluginData } from "./types/plugin";
 import { CardExplorerView, VIEW_TYPE_CARD_EXPLORER } from "./view";
 
 /**
@@ -315,7 +315,7 @@ export default class CardExplorerPlugin extends Plugin {
       });
     } catch (error) {
       // Dynamically import error handling utility
-      const { handleError, ErrorCategory } = await import("./utils/errorHandling");
+      const { handleError, ErrorCategory } = await import("./core/errors/errorHandling");
 
       handleError(error, ErrorCategory.API, {
         operation: "refreshNotes",

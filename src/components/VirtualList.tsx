@@ -1,9 +1,9 @@
 import { setIcon } from "obsidian";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { ErrorCategory, handleError } from "../core/errors/errorHandling";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
-import { ErrorCategory, handleError } from "../utils/errorHandling";
 import { ErrorFallback, useErrorFallback } from "./ErrorFallback";
 import { NoteCard } from "./NoteCard";
 

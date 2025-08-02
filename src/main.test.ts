@@ -17,7 +17,7 @@ vi.mock("./types/plugin", () => ({
   DEFAULT_DATA: { pinnedNotes: [], lastFilters: null, sortConfig: null },
 }));
 
-vi.mock("./utils/dataPersistence", () => ({
+vi.mock("./core/storage/dataPersistence", () => ({
   loadPluginData: vi.fn().mockResolvedValue({
     pinnedNotes: [],
     lastFilters: null,
@@ -235,7 +235,7 @@ describe("CardExplorerPlugin", () => {
     it("should save settings successfully", async () => {
       await plugin.saveSettings();
 
-      const { savePluginSettings } = await import("./utils/dataPersistence");
+      const { savePluginSettings } = await import("./core/storage/dataPersistence");
       expect(savePluginSettings).toHaveBeenCalledWith(plugin, plugin.getSettings());
     });
 
@@ -243,7 +243,7 @@ describe("CardExplorerPlugin", () => {
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       // Mock savePluginSettings to fail
-      const { savePluginSettings } = await import("./utils/dataPersistence");
+      const { savePluginSettings } = await import("./core/storage/dataPersistence");
       vi.mocked(savePluginSettings).mockResolvedValueOnce(false);
 
       await plugin.saveSettings();
@@ -276,7 +276,7 @@ describe("CardExplorerPlugin", () => {
     it("should save plugin data successfully", async () => {
       await plugin.savePluginData();
 
-      const { savePluginData } = await import("./utils/dataPersistence");
+      const { savePluginData } = await import("./core/storage/dataPersistence");
       expect(savePluginData).toHaveBeenCalledWith(plugin, plugin.getData());
     });
 
@@ -284,7 +284,7 @@ describe("CardExplorerPlugin", () => {
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       // Mock savePluginData to fail
-      const { savePluginData } = await import("./utils/dataPersistence");
+      const { savePluginData } = await import("./core/storage/dataPersistence");
       vi.mocked(savePluginData).mockResolvedValueOnce(false);
 
       await plugin.savePluginData();

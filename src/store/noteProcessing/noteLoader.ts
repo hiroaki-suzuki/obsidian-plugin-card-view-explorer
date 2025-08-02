@@ -1,6 +1,6 @@
 import type { App, CachedMetadata, FrontMatterCache, TagCache, TFile } from "obsidian";
+import { ErrorCategory, handleError } from "../../core/errors/errorHandling";
 import type { ContentPreview, MarkdownFile, NoteData, NoteMetadata } from "../../types";
-import { ErrorCategory, handleError } from "../../utils/errorHandling";
 import { PREVIEW_MAX_LINES } from "../constants";
 
 /**

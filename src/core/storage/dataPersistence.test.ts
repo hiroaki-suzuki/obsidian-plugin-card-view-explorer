@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PluginData, PluginSettings } from "../types";
-import { DEFAULT_DATA, DEFAULT_SETTINGS } from "../types/plugin";
+import type { PluginData, PluginSettings } from "../../types";
+import { DEFAULT_DATA, DEFAULT_SETTINGS } from "../../types/plugin";
 import {
   loadPluginData,
   loadPluginSettings,
@@ -9,7 +9,7 @@ import {
 } from "./dataPersistence";
 
 // Mock the handleError function to verify error handling behavior
-vi.mock("./errorHandling", () => ({
+vi.mock("../errors/errorHandling", () => ({
   handleError: vi.fn(),
   ErrorCategory: {
     DATA: "data",
@@ -19,7 +19,7 @@ vi.mock("./errorHandling", () => ({
   },
 }));
 
-import { handleError } from "./errorHandling";
+import { handleError } from "../errors/errorHandling";
 
 const TEST_DATA = {
   VALID_PLUGIN_DATA: {

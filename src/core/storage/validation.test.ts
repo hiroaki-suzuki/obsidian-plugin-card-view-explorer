@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from "vitest";
-import type { FilterState, PluginData, PluginSettings, SortConfig } from "../types";
+import type { FilterState, PluginData, PluginSettings, SortConfig } from "../../types";
 import { validatePluginData, validatePluginSettings } from "./validation";
 
 /**

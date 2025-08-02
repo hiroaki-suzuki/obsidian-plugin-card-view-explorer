@@ -1,7 +1,7 @@
 import { setIcon } from "obsidian";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ErrorCategory } from "../utils/errorHandling";
+import { ErrorCategory } from "../core/errors/errorHandling";
 
 /**
  * Props for the ErrorFallback component

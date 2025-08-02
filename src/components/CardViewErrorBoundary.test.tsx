@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CardViewErrorBoundary } from "./CardViewErrorBoundary";
 
 // Mock the error handling utilities
-vi.mock("../utils/errorHandling", () => ({
+vi.mock("../core/errors/errorHandling", () => ({
   handleError: vi.fn((error, _category, _context) => ({
     details: "mocked-error-id",
     message: error.message,
