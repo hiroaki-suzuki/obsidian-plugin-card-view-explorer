@@ -171,33 +171,5 @@ describe("noteSelectors", () => {
         });
       });
     });
-
-    describe("getFilteredCount", () => {
-      const testCases = [
-        {
-          name: "should return 0 for no filtered notes",
-          filteredNotes: [],
-          expected: 0,
-        },
-        {
-          name: "should return count of filtered notes",
-          filteredNotes: [
-            createNote("Note 1", "/note1.md").build(),
-            createNote("Note 2", "/note2.md").build(),
-          ],
-          expected: 2,
-        },
-      ];
-
-      testCases.forEach(({ name, filteredNotes, expected }) => {
-        it(name, () => {
-          const state = createState()
-            .withFilteredNotes(...filteredNotes)
-            .build();
-          const result = cardExplorerSelectors.getFilteredCount(state);
-          expect(result).toBe(expected);
-        });
-      });
-    });
   });
 });

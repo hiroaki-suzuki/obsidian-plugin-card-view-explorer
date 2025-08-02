@@ -58,16 +58,6 @@ export const cardExplorerSelectors = {
     // Extract all possible tag paths including parent tags
     return extractAllTagPaths(allNoteTags);
   },
-
-  /**
-   * Returns the count of notes after filtering for UI display and statistics.
-   *
-   * @param state - The current state containing filtered notes
-   * @returns Number of filtered notes
-   */
-  getFilteredCount: (state: CardExplorerSelectorState): number => {
-    return state.filteredNotes.length;
-  },
 };
 
 /**
