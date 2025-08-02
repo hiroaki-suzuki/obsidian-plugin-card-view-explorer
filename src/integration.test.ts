@@ -29,7 +29,7 @@ vi.mock("react-dom/client", () => ({
 }));
 
 // Mock data persistence utilities
-vi.mock("./utils/dataPersistence", () => ({
+vi.mock("./core/storage/dataPersistence", () => ({
   loadPluginData: vi.fn().mockResolvedValue({
     pinnedNotes: [],
     lastFilters: {
@@ -156,7 +156,7 @@ describe("Obsidian API Integration Tests", () => {
 
     it("should handle auto-start functionality correctly", async () => {
       // Mock the loadPluginSettings to return autoStart: true
-      const { loadPluginSettings } = await import("./utils/dataPersistence");
+      const { loadPluginSettings } = await import("./core/storage/dataPersistence");
       vi.mocked(loadPluginSettings).mockResolvedValueOnce({
         autoStart: true,
         showInSidebar: false,
@@ -283,7 +283,9 @@ describe("Obsidian API Integration Tests", () => {
 
   describe("Settings Persistence and Loading", () => {
     it("should complete full settings lifecycle", async () => {
-      const { loadPluginSettings, savePluginSettings } = await import("./utils/dataPersistence");
+      const { loadPluginSettings, savePluginSettings } = await import(
+        "./core/storage/dataPersistence"
+      );
 
       // Test settings loading during plugin initialization
       await plugin.onload();
@@ -309,7 +311,7 @@ describe("Obsidian API Integration Tests", () => {
     });
 
     it("should handle settings persistence failures gracefully", async () => {
-      const { savePluginSettings } = await import("./utils/dataPersistence");
+      const { savePluginSettings } = await import("./core/storage/dataPersistence");
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       // Mock save failure
@@ -322,7 +324,7 @@ describe("Obsidian API Integration Tests", () => {
     });
 
     it("should complete full plugin data lifecycle", async () => {
-      const { loadPluginData, savePluginData } = await import("./utils/dataPersistence");
+      const { loadPluginData, savePluginData } = await import("./core/storage/dataPersistence");
 
       // Test data loading during plugin initialization
       await plugin.onload();
@@ -531,7 +533,7 @@ describe("Obsidian API Integration Tests", () => {
       });
 
       // Mock the error handling utility
-      vi.doMock("./utils/errorHandling", () => ({
+      vi.doMock("./core/errors/errorHandling", () => ({
         handleError: vi.fn(),
         ErrorCategory: { API: "API" },
       }));

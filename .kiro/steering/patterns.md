@@ -104,7 +104,7 @@ async onunload() {
 
 ### Use Categorized Error Handling
 ```typescript
-import { handleError, ErrorCategory } from '../utils/errorHandling';
+import { handleError, ErrorCategory } from '../core/errors/errorHandling';
 
 // In components/store actions
 try {

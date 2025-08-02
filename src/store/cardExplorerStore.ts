@@ -375,7 +375,9 @@ export const useCardExplorerStore = create<CardExplorerState>()(
      */
     refreshNotes: async (app: App) => {
       // Import error handling utilities dynamically
-      const { withRetry, handleError, ErrorCategory } = await import("../utils/errorHandling");
+      const { withRetry, handleError, ErrorCategory } = await import(
+        "../core/errors/errorHandling"
+      );
 
       try {
         // Set loading state

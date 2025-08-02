@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ErrorCategory } from "../utils/errorHandling";
+import { ErrorCategory } from "../core/errors/errorHandling";
 import { ErrorFallback, useErrorFallback } from "./ErrorFallback";
 
 // Mock console methods for testing

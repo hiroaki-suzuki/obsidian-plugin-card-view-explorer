@@ -144,7 +144,7 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
           await savePinStatesToPlugin(plugin);
         } catch (err) {
           // Import error handling utilities dynamically to avoid circular dependencies
-          import("../utils/errorHandling").then(({ handleError, ErrorCategory }) => {
+          import("../core/errors/errorHandling").then(({ handleError, ErrorCategory }) => {
             handleError(err, ErrorCategory.DATA, {
               operation: "savePinStates",
               pinCount: pinnedNotes.size,

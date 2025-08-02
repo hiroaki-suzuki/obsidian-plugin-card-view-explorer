@@ -8,7 +8,7 @@
 
 import { isDate } from "es-toolkit";
 import { every, isArray, isPlainObject, isString } from "es-toolkit/compat";
-import type { FilterState, PluginData, PluginSettings, SortConfig } from "../types";
+import type { FilterState, PluginData, PluginSettings, SortConfig } from "../../types";
 
 /**
  * Validates plugin settings structure loaded from Obsidian settings.

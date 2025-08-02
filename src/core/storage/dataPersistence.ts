@@ -5,9 +5,9 @@
  * error handling, and automatic fallback to default values on failures.
  */
 
-import type { PluginData, PluginSettings } from "../types";
-import { DEFAULT_DATA, DEFAULT_SETTINGS } from "../types/plugin";
-import { ErrorCategory, handleError } from "./errorHandling";
+import type { PluginData, PluginSettings } from "../../types";
+import { DEFAULT_DATA, DEFAULT_SETTINGS } from "../../types/plugin";
+import { ErrorCategory, handleError } from "../errors/errorHandling";
 import { validatePluginData, validatePluginSettings } from "./validation";
 
 /**

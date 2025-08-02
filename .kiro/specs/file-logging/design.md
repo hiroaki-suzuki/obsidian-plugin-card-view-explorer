@@ -25,7 +25,7 @@ Enhanced Logger (New)
 
 The file logging system integrates with existing components:
 
-1. **Error Handling System** (`src/utils/errorHandling.ts`): Extend existing console logging
+1. **Error Handling System** (`src/core/errors/errorHandling.ts`): Extend existing console logging
 2. **Plugin Main** (`src/main.ts`): Initialize logging system during plugin startup
 3. **All Logging Points**: Transparent integration with existing `console.log/error/warn/info` calls
 

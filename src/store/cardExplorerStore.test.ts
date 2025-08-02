@@ -49,7 +49,7 @@ vi.mock("./noteProcessing", () => ({
 }));
 
 // Mock error handling utilities
-vi.mock("../utils/errorHandling", () => ({
+vi.mock("../core/errors/errorHandling", () => ({
   withRetry: vi.fn(),
   handleError: vi.fn(),
   ErrorCategory: {
@@ -838,7 +838,7 @@ describe("CardExplorerStore", () => {
       ];
 
       // Mock successful withRetry call
-      const { withRetry } = await import("../utils/errorHandling");
+      const { withRetry } = await import("../core/errors/errorHandling");
       (withRetry as any).mockResolvedValueOnce(mockNotes);
 
       // Set up some initial filters and pins to test recomputation
@@ -866,7 +866,7 @@ describe("CardExplorerStore", () => {
         resolveLoadNotes = resolve;
       });
 
-      const { withRetry } = await import("../utils/errorHandling");
+      const { withRetry } = await import("../core/errors/errorHandling");
       (withRetry as any).mockImplementationOnce(() => {
         // Set loading immediately when withRetry is called
         return loadNotesPromise;
@@ -898,7 +898,7 @@ describe("CardExplorerStore", () => {
         timestamp: new Date(),
       };
 
-      const { withRetry, handleError } = await import("../utils/errorHandling");
+      const { withRetry, handleError } = await import("../core/errors/errorHandling");
       (withRetry as any).mockRejectedValueOnce(testError);
       (handleError as any).mockReturnValueOnce(mockErrorInfo);
 
@@ -920,7 +920,7 @@ describe("CardExplorerStore", () => {
     it("should call withRetry with correct parameters", async () => {
       const mockNotes = [createMockNote("Test", "/test.md")];
 
-      const { withRetry } = await import("../utils/errorHandling");
+      const { withRetry } = await import("../core/errors/errorHandling");
       (withRetry as any).mockResolvedValueOnce(mockNotes);
 
       // Set up some existing notes to test context
@@ -953,7 +953,7 @@ describe("CardExplorerStore", () => {
 
       const beforeState = useCardExplorerStore.getState();
 
-      const { withRetry } = await import("../utils/errorHandling");
+      const { withRetry } = await import("../core/errors/errorHandling");
       (withRetry as any).mockResolvedValueOnce(newMockNotes);
 
       await useCardExplorerStore.getState().refreshNotes(mockApp);
@@ -975,7 +975,7 @@ describe("CardExplorerStore", () => {
 
       const mockNotes = [createMockNote("Test", "/test.md")];
 
-      const { withRetry } = await import("../utils/errorHandling");
+      const { withRetry } = await import("../core/errors/errorHandling");
       (withRetry as any).mockResolvedValueOnce(mockNotes);
 
       await useCardExplorerStore.getState().refreshNotes(mockApp);
@@ -987,7 +987,7 @@ describe("CardExplorerStore", () => {
     });
 
     it("should handle empty notes array", async () => {
-      const { withRetry } = await import("../utils/errorHandling");
+      const { withRetry } = await import("../core/errors/errorHandling");
       (withRetry as any).mockResolvedValueOnce([]);
 
       await useCardExplorerStore.getState().refreshNotes(mockApp);
@@ -1009,7 +1009,7 @@ describe("CardExplorerStore", () => {
       const testError = new Error("API Error");
       const mockErrorInfo = { message: "Error occurred" };
 
-      const { withRetry, handleError } = await import("../utils/errorHandling");
+      const { withRetry, handleError } = await import("../core/errors/errorHandling");
       (withRetry as any).mockRejectedValueOnce(testError);
       (handleError as any).mockReturnValueOnce(mockErrorInfo);
 

@@ -41,7 +41,7 @@ vi.mock("./CardViewErrorBoundary", () => ({
 
 // Mock error handling utilities
 const mockHandleError = vi.fn();
-vi.mock("../utils/errorHandling", () => ({
+vi.mock("../core/errors/errorHandling", () => ({
   handleError: mockHandleError,
   ErrorCategory: {
     DATA: "data",
