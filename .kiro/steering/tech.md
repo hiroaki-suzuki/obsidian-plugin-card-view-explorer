@@ -6,8 +6,8 @@ inclusion: always
 
 ## Stack
 - **Platform**: Obsidian Plugin (TypeScript ≥0.15.0)
-- **UI**: React 18.2.0 (functional components + hooks only)
-- **State**: Zustand 4.4.7 with subscribeWithSelector
+- **UI**: React 19.1.1 (functional components + hooks only)
+- **State**: Zustand 5.0.7 (standard store pattern)
 - **Build**: Bun + ESBuild → `main.js`
 - **Testing**: Vitest + @testing-library/react + jsdom
 
