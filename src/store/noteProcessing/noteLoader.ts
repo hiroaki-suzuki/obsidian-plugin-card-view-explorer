@@ -302,16 +302,6 @@ const createNoteDataObject = (
 /**
  * Extracts successfully processed NoteData objects from Promise.allSettled results.
  *
- * Filters out rejected promises to return only the notes that were successfully
- * processed, maintaining system resilience by not failing the entire operation
- * when individual notes fail.
- *
- * @param results - Array of settled promise results from file processing
- * @returns Array of successfully processed NoteData objects
- */
-/**
- * Extracts successfully processed NoteData objects from Promise.allSettled results.
- *
  * Filters out rejected promises to ensure only valid NoteData objects are returned,
  * implementing the error resilience pattern where individual file failures don't
  * prevent the overall loading operation from succeeding.

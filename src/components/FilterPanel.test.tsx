@@ -9,6 +9,7 @@ import { FilterPanel } from "./FilterPanel";
 // Mock the store
 const mockUpdateFilters = vi.fn();
 const mockClearFilters = vi.fn();
+const mockHasActiveFilters = vi.fn();
 
 vi.mock("../store/cardExplorerStore", () => ({
   useCardExplorerStore: vi.fn(),
@@ -31,13 +32,11 @@ describe("FilterPanel", () => {
         tags: [],
         filename: "",
         dateRange: null,
-        excludeFolders: [],
-        excludeTags: [],
-        excludeFilenames: [],
       },
       updateFilters: mockUpdateFilters,
       clearFilters: mockClearFilters,
-    });
+      hasActiveFilters: mockHasActiveFilters,
+    } as any);
   });
 
   it("renders filter panel structure", () => {
@@ -63,13 +62,11 @@ describe("FilterPanel", () => {
             tags: [],
             filename: currentFilename,
             dateRange: null,
-            excludeFolders: [],
-            excludeTags: [],
-            excludeFilenames: [],
           },
           updateFilters: mockUpdateFilters,
           clearFilters: mockClearFilters,
-        });
+          hasActiveFilters: mockHasActiveFilters,
+        } as any);
       }
     });
 
@@ -116,19 +113,18 @@ describe("FilterPanel", () => {
 
   it("shows clear filters button when filters are active", () => {
     // Mock store with active filters
+    mockHasActiveFilters.mockReturnValue(true);
     mockUseCardExplorerStore.mockReturnValue({
       filters: {
         folders: ["folder1"],
         tags: [],
         filename: "test",
         dateRange: null,
-        excludeFolders: [],
-        excludeTags: [],
-        excludeFilenames: [],
       },
       updateFilters: mockUpdateFilters,
       clearFilters: mockClearFilters,
-    });
+      hasActiveFilters: mockHasActiveFilters,
+    } as any);
 
     render(<FilterPanel {...defaultProps} />);
 
@@ -138,19 +134,18 @@ describe("FilterPanel", () => {
 
   it("handles clear filters button click", async () => {
     // Mock store with active filters
+    mockHasActiveFilters.mockReturnValue(true);
     mockUseCardExplorerStore.mockReturnValue({
       filters: {
         folders: ["folder1"],
         tags: [],
         filename: "test",
         dateRange: null,
-        excludeFolders: [],
-        excludeTags: [],
-        excludeFilenames: [],
       },
       updateFilters: mockUpdateFilters,
       clearFilters: mockClearFilters,
-    });
+      hasActiveFilters: mockHasActiveFilters,
+    } as any);
 
     const user = userEvent.setup();
     render(<FilterPanel {...defaultProps} />);
@@ -216,19 +211,18 @@ describe("FilterPanel", () => {
 
   it("shows clear all button when filters are active", () => {
     // Mock store with active filters
+    mockHasActiveFilters.mockReturnValue(true);
     mockUseCardExplorerStore.mockReturnValue({
       filters: {
         folders: [],
         tags: [],
         filename: "test", // This makes filters active
         dateRange: null,
-        excludeFolders: [],
-        excludeTags: [],
-        excludeFilenames: [],
       },
       updateFilters: mockUpdateFilters,
       clearFilters: mockClearFilters,
-    });
+      hasActiveFilters: mockHasActiveFilters,
+    } as any);
 
     render(<FilterPanel {...defaultProps} />);
 
@@ -237,19 +231,18 @@ describe("FilterPanel", () => {
 
   it("handles clear all filters", async () => {
     // Mock store with active filters
+    mockHasActiveFilters.mockReturnValue(true);
     mockUseCardExplorerStore.mockReturnValue({
       filters: {
         folders: ["folder1"],
         tags: ["tag1"],
         filename: "test",
         dateRange: null,
-        excludeFolders: [],
-        excludeTags: [],
-        excludeFilenames: [],
       },
       updateFilters: mockUpdateFilters,
       clearFilters: mockClearFilters,
-    });
+      hasActiveFilters: mockHasActiveFilters,
+    } as any);
 
     const user = userEvent.setup();
     render(<FilterPanel {...defaultProps} />);
@@ -268,13 +261,11 @@ describe("FilterPanel", () => {
         tags: ["tag1", "tag2"],
         filename: "",
         dateRange: null,
-        excludeFolders: [],
-        excludeTags: [],
-        excludeFilenames: [],
       },
       updateFilters: mockUpdateFilters,
       clearFilters: mockClearFilters,
-    });
+      hasActiveFilters: mockHasActiveFilters,
+    } as any);
 
     render(<FilterPanel {...defaultProps} />);
 
@@ -296,13 +287,11 @@ describe("FilterPanel", () => {
         tags: [],
         filename: "",
         dateRange: null,
-        excludeFolders: [],
-        excludeTags: [],
-        excludeFilenames: [],
       },
       updateFilters: mockUpdateFilters,
       clearFilters: mockClearFilters,
-    });
+      hasActiveFilters: mockHasActiveFilters,
+    } as any);
 
     const user = userEvent.setup();
     render(<FilterPanel {...defaultProps} />);
@@ -321,13 +310,11 @@ describe("FilterPanel", () => {
         tags: [],
         filename: "",
         dateRange: null,
-        excludeFolders: [],
-        excludeTags: [],
-        excludeFilenames: [],
       },
       updateFilters: mockUpdateFilters,
       clearFilters: mockClearFilters,
-    });
+      hasActiveFilters: mockHasActiveFilters,
+    } as any);
 
     const user = userEvent.setup();
     render(<FilterPanel {...defaultProps} />);

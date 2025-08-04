@@ -12,6 +12,9 @@ import { extractAllTagPaths } from "../filters/tagUtils";
  * State interface for note selectors containing the minimum required state
  * for selector operations. This ensures selectors remain pure and testable
  * by only depending on the specific state slices they need.
+ *
+ * Note: The main selectors (getAvailableTags, getAvailableFolders) now accept
+ * notes directly rather than requiring the full state object.
  */
 export interface CardExplorerSelectorState {
   /** All notes loaded from the vault */
@@ -23,7 +26,7 @@ export interface CardExplorerSelectorState {
 }
 
 /**
- * Collection of pure selector functions for deriving computed state from the store.
+ * Collection of pure selector functions for deriving computed state from notes data.
  * These selectors enable efficient data derivation and support reactive UI updates
  * without triggering unnecessary re-renders.
  */
@@ -32,11 +35,11 @@ export const cardExplorerSelectors = {
    * Extracts all unique folder paths from the notes collection, including parent folders.
    * This enables hierarchical folder filtering where selecting a parent folder includes all child folders.
    *
-   * @param state - The current state containing notes data
+   * @param notes - Array of notes to extract folder paths from
    * @returns Sorted array of unique folder paths
    */
-  getAvailableFolders: (state: CardExplorerSelectorState): string[] => {
-    const folders = collectFoldersFromNotes(state.notes);
+  getAvailableFolders: (notes: NoteData[]): string[] => {
+    const folders = collectFoldersFromNotes(notes);
     return Array.from(folders).sort(); // Convert Set to sorted Array for consistent UI ordering
   },
 
@@ -45,13 +48,13 @@ export const cardExplorerSelectors = {
    * Includes hierarchical tag expansion where parent tags are automatically included.
    * For example, "ai/ml/neural" includes ["ai", "ai/ml", "ai/ml/neural"].
    *
-   * @param state - The current state containing notes data
+   * @param notes - Array of notes to extract tags from
    * @returns Sorted array of unique tag paths including hierarchical expansion
    */
-  getAvailableTags: (state: CardExplorerSelectorState): string[] => {
+  getAvailableTags: (notes: NoteData[]): string[] => {
     const allNoteTags: string[] = [];
 
-    for (const note of state.notes) {
+    for (const note of notes) {
       allNoteTags.push(...note.tags);
     }
 

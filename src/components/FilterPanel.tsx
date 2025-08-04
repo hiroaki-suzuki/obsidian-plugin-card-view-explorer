@@ -25,7 +25,7 @@ interface FilterPanelProps {
  * Integrates with Zustand store for filter state management.
  */
 export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availableFolders }) => {
-  const { filters, updateFilters, clearFilters } = useCardExplorerStore();
+  const { filters, updateFilters, clearFilters, hasActiveFilters } = useCardExplorerStore();
 
   /**
    * Local state for date filter input value
@@ -179,21 +179,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
     [dateType, updateFilters]
   );
 
-  /**
-   * Determines if any filters are currently active
-   * Used to conditionally display the "Clear All" button
-   */
-  const hasActiveFilters =
-    filters.filename.length > 0 ||
-    filters.folders.length > 0 ||
-    filters.tags.length > 0 ||
-    filters.dateRange !== null;
-
   return (
     <div className="filter-panel">
       <div className="filter-panel-header">
         <h3>Filters</h3>
-        {hasActiveFilters && (
+        {hasActiveFilters() && (
           <button
             type="button"
             className="clear-filters-btn"

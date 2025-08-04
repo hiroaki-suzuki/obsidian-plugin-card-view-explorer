@@ -6,6 +6,7 @@ import {
   type TFile,
   type WorkspaceLeaf,
 } from "obsidian";
+import { ErrorCategory, handleError } from "./core/errors/errorHandling";
 import {
   loadPluginData,
   loadPluginSettings,
@@ -200,7 +201,7 @@ export default class CardExplorerPlugin extends Plugin {
   }
 
   /**
-   * Update specific setting value
+   * Update specific setting value and notify store if needed
    * @param key - Setting key to update
    * @param value - New value for the setting
    */
@@ -209,6 +210,11 @@ export default class CardExplorerPlugin extends Plugin {
     value: CardExplorerSettings[K]
   ): void {
     this.settings[key] = value;
+
+    // If sortKey is updated, notify all active Card View Explorer views
+    if (key === "sortKey") {
+      this.updateSortKeyInViews(value as string);
+    }
   }
 
   /**
@@ -247,6 +253,38 @@ export default class CardExplorerPlugin extends Plugin {
     const success = await savePluginData(this, this.data);
     if (!success) {
       console.error("Card View Explorer: Failed to save plugin data");
+    }
+  }
+
+  /**
+   * Save store state to plugin data
+   *
+   * Retrieves current pin states and filters from the store and persists
+   * them to the plugin's data file for restoration on next load.
+   *
+   * @returns Promise that resolves when data is saved
+   */
+  async saveStoreState(): Promise<void> {
+    try {
+      // Dynamically import store to avoid circular dependencies
+      const { useCardExplorerStore } = await import("./store/cardExplorerStore");
+      const store = useCardExplorerStore.getState();
+
+      // Get serializable data from store
+      const storeData = store.getSerializableData();
+
+      // Preserve existing plugin data while updating store state
+      const currentData = this.getData();
+      this.updateData({
+        ...currentData,
+        ...storeData, // pinnedNotes and lastFilters from store
+      });
+
+      await this.savePluginData();
+    } catch (error) {
+      handleError(error, ErrorCategory.DATA, {
+        operation: "saveStoreState",
+      });
     }
   }
 
@@ -314,9 +352,6 @@ export default class CardExplorerPlugin extends Plugin {
         }
       });
     } catch (error) {
-      // Dynamically import error handling utility
-      const { handleError, ErrorCategory } = await import("./core/errors/errorHandling");
-
       handleError(error, ErrorCategory.API, {
         operation: "refreshNotes",
         viewCount: this.app.workspace.getLeavesOfType(VIEW_TYPE_CARD_EXPLORER).length,
@@ -401,5 +436,25 @@ export default class CardExplorerPlugin extends Plugin {
    */
   private isMarkdownFile(file: TAbstractFile): boolean {
     return "extension" in file && file.extension === "md";
+  }
+
+  /**
+   * Update sort key in all active Card View Explorer views
+   * @param sortKey - New sort key from settings
+   */
+  private async updateSortKeyInViews(sortKey: string): Promise<void> {
+    try {
+      // Dynamically import store to avoid circular dependencies
+      const { useCardExplorerStore } = await import("./store/cardExplorerStore");
+      const store = useCardExplorerStore.getState();
+
+      // Update sort configuration in store
+      store.updateSortFromSettings(sortKey);
+    } catch (error) {
+      handleError(error, ErrorCategory.GENERAL, {
+        operation: "updateSortKeyInViews",
+        sortKey,
+      });
+    }
   }
 }

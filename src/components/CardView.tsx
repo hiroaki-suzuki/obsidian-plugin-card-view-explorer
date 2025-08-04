@@ -53,7 +53,6 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
     refreshNotes, // Action to reload notes from vault
     setError, // Action to set/clear error state
     initializeFromPluginData, // Action to load saved settings from plugin
-    savePinStatesToPlugin, // Action to save pin states to plugin data
     pinnedNotes, // Set of pinned note IDs
   } = useCardExplorerStore();
 
@@ -74,7 +73,9 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
    * @dependency initializeFromPluginData - Re-runs if this function reference changes
    */
   useEffect(() => {
-    initializeFromPluginData(plugin);
+    const data = plugin.getData();
+    const settings = plugin.getSettings();
+    initializeFromPluginData(data, settings);
   }, [plugin, initializeFromPluginData]);
 
   /**
@@ -131,7 +132,7 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
    *
    * @effect
    * @dependency pinnedNotes.size - Number of pinned notes (changes when pins are added/removed)
-   * @dependency savePinStatesToPlugin - Store action to persist pin states
+   * @dependency plugin.saveStoreState - Plugin method to persist store state
    * @dependency plugin - Plugin instance for data persistence
    */
   useEffect(() => {
@@ -141,12 +142,12 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(async () => {
         try {
-          await savePinStatesToPlugin(plugin);
+          await plugin.saveStoreState();
         } catch (err) {
           // Import error handling utilities dynamically to avoid circular dependencies
           import("../core/errors/errorHandling").then(({ handleError, ErrorCategory }) => {
             handleError(err, ErrorCategory.DATA, {
-              operation: "savePinStates",
+              operation: "saveStoreState",
               pinCount: pinnedNotes.size,
             });
           });
@@ -159,7 +160,7 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [pinnedNotes.size, savePinStatesToPlugin, plugin]); // Use pinnedNotes.size to avoid Set reference issues
+  }, [pinnedNotes.size, plugin]); // Use pinnedNotes.size to avoid Set reference issues
 
   /**
    * Handle errors caught by the React error boundary.
