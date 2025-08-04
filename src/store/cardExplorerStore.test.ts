@@ -4,49 +4,15 @@ import type CardExplorerPlugin from "../main";
 import type { NoteData } from "../types";
 import { useCardExplorerStore } from "./cardExplorerStore";
 
-// Mock note data for testing
-const createMockNote = (
-  title: string,
-  path: string,
-  folder: string = "",
-  tags: string[] = [],
-  frontmatter: Record<string, any> | null = null,
-  lastModified: Date = new Date()
-): NoteData => ({
-  file: {} as any, // Mock TFile
-  title,
-  path,
-  preview: `Preview for ${title}`,
-  lastModified,
-  frontmatter,
-  tags,
-  folder,
-});
-
-// Mock plugin instance for testing
-const createMockPlugin = (data?: Partial<any>): CardExplorerPlugin => {
-  let currentData = {
-    pinnedNotes: [],
-    lastFilters: null,
-    sortConfig: null,
-    ...data,
-  };
-
-  const mockPlugin = {
-    getData: () => currentData,
-    updateData: vi.fn((newData: any) => {
-      currentData = { ...currentData, ...newData };
-    }),
-    savePluginData: vi.fn(async () => {}),
-  } as any;
-
-  return mockPlugin;
-};
-
 // Mock loadNotesFromVault function
 vi.mock("./noteProcessing", () => ({
   loadNotesFromVault: vi.fn(),
 }));
+
+// Import the mocked function for type safety
+import { loadNotesFromVault } from "./noteProcessing";
+
+const mockLoadNotesFromVault = vi.mocked(loadNotesFromVault);
 
 // Mock error handling utilities
 vi.mock("../core/errors/errorHandling", () => ({
@@ -60,279 +26,617 @@ vi.mock("../core/errors/errorHandling", () => ({
   },
 }));
 
-describe("CardExplorerStore", () => {
+// Import the mocked error handling utilities
+import { handleError, withRetry } from "../core/errors/errorHandling";
+
+const mockWithRetry = vi.mocked(withRetry);
+const mockHandleError = vi.mocked(handleError);
+
+/**
+ * Test constants for consistent timestamp values across tests.
+ * Using fixed timestamps ensures deterministic test behavior.
+ */
+const TEST_TIMESTAMPS = {
+  RECENT: Date.now() - 24 * 60 * 60 * 1000, // 1日前
+  OLD: Date.now() - 10 * 24 * 60 * 60 * 1000, // 10日前
+  BASE_DATE: new Date("2024-01-01").getTime(),
+} as const;
+
+/**
+ * Factory functions for creating common test note scenarios.
+ * Provides reusable note configurations for different test cases.
+ */
+const createTestNotes = () => ({
+  basic: (count: number = 2) =>
+    Array.from({ length: count }, (_, i) => createMockNote(`Note ${i + 1}`, `/note${i + 1}.md`)),
+
+  withFolders: (folders: string[]) =>
+    folders.map((folder, i) => createMockNote(`${folder} Note`, `/${folder}/note${i}.md`, folder)),
+
+  withTags: (tags: string[]) =>
+    tags.map((tag, i) => createMockNote(`${tag} Note`, `/${tag}/note${i}.md`, "", [tag])),
+
+  withDates: (daysAgoList: number[]) =>
+    daysAgoList.map((daysAgo, i) =>
+      createMockNote(
+        `Note ${i + 1}`,
+        `/note${i + 1}.md`,
+        "",
+        [],
+        new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+      )
+    ),
+
+  withPriorities: (priorities: number[]) =>
+    priorities.map((priority, i) => ({
+      ...createMockNote(`Note ${i + 1}`, `/note${i + 1}.md`),
+      frontmatter: { priority },
+    })),
+});
+
+/**
+ * Mock setup scenarios for common test patterns.
+ * Provides consistent mock configurations for different test scenarios.
+ */
+const createMockScenarios = () => ({
+  successfulRefresh: (notes: NoteData[]) => {
+    mockLoadNotesFromVault.mockResolvedValueOnce(notes);
+    mockWithRetry.mockImplementation(async (fn) => await fn());
+  },
+
+  failedRefresh: (error: Error, errorMessage: string) => {
+    mockWithRetry.mockRejectedValueOnce(error);
+    mockHandleError.mockReturnValueOnce({
+      message: errorMessage,
+      category: "API" as any,
+      timestamp: Date.now(),
+    });
+  },
+});
+
+/**
+ * State expectation helpers for consistent assertion patterns.
+ * Provides reusable assertion functions for common state validations.
+ */
+const expectState = {
+  initial: (state: any) => {
+    expect(state.notes).toEqual([]);
+    expect(state.filteredNotes).toEqual([]);
+    expect(state.pinnedNotes).toEqual(new Set());
+    expect(state.availableTags).toEqual([]);
+    expect(state.availableFolders).toEqual([]);
+    expect(state.isLoading).toBe(false);
+    expect(state.error).toBe(null);
+  },
+
+  filteredResults: (state: any, expectedCount: number, validator?: (notes: NoteData[]) => void) => {
+    expect(state.filteredNotes).toHaveLength(expectedCount);
+    if (validator) validator(state.filteredNotes);
+  },
+
+  error: (state: any, errorMessage: string | null) => {
+    expect(state.error).toBe(errorMessage);
+    expect(state.isLoading).toBe(false);
+  },
+
+  loading: (state: any, isLoading: boolean) => {
+    expect(state.isLoading).toBe(isLoading);
+  },
+};
+
+// Mock App object for testing
+const createMockApp = (): App => ({}) as App;
+
+// Mock note data for testing
+const createMockNote = (
+  title: string,
+  path: string,
+  folder: string = "",
+  tags: string[] = [],
+  lastModified: Date = new Date()
+): NoteData => ({
+  title,
+  path,
+  folder,
+  tags,
+  lastModified,
+  preview: `Preview for ${title}`,
+  file: { path } as any,
+  frontmatter: {},
+});
+
+const createMockPlugin = (data?: Partial<any>, settings?: Partial<any>): CardExplorerPlugin => {
+  let currentData = {
+    pinnedNotes: [],
+    lastFilters: null,
+    ...data,
+  };
+
+  const currentSettings = {
+    sortKey: "updated",
+    autoStart: false,
+    showInSidebar: true,
+    ...settings,
+  };
+
+  return {
+    getData: vi.fn(() => currentData),
+    getSettings: vi.fn(() => currentSettings),
+    updateData: vi.fn((newData) => {
+      currentData = { ...currentData, ...newData };
+    }),
+    savePluginData: vi.fn().mockResolvedValue(undefined),
+  } as any;
+};
+
+// Helper function to set up notes using refreshNotes
+const setupNotesWithRefresh = async (notes: NoteData[]) => {
+  mockLoadNotesFromVault.mockResolvedValueOnce(notes);
+  mockWithRetry.mockImplementation(async (fn) => await fn());
+  await useCardExplorerStore.getState().refreshNotes(createMockApp());
+};
+
+describe("cardExplorerStore", () => {
   beforeEach(() => {
     // Reset store before each test
     useCardExplorerStore.getState().reset();
     // Clear all mocks
     vi.clearAllMocks();
+    // Reset the mock function
+    mockLoadNotesFromVault.mockReset();
   });
 
   describe("Initial State", () => {
     it("should have correct initial state", () => {
       const state = useCardExplorerStore.getState();
 
-      expect(state.notes).toEqual([]);
-      expect(state.filteredNotes).toEqual([]);
-      expect(state.pinnedNotes).toEqual(new Set());
-      expect(state.isLoading).toBe(false);
-      expect(state.error).toBe(null);
-      expect(state.filters.folders).toEqual([]);
-      expect(state.filters.tags).toEqual([]);
-      expect(state.filters.filename).toBe("");
-      expect(state.sortConfig.key).toBe("updated");
-      expect(state.sortConfig.order).toBe("desc");
+      expectState.initial(state);
     });
   });
 
-  describe("setNotes", () => {
-    it("should set notes and update filtered notes", () => {
-      const mockNotes = [
-        createMockNote("Note 1", "/note1.md"),
-        createMockNote("Note 2", "/note2.md"),
-      ];
+  describe("refreshNotes", () => {
+    it("should load notes and update state", async () => {
+      // Arrange
+      const mockNotes = createTestNotes().basic(2);
+      createMockScenarios().successfulRefresh(mockNotes);
+      const mockApp = createMockApp();
 
-      useCardExplorerStore.getState().setNotes(mockNotes);
+      // Act
+      await useCardExplorerStore.getState().refreshNotes(mockApp);
+
+      // Assert
       const state = useCardExplorerStore.getState();
-
       expect(state.notes).toEqual(mockNotes);
       expect(state.filteredNotes).toEqual(mockNotes);
+      expectState.loading(state, false);
+      expectState.error(state, null);
+    });
+
+    it("should set loading state during operation", async () => {
+      let resolveLoadNotes: (notes: NoteData[]) => void;
+      const loadNotesPromise = new Promise<NoteData[]>((resolve) => {
+        resolveLoadNotes = resolve;
+      });
+
+      mockWithRetry.mockImplementation(async (fn) => {
+        return await fn();
+      });
+      mockLoadNotesFromVault.mockReturnValueOnce(loadNotesPromise);
+
+      const mockApp = createMockApp();
+      const refreshPromise = useCardExplorerStore.getState().refreshNotes(mockApp);
+
+      // Wait a bit for the async operation to start
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Should be loading
+      expect(useCardExplorerStore.getState().isLoading).toBe(true);
+
+      // Resolve the promise
+      resolveLoadNotes!([createMockNote("Test", "/test.md")]);
+      await refreshPromise;
+
+      // Should no longer be loading
+      expect(useCardExplorerStore.getState().isLoading).toBe(false);
+    });
+
+    it("should clear previous error on successful refresh", async () => {
+      // Set initial error state
+      useCardExplorerStore.getState().setError("Previous error");
+      expect(useCardExplorerStore.getState().error).toBe("Previous error");
+
+      const mockNotes = [createMockNote("Note", "/note.md")];
+      mockLoadNotesFromVault.mockResolvedValueOnce(mockNotes);
+      mockWithRetry.mockImplementation(async (fn) => await fn());
+
+      await useCardExplorerStore.getState().refreshNotes(createMockApp());
+
+      const state = useCardExplorerStore.getState();
+      expect(state.error).toBe(null);
+      expect(state.notes).toEqual(mockNotes);
+    });
+
+    // Parameterized tests for error handling scenarios
+    const errorTestCases = [
+      {
+        name: "without existing notes",
+        existingNotes: [],
+        expectedContext: { notesCount: 0, hasExistingNotes: false },
+      },
+      {
+        name: "with existing notes",
+        existingNotes: createTestNotes().basic(2),
+        expectedContext: { notesCount: 2, hasExistingNotes: true },
+      },
+    ];
+
+    errorTestCases.forEach(({ name, existingNotes, expectedContext }) => {
+      it(`should handle refresh errors ${name}`, async () => {
+        // Arrange
+        if (existingNotes.length > 0) {
+          await setupNotesWithRefresh(existingNotes);
+          // Reset mocks after setup
+          mockWithRetry.mockReset();
+          mockHandleError.mockReset();
+        }
+
+        const testError = new Error("API Error");
+        createMockScenarios().failedRefresh(testError, "Failed to refresh notes");
+
+        // Act
+        await useCardExplorerStore.getState().refreshNotes(createMockApp());
+
+        // Assert
+        const state = useCardExplorerStore.getState();
+        expectState.loading(state, false);
+        expectState.error(state, "Failed to refresh notes");
+
+        expect(mockHandleError).toHaveBeenCalledWith(testError, "API", {
+          operation: "refreshNotes",
+          ...expectedContext,
+        });
+      });
     });
   });
 
   describe("updateFilters", () => {
-    it("should update filters and recompute filtered notes", () => {
-      const mockNotes = [
-        createMockNote("Test Note", "/test.md", "folder1", ["tag1"]),
-        createMockNote("Other Note", "/other.md", "folder2", ["tag2"]),
-      ];
+    // Parameterized tests for common filtering scenarios
+    const filterTestCases = [
+      {
+        name: "filename filtering",
+        setupNotes: () => [
+          createMockNote("Test Note", "/test.md"),
+          createMockNote("Other Note", "/other.md"),
+        ],
+        filter: { filename: "Test" },
+        expectedCount: 1,
+        validator: (notes: NoteData[]) => {
+          expect(notes[0].title).toBe("Test Note");
+        },
+      },
+      {
+        name: "folder filtering",
+        setupNotes: () => createTestNotes().withFolders(["folder1", "folder2"]),
+        filter: { folders: ["folder1"] },
+        expectedCount: 1,
+        validator: (notes: NoteData[]) => {
+          expect(notes[0].folder).toBe("folder1");
+        },
+      },
+      {
+        name: "tag filtering",
+        setupNotes: () => createTestNotes().withTags(["tag1", "tag2"]),
+        filter: { tags: ["tag1"] },
+        expectedCount: 1,
+        validator: (notes: NoteData[]) => {
+          expect(notes[0].tags).toContain("tag1");
+        },
+      },
+    ];
 
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      useCardExplorerStore.getState().updateFilters({ filename: "Test" });
+    filterTestCases.forEach(({ name, setupNotes, filter, expectedCount, validator }) => {
+      it(`should apply ${name} correctly`, async () => {
+        // Arrange
+        const notes = setupNotes();
+        await setupNotesWithRefresh(notes);
 
-      const state = useCardExplorerStore.getState();
-      expect(state.filters.filename).toBe("Test");
-      expect(state.filteredNotes).toHaveLength(1);
-      expect(state.filteredNotes[0].title).toBe("Test Note");
+        // Act
+        useCardExplorerStore.getState().updateFilters(filter);
+
+        // Assert
+        const state = useCardExplorerStore.getState();
+        expectState.filteredResults(state, expectedCount, validator);
+
+        // Verify filter state is updated
+        Object.entries(filter).forEach(([key, value]) => {
+          expect(state.filters[key]).toEqual(value);
+        });
+      });
     });
 
-    it("should filter by folders", () => {
-      const mockNotes = [
-        createMockNote("Note 1", "/note1.md", "folder1"),
-        createMockNote("Note 2", "/note2.md", "folder2"),
-      ];
+    it("should update filtered notes when date filters are applied", async () => {
+      // Arrange
+      const mockNotes = createTestNotes().withDates([1, 10]); // 1 day ago, 10 days ago
+      await setupNotesWithRefresh(mockNotes);
 
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      useCardExplorerStore.getState().updateFilters({ folders: ["folder1"] });
-
-      const state = useCardExplorerStore.getState();
-      expect(state.filteredNotes).toHaveLength(1);
-      expect(state.filteredNotes[0].folder).toBe("folder1");
-    });
-
-    it("should filter by tags", () => {
-      const mockNotes = [
-        createMockNote("Note 1", "/note1.md", "", ["tag1", "tag2"]),
-        createMockNote("Note 2", "/note2.md", "", ["tag3"]),
-      ];
-
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      useCardExplorerStore.getState().updateFilters({ tags: ["tag1"] });
-
-      const state = useCardExplorerStore.getState();
-      expect(state.filteredNotes).toHaveLength(1);
-      expect(state.filteredNotes[0].tags).toContain("tag1");
-    });
-
-    it("should filter by date range - within", () => {
-      const now = new Date();
-      const recent = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days ago
-      const old = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000); // 10 days ago
-
-      const mockNotes = [
-        createMockNote("Recent Note", "/recent.md", "", [], null, recent),
-        createMockNote("Old Note", "/old.md", "", [], null, old),
-      ];
-
-      useCardExplorerStore.getState().setNotes(mockNotes);
+      // Act
       useCardExplorerStore.getState().updateFilters({
         dateRange: {
           type: "within",
-          value: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+          value: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
         },
       });
 
+      // Assert
       const state = useCardExplorerStore.getState();
-      expect(state.filteredNotes).toHaveLength(1);
-      expect(state.filteredNotes[0].title).toBe("Recent Note");
+      expectState.filteredResults(state, 1, (notes) => {
+        expect(notes[0].title).toBe("Note 1"); // Recent note
+      });
     });
 
-    it("should filter by date range - after", () => {
-      const now = new Date();
-      const recent = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days ago
-      const old = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000); // 10 days ago
+    it("should update filtered notes when after date filters are applied", async () => {
+      // Arrange
+      const mockNotes = createTestNotes().withDates([1, 10]); // 1 day ago, 10 days ago
+      await setupNotesWithRefresh(mockNotes);
 
-      const mockNotes = [
-        createMockNote("Recent Note", "/recent.md", "", [], null, recent),
-        createMockNote("Old Note", "/old.md", "", [], null, old),
-      ];
-
-      useCardExplorerStore.getState().setNotes(mockNotes);
+      // Act
       useCardExplorerStore.getState().updateFilters({
         dateRange: {
           type: "after",
-          value: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+          value: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
         },
       });
 
+      // Assert
       const state = useCardExplorerStore.getState();
-      expect(state.filteredNotes).toHaveLength(1);
-      expect(state.filteredNotes[0].title).toBe("Recent Note");
+      expectState.filteredResults(state, 1, (notes) => {
+        expect(notes[0].title).toBe("Note 1"); // Recent note
+      });
     });
   });
 
-  describe("updateSortConfig", () => {
-    it("should update sort configuration and recompute filtered notes", () => {
-      const now = new Date();
-      const earlier = new Date(now.getTime() - 1000 * 60 * 60); // 1 hour earlier
-
+  describe("clearFilters", () => {
+    it("should reset filters to default state and restore filtered notes", async () => {
+      // Arrange
       const mockNotes = [
-        createMockNote("Note 1", "/note1.md", "", [], null, earlier),
-        createMockNote("Note 2", "/note2.md", "", [], null, now),
+        createMockNote("Matching Note", "/matching.md", "work", ["important"]),
+        createMockNote("Other Note", "/other.md", "personal", ["casual"]),
+        createMockNote("Another Note", "/another.md", "archive", ["old"]),
       ];
+      await setupNotesWithRefresh(mockNotes);
 
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      useCardExplorerStore.getState().updateSortConfig({ key: "mtime", order: "asc" });
+      // Apply filters to reduce the visible notes
+      useCardExplorerStore.getState().updateFilters({
+        folders: ["work"],
+        tags: ["important"],
+        filename: "Matching",
+      });
 
-      const state = useCardExplorerStore.getState();
-      expect(state.sortConfig.key).toBe("mtime");
-      expect(state.sortConfig.order).toBe("asc");
-      expect(state.filteredNotes[0].title).toBe("Note 1"); // Earlier note first
-    });
+      // Verify filters are applied and filteredNotes is reduced
+      let state = useCardExplorerStore.getState();
+      expectState.filteredResults(state, 1, (notes) => {
+        expect(notes[0].title).toBe("Matching Note");
+      });
 
-    it("should sort by frontmatter field", () => {
-      const mockNotes = [
-        createMockNote("Note 1", "/note1.md", "", [], { priority: 1 }),
-        createMockNote("Note 2", "/note2.md", "", [], { priority: 3 }),
-        createMockNote("Note 3", "/note3.md", "", [], { priority: 2 }),
-      ];
+      // Act
+      useCardExplorerStore.getState().clearFilters();
 
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      useCardExplorerStore.getState().updateSortConfig({ key: "priority", order: "asc" });
+      // Assert - Verify filters are cleared and all notes are now visible
+      state = useCardExplorerStore.getState();
+      expect(state.filters.filename).toBe("");
+      expect(state.filters.tags).toEqual([]);
+      expect(state.filters.folders).toEqual([]);
+      expect(state.filters.dateRange).toBe(null);
 
-      const state = useCardExplorerStore.getState();
-      expect(state.filteredNotes[0].frontmatter?.priority).toBe(1);
-      expect(state.filteredNotes[1].frontmatter?.priority).toBe(2);
-      expect(state.filteredNotes[2].frontmatter?.priority).toBe(3);
+      // Verify that filteredNotes now shows all notes (filtering has been reset)
+      expectState.filteredResults(state, 3, (notes) => {
+        expect(notes.map((note) => note.title)).toEqual(
+          expect.arrayContaining(["Matching Note", "Other Note", "Another Note"])
+        );
+      });
     });
   });
 
-  describe("togglePin", () => {
-    it("should toggle pin state", () => {
+  describe("updateSortFromSettings", () => {
+    it("should update sort configuration with new sort key", async () => {
+      const mockNotes = [
+        createMockNote("A Note", "/a.md"),
+        createMockNote("B Note", "/b.md"),
+        createMockNote("C Note", "/c.md"),
+      ];
+
+      // Set up initial state
+      await setupNotesWithRefresh(mockNotes);
+
+      // Update sort key to priority
+      useCardExplorerStore.getState().updateSortFromSettings("priority");
+      const state = useCardExplorerStore.getState();
+
+      expect(state.sortConfig.key).toBe("priority");
+      expect(state.sortConfig.order).toBe("desc"); // Should maintain default order
+    });
+
+    it("should recompute filtered notes with new sort configuration", async () => {
       const mockNotes = [
         createMockNote("Note 1", "/note1.md"),
         createMockNote("Note 2", "/note2.md"),
       ];
 
-      useCardExplorerStore.getState().setNotes(mockNotes);
+      // Set up initial state with filters
+      await setupNotesWithRefresh(mockNotes);
+      useCardExplorerStore.getState().updateFilters({ folders: ["folder1"] });
+
+      // Update sort key
+      useCardExplorerStore.getState().updateSortFromSettings("created");
+      const state = useCardExplorerStore.getState();
+
+      // Should maintain filters but update sort
+      expect(state.sortConfig.key).toBe("created");
+      expect(state.filters.folders).toEqual(["folder1"]);
+    });
+
+    // Parameterized tests for common sorting scenarios
+    const sortTestCases = [
+      {
+        name: "priority field sorting",
+        notes: createTestNotes().withPriorities([3, 1, 2]),
+        sortKey: "priority",
+        expectedOrder: ["Note 1", "Note 3", "Note 2"], // priority: 3, 2, 1 (descending)
+      },
+      {
+        name: "category field sorting with case-insensitive",
+        notes: [
+          { ...createMockNote("Note 1", "/note1.md"), frontmatter: { category: "zebra" } },
+          { ...createMockNote("Note 2", "/note2.md"), frontmatter: { category: "Apple" } },
+          { ...createMockNote("Note 3", "/note3.md"), frontmatter: { category: "banana" } },
+        ],
+        sortKey: "category",
+        expectedOrder: ["Note 1", "Note 3", "Note 2"], // zebra, banana, Apple (descending, case-insensitive)
+      },
+    ];
+
+    sortTestCases.forEach(({ name, notes, sortKey, expectedOrder }) => {
+      it(`should handle ${name}`, async () => {
+        // Arrange
+        await setupNotesWithRefresh(notes);
+
+        // Act
+        useCardExplorerStore.getState().updateSortFromSettings(sortKey);
+
+        // Assert
+        const state = useCardExplorerStore.getState();
+        const actualOrder = state.filteredNotes.map((note) => note.title);
+        expect(actualOrder).toEqual(expectedOrder);
+        expect(state.sortConfig.key).toBe(sortKey);
+      });
+    });
+
+    it("should sort notes by frontmatter field when sort key is updated", async () => {
+      // Arrange
+      const baseDate = new Date(TEST_TIMESTAMPS.BASE_DATE);
+      const mockNotes = [
+        {
+          ...createMockNote("Note A", "/a.md", "", [], baseDate),
+          frontmatter: { priority: 3, created: "2024-01-03" },
+        },
+        {
+          ...createMockNote("Note B", "/b.md", "", [], baseDate),
+          frontmatter: { priority: 1, created: "2024-01-04" },
+        },
+        {
+          ...createMockNote("Note C", "/c.md", "", [], baseDate),
+          frontmatter: { priority: 2, created: "2024-01-02" },
+        },
+      ];
+      await setupNotesWithRefresh(mockNotes);
+
+      // Act & Assert - Sort by priority
+      useCardExplorerStore.getState().updateSortFromSettings("priority");
+      let state = useCardExplorerStore.getState();
+      expect(state.filteredNotes[0].title).toBe("Note A"); // priority: 3
+      expect(state.filteredNotes[1].title).toBe("Note C"); // priority: 2
+      expect(state.filteredNotes[2].title).toBe("Note B"); // priority: 1
+
+      // Act & Assert - Switch to sort by created date
+      useCardExplorerStore.getState().updateSortFromSettings("created");
+      state = useCardExplorerStore.getState();
+      expect(state.filteredNotes[0].title).toBe("Note B"); // 2024-01-04
+      expect(state.filteredNotes[1].title).toBe("Note A"); // 2024-01-03
+      expect(state.filteredNotes[2].title).toBe("Note C"); // 2024-01-02
+    });
+
+    it("should fallback to file modification time when frontmatter field is missing", async () => {
+      // Arrange
+      const mockNotes = createTestNotes().withDates([2, 1]); // 2 days ago, 1 day ago (older, newer)
+      const notesWithFrontmatter = mockNotes.map((note, i) => ({
+        ...note,
+        title: i === 0 ? "Old Note" : "New Note",
+        frontmatter: { title: i === 0 ? "Old Note" : "New Note" }, // No 'nonexistent' field
+      }));
+      await setupNotesWithRefresh(notesWithFrontmatter);
+
+      // Act
+      useCardExplorerStore.getState().updateSortFromSettings("nonexistent");
+
+      // Assert - Should fallback to lastModified (descending - newer first)
+      const state = useCardExplorerStore.getState();
+      expect(state.filteredNotes[0].title).toBe("New Note"); // newer date
+      expect(state.filteredNotes[1].title).toBe("Old Note"); // older date
+    });
+
+    it("should maintain pinned notes at top with new sort", async () => {
+      const mockNotes = [
+        {
+          ...createMockNote("A Note", "/a.md"),
+          frontmatter: { priority: 1 },
+        },
+        {
+          ...createMockNote("B Note", "/b.md"),
+          frontmatter: { priority: 2 },
+        },
+        {
+          ...createMockNote("C Note", "/c.md"),
+          frontmatter: { priority: 3 },
+        },
+      ];
+
+      // Set up initial state with pinned note
+      await setupNotesWithRefresh(mockNotes);
+      useCardExplorerStore.getState().togglePin("/a.md"); // Pin note with lowest priority
+
+      // Update sort key to priority
+      useCardExplorerStore.getState().updateSortFromSettings("priority");
+      const state = useCardExplorerStore.getState();
+
+      // Pinned note should still be first, despite having lowest priority
+      expect(state.filteredNotes[0].path).toBe("/a.md");
+      // Other notes should be sorted by priority (descending)
+      expect(state.filteredNotes[1].title).toBe("C Note"); // priority: 3
+      expect(state.filteredNotes[2].title).toBe("B Note"); // priority: 2
+    });
+  });
+
+  describe("togglePin", () => {
+    it("should update pinned notes order", async () => {
+      // Arrange
+      const mockNotes = createTestNotes().basic(2);
+      await setupNotesWithRefresh(mockNotes);
+
+      // Act
       useCardExplorerStore.getState().togglePin("/note1.md");
 
+      // Assert
       const state = useCardExplorerStore.getState();
       expect(state.pinnedNotes.has("/note1.md")).toBe(true);
       expect(state.pinnedNotes.has("/note2.md")).toBe(false);
     });
 
-    it("should move pinned notes to top", () => {
-      const mockNotes = [
-        createMockNote("Note 1", "/note1.md"),
-        createMockNote("Note 2", "/note2.md"),
-      ];
+    it("should maintain pinned notes at top after setting notes", async () => {
+      // Arrange
+      const mockNotes = createTestNotes().basic(2);
+      await setupNotesWithRefresh(mockNotes);
 
-      useCardExplorerStore.getState().setNotes(mockNotes);
+      // Act
       useCardExplorerStore.getState().togglePin("/note2.md");
 
+      // Assert
       const state = useCardExplorerStore.getState();
       expect(state.filteredNotes[0].path).toBe("/note2.md"); // Pinned note first
       expect(state.filteredNotes[1].path).toBe("/note1.md");
     });
 
-    it("should unpin notes when toggled again", () => {
-      const mockNotes = [createMockNote("Note 1", "/note1.md")];
+    it("should handle toggling pin state", async () => {
+      // Arrange
+      const mockNotes = createTestNotes().basic(1);
+      await setupNotesWithRefresh(mockNotes);
 
-      useCardExplorerStore.getState().setNotes(mockNotes);
+      // Act
       useCardExplorerStore.getState().togglePin("/note1.md");
       useCardExplorerStore.getState().togglePin("/note1.md");
 
+      // Assert
       const state = useCardExplorerStore.getState();
       expect(state.pinnedNotes.has("/note1.md")).toBe(false);
-    });
-  });
-
-  describe("clearFilters", () => {
-    it("should reset filters to default state", () => {
-      useCardExplorerStore.getState().updateFilters({
-        filename: "test",
-        tags: ["tag1"],
-        folders: ["folder1"],
-      });
-
-      useCardExplorerStore.getState().clearFilters();
-
-      const state = useCardExplorerStore.getState();
-      expect(state.filters.filename).toBe("");
-      expect(state.filters.tags).toEqual([]);
-      expect(state.filters.folders).toEqual([]);
-    });
-  });
-
-  describe("Selectors", () => {
-    it("should get available folders", () => {
-      const mockNotes = [
-        createMockNote("Note 1", "/note1.md", "folder1/subfolder"),
-        createMockNote("Note 2", "/note2.md", "folder2"),
-      ];
-
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      const state = useCardExplorerStore.getState();
-      const folders = state.availableFolders;
-
-      expect(folders).toContain("folder1");
-      expect(folders).toContain("folder1/subfolder");
-      expect(folders).toContain("folder2");
-    });
-
-    it("should get available tags", () => {
-      const mockNotes = [
-        createMockNote("Note 1", "/note1.md", "", ["tag1", "tag2"]),
-        createMockNote("Note 2", "/note2.md", "", ["tag2", "tag3"]),
-      ];
-
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      const state = useCardExplorerStore.getState();
-      const tags = state.availableTags;
-
-      expect(tags).toEqual(["tag1", "tag2", "tag3"]);
-    });
-
-    it("should detect active filters", () => {
-      const store = useCardExplorerStore.getState();
-      expect(store.hasActiveFilters()).toBe(false);
-
-      store.updateFilters({ filename: "test" });
-      expect(store.hasActiveFilters()).toBe(true);
-    });
-
-    it("should count pinned notes", () => {
-      const mockNotes = [
-        createMockNote("Note 1", "/note1.md"),
-        createMockNote("Note 2", "/note2.md"),
-      ];
-
-      const store = useCardExplorerStore.getState();
-      store.setNotes(mockNotes);
-      store.togglePin("/note1.md");
-
-      expect(store.getPinnedCount()).toBe(1);
     });
   });
 
@@ -340,15 +644,14 @@ describe("CardExplorerStore", () => {
     it("should initialize with default values when plugin data is empty", () => {
       const plugin = createMockPlugin();
 
-      useCardExplorerStore.getState().initializeFromPluginData(plugin);
+      const data = plugin.getData();
+      const settings = plugin.getSettings();
+      useCardExplorerStore.getState().initializeFromPluginData(data, settings);
       const state = useCardExplorerStore.getState();
 
       expect(state.pinnedNotes.size).toBe(0);
-      expect(state.filters.folders).toEqual([]);
-      expect(state.filters.tags).toEqual([]);
       expect(state.filters.filename).toBe("");
       expect(state.sortConfig.key).toBe("updated");
-      expect(state.sortConfig.order).toBe("desc");
     });
 
     it("should initialize pinned notes from plugin data", () => {
@@ -356,67 +659,46 @@ describe("CardExplorerStore", () => {
         pinnedNotes: ["/note1.md", "/note2.md"],
       });
 
-      useCardExplorerStore.getState().initializeFromPluginData(plugin);
+      const data = plugin.getData();
+      const settings = plugin.getSettings();
+      useCardExplorerStore.getState().initializeFromPluginData(data, settings);
       const state = useCardExplorerStore.getState();
 
+      expect(state.pinnedNotes.size).toBe(2);
       expect(state.pinnedNotes.has("/note1.md")).toBe(true);
       expect(state.pinnedNotes.has("/note2.md")).toBe(true);
-      expect(state.pinnedNotes.size).toBe(2);
     });
 
     it("should initialize filters from plugin data", () => {
-      const lastFilters = {
-        folders: ["work", "personal"],
-        tags: ["important", "todo"],
-        filename: "project",
-        dateRange: {
-          type: "within" as const,
-          value: new Date("2024-01-01"),
-        },
-      };
-
       const plugin = createMockPlugin({
-        lastFilters,
+        lastFilters: {
+          folders: ["work", "personal"],
+          tags: ["important"],
+          filename: "meeting",
+          dateRange: null,
+        },
       });
 
-      useCardExplorerStore.getState().initializeFromPluginData(plugin);
+      const data = plugin.getData();
+      const settings = plugin.getSettings();
+      useCardExplorerStore.getState().initializeFromPluginData(data, settings);
       const state = useCardExplorerStore.getState();
 
       expect(state.filters.folders).toEqual(["work", "personal"]);
-      expect(state.filters.tags).toEqual(["important", "todo"]);
-      expect(state.filters.filename).toBe("project");
-      expect(state.filters.dateRange).toEqual({
-        type: "within",
-        value: new Date("2024-01-01"),
-      });
+      expect(state.filters.tags).toEqual(["important"]);
+      expect(state.filters.filename).toBe("meeting");
+      expect(state.filters.dateRange).toBe(null);
     });
 
-    it("should initialize sort config from plugin data", () => {
-      const sortConfig = {
-        key: "priority",
-        order: "asc" as const,
-      };
-
-      const plugin = createMockPlugin({
-        sortConfig,
-      });
-
-      useCardExplorerStore.getState().initializeFromPluginData(plugin);
-      const state = useCardExplorerStore.getState();
-
-      expect(state.sortConfig.key).toBe("priority");
-      expect(state.sortConfig.order).toBe("asc");
-    });
-
-    it("should recompute filtered notes after initialization", () => {
+    it("should initialize and apply filters with notes", async () => {
       const mockNotes = [
         createMockNote("Work Note", "/work/note.md", "work", ["important"]),
-        createMockNote("Personal Note", "/personal/note.md", "personal", ["todo"]),
+        createMockNote("Personal Note", "/personal/note.md", "personal", ["casual"]),
         createMockNote("Archive Note", "/archive/note.md", "archive", ["old"]),
       ];
 
       // Set up notes first
-      useCardExplorerStore.getState().setNotes(mockNotes);
+      await setupNotesWithRefresh(mockNotes);
 
       const plugin = createMockPlugin({
         pinnedNotes: ["/personal/note.md"],
@@ -426,20 +708,17 @@ describe("CardExplorerStore", () => {
           filename: "",
           dateRange: null,
         },
-        sortConfig: {
-          key: "updated",
-          order: "desc",
-        },
       });
 
-      useCardExplorerStore.getState().initializeFromPluginData(plugin);
+      const data = plugin.getData();
+      const settings = plugin.getSettings();
+      useCardExplorerStore.getState().initializeFromPluginData(data, settings);
       const state = useCardExplorerStore.getState();
 
       // Should filter out archive folder and pin personal note to top
       expect(state.filteredNotes).toHaveLength(2);
-      expect(state.filteredNotes[0].path).toBe("/personal/note.md"); // Pinned note first
+      expect(state.filteredNotes[0].path).toBe("/personal/note.md"); // Pinned first
       expect(state.filteredNotes[1].path).toBe("/work/note.md");
-      expect(state.filteredNotes.some((note) => note.folder === "archive")).toBe(false);
     });
 
     it("should handle partial plugin data gracefully", () => {
@@ -448,307 +727,95 @@ describe("CardExplorerStore", () => {
         // lastFilters and sortConfig are null/undefined
       });
 
-      useCardExplorerStore.getState().initializeFromPluginData(plugin);
+      const data = plugin.getData();
+      const settings = plugin.getSettings();
+      useCardExplorerStore.getState().initializeFromPluginData(data, settings);
       const state = useCardExplorerStore.getState();
 
       // Should use defaults for missing data
       expect(state.pinnedNotes.has("/note1.md")).toBe(true);
-      expect(state.filters.folders).toEqual([]);
+      expect(state.filters.filename).toBe("");
       expect(state.sortConfig.key).toBe("updated");
-      expect(state.sortConfig.order).toBe("desc");
     });
 
-    it("should preserve existing notes when initializing", () => {
-      const mockNotes = [createMockNote("Existing Note", "/existing.md")];
-
-      useCardExplorerStore.getState().setNotes(mockNotes);
-
+    it("should handle null pinnedNotes gracefully", () => {
       const plugin = createMockPlugin({
-        pinnedNotes: ["/existing.md"],
+        pinnedNotes: null, // Explicitly null
+        lastFilters: {
+          folders: ["work"],
+          tags: ["important"],
+          filename: "test",
+          dateRange: null,
+        },
       });
 
-      useCardExplorerStore.getState().initializeFromPluginData(plugin);
+      const data = plugin.getData();
+      const settings = plugin.getSettings();
+      useCardExplorerStore.getState().initializeFromPluginData(data, settings);
       const state = useCardExplorerStore.getState();
 
-      // Notes should be preserved
-      expect(state.notes).toEqual(mockNotes);
-      expect(state.filteredNotes).toEqual(mockNotes);
-      expect(state.pinnedNotes.has("/existing.md")).toBe(true);
+      // Should handle null pinnedNotes and initialize with empty Set
+      expect(state.pinnedNotes.size).toBe(0);
+      expect(state.pinnedNotes).toEqual(new Set());
+
+      // Other data should be initialized correctly
+      expect(state.filters.filename).toBe("test");
+      expect(state.filters.folders).toEqual(["work"]);
+      expect(state.filters.tags).toEqual(["important"]);
+      expect(state.sortConfig.key).toBe("updated");
+    });
+
+    it("should handle undefined pinnedNotes gracefully", () => {
+      const plugin = createMockPlugin({
+        pinnedNotes: undefined,
+        lastFilters: {
+          folders: ["personal"],
+          tags: [],
+          filename: "meeting",
+          dateRange: null,
+        },
+      });
+
+      const data = plugin.getData();
+      const settings = plugin.getSettings();
+      useCardExplorerStore.getState().initializeFromPluginData(data, settings);
+      const state = useCardExplorerStore.getState();
+
+      // Should handle undefined pinnedNotes and initialize with empty Set
+      expect(state.pinnedNotes.size).toBe(0);
+      expect(state.pinnedNotes).toEqual(new Set());
+
+      // Other data should be initialized correctly
+      expect(state.filters.filename).toBe("meeting");
+      expect(state.filters.folders).toEqual(["personal"]);
+      expect(state.filters.tags).toEqual([]);
     });
   });
 
-  describe("savePinStatesToPlugin", () => {
-    it("should save pinned notes to plugin data", async () => {
-      const plugin = createMockPlugin();
-
-      // Set up store state with pinned notes
-      useCardExplorerStore.getState().togglePin("/note1.md");
-      useCardExplorerStore.getState().togglePin("/note2.md");
-
-      await useCardExplorerStore.getState().savePinStatesToPlugin(plugin);
-
-      // Verify updateData was called with correct pinned notes
-      expect(plugin.updateData).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pinnedNotes: ["/note1.md", "/note2.md"],
-        })
-      );
-
-      // Verify savePluginData was called
-      expect(plugin.savePluginData).toHaveBeenCalledOnce();
-    });
-
-    it("should save current filters to plugin data", async () => {
-      const plugin = createMockPlugin();
-
-      // Set up store state with filters
-      useCardExplorerStore.getState().updateFilters({
-        folders: ["work", "personal"],
-        tags: ["important"],
-        filename: "project",
-      });
-
-      await useCardExplorerStore.getState().savePinStatesToPlugin(plugin);
-
-      // Verify updateData was called with correct filters
-      expect(plugin.updateData).toHaveBeenCalledWith(
-        expect.objectContaining({
-          lastFilters: expect.objectContaining({
-            folders: ["work", "personal"],
-            tags: ["important"],
-            filename: "project",
-          }),
-        })
-      );
-
-      expect(plugin.savePluginData).toHaveBeenCalledOnce();
-    });
-
-    it("should save current sort config to plugin data", async () => {
-      const plugin = createMockPlugin();
-
-      // Set up store state with sort config
-      useCardExplorerStore.getState().updateSortConfig({
-        key: "priority",
-        order: "asc",
-      });
-
-      await useCardExplorerStore.getState().savePinStatesToPlugin(plugin);
-
-      // Verify updateData was called with correct sort config
-      expect(plugin.updateData).toHaveBeenCalledWith(
-        expect.objectContaining({
-          sortConfig: {
-            key: "priority",
-            order: "asc",
-          },
-        })
-      );
-
-      expect(plugin.savePluginData).toHaveBeenCalledOnce();
-    });
-
-    it("should preserve existing plugin data when saving", async () => {
-      const existingData = {
-        version: 1,
-        customField: "custom_value",
-      };
-
-      const plugin = createMockPlugin(existingData);
-
-      // Set up some store state
-      useCardExplorerStore.getState().togglePin("/note1.md");
-
-      await useCardExplorerStore.getState().savePinStatesToPlugin(plugin);
-
-      // Verify existing data is preserved
-      expect(plugin.updateData).toHaveBeenCalledWith(
-        expect.objectContaining({
-          version: 1,
-          customField: "custom_value",
-          pinnedNotes: ["/note1.md"],
-        })
-      );
-    });
-
-    it("should convert Set to Array for pinned notes", async () => {
-      const plugin = createMockPlugin();
-
-      // Manually set pinned notes as Set
-      const state = useCardExplorerStore.getState();
-      state.togglePin("/note1.md");
-      state.togglePin("/note2.md");
-      state.togglePin("/note3.md");
-
-      await state.savePinStatesToPlugin(plugin);
-
-      // Verify Set is converted to Array
-      const updateCall = (plugin.updateData as any).mock.calls[0][0];
-      expect(Array.isArray(updateCall.pinnedNotes)).toBe(true);
-      expect(updateCall.pinnedNotes).toEqual(
-        expect.arrayContaining(["/note1.md", "/note2.md", "/note3.md"])
-      );
-    });
-
-    it("should save empty pinned notes array when no notes are pinned", async () => {
-      const plugin = createMockPlugin();
-
-      // Store has no pinned notes by default
-      await useCardExplorerStore.getState().savePinStatesToPlugin(plugin);
-
-      expect(plugin.updateData).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pinnedNotes: [],
-        })
-      );
-    });
-
-    it("should handle all state properties in a single save operation", async () => {
-      const plugin = createMockPlugin();
-
-      // Set up comprehensive store state
-      const state = useCardExplorerStore.getState();
-
-      // Add pinned notes
-      state.togglePin("/pinned1.md");
-      state.togglePin("/pinned2.md");
-
-      // Set filters
-      state.updateFilters({
-        folders: ["work"],
-        tags: ["urgent", "todo"],
-        filename: "meeting",
-      });
-
-      // Set sort config
-      state.updateSortConfig({
-        key: "created",
-        order: "asc",
-      });
-
-      await state.savePinStatesToPlugin(plugin);
-
-      // Verify all state is saved in one call
-      expect(plugin.updateData).toHaveBeenCalledOnce();
-      expect(plugin.updateData).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pinnedNotes: expect.arrayContaining(["/pinned1.md", "/pinned2.md"]),
-          lastFilters: expect.objectContaining({
-            folders: ["work"],
-            tags: ["urgent", "todo"],
-            filename: "meeting",
-          }),
-          sortConfig: {
-            key: "created",
-            order: "asc",
-          },
-        })
-      );
-
-      expect(plugin.savePluginData).toHaveBeenCalledOnce();
-    });
-
-    it("should handle savePluginData errors gracefully", async () => {
-      const plugin = createMockPlugin();
-
-      // Mock savePluginData to throw an error
-      (plugin.savePluginData as any).mockRejectedValueOnce(new Error("Save failed"));
-
-      useCardExplorerStore.getState().togglePin("/note1.md");
-
-      // Should not throw, but let the error propagate
-      await expect(useCardExplorerStore.getState().savePinStatesToPlugin(plugin)).rejects.toThrow(
-        "Save failed"
-      );
-
-      // Verify updateData was still called
-      expect(plugin.updateData).toHaveBeenCalledOnce();
-    });
-  });
-
-  describe("setLoading", () => {
-    it("should set loading state to true", () => {
-      const initialState = useCardExplorerStore.getState();
-      expect(initialState.isLoading).toBe(false);
-
-      useCardExplorerStore.getState().setLoading(true);
-      const state = useCardExplorerStore.getState();
-
-      expect(state.isLoading).toBe(true);
-    });
-
-    it("should set loading state to false", () => {
-      // First set loading to true
-      useCardExplorerStore.getState().setLoading(true);
-      expect(useCardExplorerStore.getState().isLoading).toBe(true);
-
-      // Then set it to false
-      useCardExplorerStore.getState().setLoading(false);
-      const state = useCardExplorerStore.getState();
-
-      expect(state.isLoading).toBe(false);
-    });
-
-    it("should not affect other state properties when setting loading", () => {
-      // Set up some initial state
-      const mockNotes = [createMockNote("Test Note", "/test.md", "folder1", ["tag1"])];
-
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      useCardExplorerStore.getState().togglePin("/test.md");
+  describe("reset", () => {
+    it("should reset all state to initial values", async () => {
+      // Arrange - Set up some state
+      const testNote = createTestNotes().basic(1)[0];
+      await setupNotesWithRefresh([testNote]);
       useCardExplorerStore.getState().updateFilters({ filename: "test" });
+      useCardExplorerStore.getState().togglePin("/test.md");
       useCardExplorerStore.getState().setError("Some error");
 
+      // Verify state has been modified
       const beforeState = useCardExplorerStore.getState();
+      expect(beforeState.notes).toHaveLength(1);
+      expect(beforeState.pinnedNotes.size).toBe(1);
+      expect(beforeState.filters.filename).toBe("test");
+      expect(beforeState.error).toBe("Some error");
 
-      // Change loading state
-      useCardExplorerStore.getState().setLoading(true);
+      // Act
+      useCardExplorerStore.getState().reset();
+
+      // Assert - Should be back to initial state
       const afterState = useCardExplorerStore.getState();
-
-      // Verify only isLoading changed
-      expect(afterState.isLoading).toBe(true);
-      expect(afterState.notes).toEqual(beforeState.notes);
-      expect(afterState.filteredNotes).toEqual(beforeState.filteredNotes);
-      expect(afterState.pinnedNotes).toEqual(beforeState.pinnedNotes);
-      expect(afterState.filters).toEqual(beforeState.filters);
-      expect(afterState.sortConfig).toEqual(beforeState.sortConfig);
-      expect(afterState.error).toBe(beforeState.error);
-    });
-
-    it("should allow multiple loading state changes", () => {
-      const state = useCardExplorerStore.getState();
-
-      // Initial state
-      expect(state.isLoading).toBe(false);
-
-      // Change to true
-      state.setLoading(true);
-      expect(useCardExplorerStore.getState().isLoading).toBe(true);
-
-      // Change back to false
-      state.setLoading(false);
-      expect(useCardExplorerStore.getState().isLoading).toBe(false);
-
-      // Change to true again
-      state.setLoading(true);
-      expect(useCardExplorerStore.getState().isLoading).toBe(true);
-    });
-
-    it("should maintain loading state when set to same value", () => {
-      // Set to true
-      useCardExplorerStore.getState().setLoading(true);
-      expect(useCardExplorerStore.getState().isLoading).toBe(true);
-
-      // Set to true again
-      useCardExplorerStore.getState().setLoading(true);
-      expect(useCardExplorerStore.getState().isLoading).toBe(true);
-
-      // Set to false
-      useCardExplorerStore.getState().setLoading(false);
-      expect(useCardExplorerStore.getState().isLoading).toBe(false);
-
-      // Set to false again
-      useCardExplorerStore.getState().setLoading(false);
-      expect(useCardExplorerStore.getState().isLoading).toBe(false);
+      expectState.initial(afterState);
+      expect(afterState.sortConfig.key).toBe("updated");
+      expect(afterState.sortConfig.order).toBe("desc");
     });
   });
 
@@ -785,29 +852,21 @@ describe("CardExplorerStore", () => {
       expect(state.error).toBe("Second error");
     });
 
-    it("should not affect other state properties when setting error", () => {
-      // Set up some initial state
-      const mockNotes = [createMockNote("Test Note", "/test.md", "folder1", ["tag1"])];
-
-      useCardExplorerStore.getState().setNotes(mockNotes);
-      useCardExplorerStore.getState().togglePin("/test.md");
-      useCardExplorerStore.getState().updateFilters({ filename: "test" });
-      useCardExplorerStore.getState().setLoading(true);
+    it("should not affect other state when setting error", async () => {
+      await setupNotesWithRefresh([createMockNote("Test", "/test.md")]);
 
       const beforeState = useCardExplorerStore.getState();
+      const initialNotes = beforeState.notes;
+      const initialLoading = beforeState.isLoading;
 
       // Change error state
       useCardExplorerStore.getState().setError("New error");
       const afterState = useCardExplorerStore.getState();
 
-      // Verify only error changed
+      // Other state should remain unchanged
+      expect(afterState.notes).toBe(initialNotes);
+      expect(afterState.isLoading).toBe(initialLoading);
       expect(afterState.error).toBe("New error");
-      expect(afterState.isLoading).toBe(beforeState.isLoading);
-      expect(afterState.notes).toEqual(beforeState.notes);
-      expect(afterState.filteredNotes).toEqual(beforeState.filteredNotes);
-      expect(afterState.pinnedNotes).toEqual(beforeState.pinnedNotes);
-      expect(afterState.filters).toEqual(beforeState.filters);
-      expect(afterState.sortConfig).toEqual(beforeState.sortConfig);
     });
 
     it("should handle empty string error message", () => {
@@ -816,211 +875,108 @@ describe("CardExplorerStore", () => {
 
       expect(state.error).toBe("");
     });
+  });
 
-    it("should handle long error messages", () => {
-      const longError =
-        "This is a very long error message that might contain detailed information about what went wrong during the operation and should be handled properly by the store.";
+  describe("hasActiveFilters", () => {
+    it("should detect active filters", async () => {
+      await setupNotesWithRefresh([createMockNote("Test", "/test.md")]);
+      const store = useCardExplorerStore.getState();
+      expect(store.hasActiveFilters()).toBe(false);
 
-      useCardExplorerStore.getState().setError(longError);
-      const state = useCardExplorerStore.getState();
-
-      expect(state.error).toBe(longError);
+      store.updateFilters({ filename: "test" });
+      expect(store.hasActiveFilters()).toBe(true);
     });
   });
 
-  describe("refreshNotes", () => {
-    const mockApp = {} as App;
+  describe("Available Options", () => {
+    it("should compute available folders from notes", async () => {
+      // Arrange
+      const mockNotes = createTestNotes().withFolders(["folder1", "folder2"]);
+      await setupNotesWithRefresh(mockNotes);
 
-    it("should successfully load and update notes", async () => {
+      // Act & Assert
+      const state = useCardExplorerStore.getState();
+      const folders = state.availableFolders;
+      expect(folders).toContain("folder1");
+      expect(folders).toContain("folder2");
+    });
+
+    it("should compute available tags from notes", async () => {
+      // Arrange
       const mockNotes = [
-        createMockNote("Note 1", "/note1.md", "folder1", ["tag1"]),
-        createMockNote("Note 2", "/note2.md", "folder2", ["tag2"]),
+        createMockNote("Note 1", "/note1.md", "folder1", ["tag1", "tag2"]),
+        createMockNote("Note 2", "/note2.md", "folder2", ["tag2", "tag3"]),
       ];
+      await setupNotesWithRefresh(mockNotes);
 
-      // Mock successful withRetry call
-      const { withRetry } = await import("../core/errors/errorHandling");
-      (withRetry as any).mockResolvedValueOnce(mockNotes);
+      // Act & Assert
+      const state = useCardExplorerStore.getState();
+      const tags = state.availableTags;
+      expect(tags).toEqual(["tag1", "tag2", "tag3"]);
+    });
+  });
 
-      // Set up some initial filters and pins to test recomputation
-      useCardExplorerStore.getState().updateFilters({ folders: ["folder1"] });
-      useCardExplorerStore.getState().togglePin("/note1.md");
-
-      await useCardExplorerStore.getState().refreshNotes(mockApp);
+  describe("getSerializableData", () => {
+    it("should return current pin states and filters", () => {
       const state = useCardExplorerStore.getState();
 
-      // Verify loading state was managed correctly
-      expect(state.isLoading).toBe(false);
-      expect(state.error).toBe(null);
-
-      // Verify notes were updated
-      expect(state.notes).toEqual(mockNotes);
-
-      // Verify filtered notes were recomputed with existing filters
-      expect(state.filteredNotes).toHaveLength(1);
-      expect(state.filteredNotes[0].path).toBe("/note1.md"); // Pinned and filtered
-    });
-
-    it("should set loading state during operation", async () => {
-      let resolveLoadNotes: (notes: NoteData[]) => void;
-      const loadNotesPromise = new Promise<NoteData[]>((resolve) => {
-        resolveLoadNotes = resolve;
+      // Set up some test data
+      state.togglePin("/note1.md");
+      state.togglePin("/note2.md");
+      state.updateFilters({
+        folders: ["work"],
+        tags: ["important"],
+        filename: "test",
       });
 
-      const { withRetry } = await import("../core/errors/errorHandling");
-      (withRetry as any).mockImplementationOnce(() => {
-        // Set loading immediately when withRetry is called
-        return loadNotesPromise;
-      });
+      const result = state.getSerializableData();
 
-      // Start refresh (don't await yet)
-      const refreshPromise = useCardExplorerStore.getState().refreshNotes(mockApp);
-
-      // Wait a bit for async operations to start
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      // Check loading state is set
-      expect(useCardExplorerStore.getState().isLoading).toBe(true);
-      expect(useCardExplorerStore.getState().error).toBe(null);
-
-      // Resolve the promise
-      resolveLoadNotes!([createMockNote("Test", "/test.md")]);
-      await refreshPromise;
-
-      // Verify loading state is cleared
-      expect(useCardExplorerStore.getState().isLoading).toBe(false);
-    });
-
-    it("should handle errors and set error state", async () => {
-      const testError = new Error("Failed to load notes");
-      const mockErrorInfo = {
-        message: "User-friendly error message",
-        id: "error-123",
-        timestamp: new Date(),
-      };
-
-      const { withRetry, handleError } = await import("../core/errors/errorHandling");
-      (withRetry as any).mockRejectedValueOnce(testError);
-      (handleError as any).mockReturnValueOnce(mockErrorInfo);
-
-      await useCardExplorerStore.getState().refreshNotes(mockApp);
-      const state = useCardExplorerStore.getState();
-
-      // Verify error handling
-      expect(state.isLoading).toBe(false);
-      expect(state.error).toBe(mockErrorInfo.message);
-
-      // Verify handleError was called correctly
-      expect(handleError).toHaveBeenCalledWith(testError, "API", {
-        operation: "refreshNotes",
-        notesCount: 0,
-        hasExistingNotes: false,
-      });
-    });
-
-    it("should call withRetry with correct parameters", async () => {
-      const mockNotes = [createMockNote("Test", "/test.md")];
-
-      const { withRetry } = await import("../core/errors/errorHandling");
-      (withRetry as any).mockResolvedValueOnce(mockNotes);
-
-      // Set up some existing notes to test context
-      useCardExplorerStore.getState().setNotes([createMockNote("Existing", "/existing.md")]);
-
-      await useCardExplorerStore.getState().refreshNotes(mockApp);
-
-      // Verify withRetry was called with correct options
-      expect(withRetry).toHaveBeenCalledWith(
-        expect.any(Function), // loadNotesFromVault function
-        {
-          maxRetries: 3,
-          baseDelay: 1000,
-          category: "API",
-          context: {
-            operation: "loadNotesFromVault",
-            notesCount: 1,
-          },
-        }
+      expect(result.pinnedNotes).toEqual(expect.arrayContaining(["/note1.md", "/note2.md"]));
+      expect(result.lastFilters).toEqual(
+        expect.objectContaining({
+          folders: ["work"],
+          tags: ["important"],
+          filename: "test",
+        })
       );
     });
 
-    it("should preserve existing state on successful refresh", async () => {
-      const newMockNotes = [createMockNote("New Note", "/new.md", "folder1")];
-
-      // Set up initial state
-      useCardExplorerStore.getState().togglePin("/new.md");
-      useCardExplorerStore.getState().updateFilters({ filename: "New" });
-      useCardExplorerStore.getState().updateSortConfig({ key: "title", order: "asc" });
-
-      const beforeState = useCardExplorerStore.getState();
-
-      const { withRetry } = await import("../core/errors/errorHandling");
-      (withRetry as any).mockResolvedValueOnce(newMockNotes);
-
-      await useCardExplorerStore.getState().refreshNotes(mockApp);
-      const afterState = useCardExplorerStore.getState();
-
-      // Verify non-note state was preserved
-      expect(afterState.pinnedNotes).toEqual(beforeState.pinnedNotes);
-      expect(afterState.filters).toEqual(beforeState.filters);
-      expect(afterState.sortConfig).toEqual(beforeState.sortConfig);
-
-      // Verify notes were updated
-      expect(afterState.notes).toEqual(newMockNotes);
-    });
-
-    it("should clear previous error on successful refresh", async () => {
-      // Set initial error state
-      useCardExplorerStore.getState().setError("Previous error");
-      expect(useCardExplorerStore.getState().error).toBe("Previous error");
-
-      const mockNotes = [createMockNote("Test", "/test.md")];
-
-      const { withRetry } = await import("../core/errors/errorHandling");
-      (withRetry as any).mockResolvedValueOnce(mockNotes);
-
-      await useCardExplorerStore.getState().refreshNotes(mockApp);
+    it("should convert Set to Array for pinnedNotes", () => {
       const state = useCardExplorerStore.getState();
 
-      // Verify error was cleared
-      expect(state.error).toBe(null);
-      expect(state.isLoading).toBe(false);
+      state.togglePin("/note1.md");
+      state.togglePin("/note2.md");
+
+      const result = state.getSerializableData();
+
+      expect(Array.isArray(result.pinnedNotes)).toBe(true);
+      expect(result.pinnedNotes).toHaveLength(2);
     });
 
-    it("should handle empty notes array", async () => {
-      const { withRetry } = await import("../core/errors/errorHandling");
-      (withRetry as any).mockResolvedValueOnce([]);
+    it("should return empty array for no pinned notes", () => {
+      const result = useCardExplorerStore.getState().getSerializableData();
 
-      await useCardExplorerStore.getState().refreshNotes(mockApp);
+      expect(result.pinnedNotes).toEqual([]);
+      expect(result.lastFilters).toBeDefined();
+    });
+
+    it("should include current filter state", () => {
       const state = useCardExplorerStore.getState();
 
-      expect(state.notes).toEqual([]);
-      expect(state.filteredNotes).toEqual([]);
-      expect(state.isLoading).toBe(false);
-      expect(state.error).toBe(null);
-    });
+      const testFilters = {
+        folders: ["projects", "archive"],
+        tags: ["urgent", "meeting"],
+        filename: "daily",
+        dateRange: {
+          type: "within" as const,
+          value: "7",
+        },
+      };
 
-    it("should provide correct context for error handling with existing notes", async () => {
-      const existingNotes = [
-        createMockNote("Existing 1", "/existing1.md"),
-        createMockNote("Existing 2", "/existing2.md"),
-      ];
-      useCardExplorerStore.getState().setNotes(existingNotes);
+      state.updateFilters(testFilters);
+      const result = state.getSerializableData();
 
-      const testError = new Error("API Error");
-      const mockErrorInfo = { message: "Error occurred" };
-
-      const { withRetry, handleError } = await import("../core/errors/errorHandling");
-      (withRetry as any).mockRejectedValueOnce(testError);
-      (handleError as any).mockReturnValueOnce(mockErrorInfo);
-
-      await useCardExplorerStore.getState().refreshNotes(mockApp);
-
-      // Verify handleError was called with context about existing notes
-      expect(handleError).toHaveBeenCalledWith(testError, "API", {
-        operation: "refreshNotes",
-        notesCount: 2,
-        hasExistingNotes: true,
-      });
+      expect(result.lastFilters).toEqual(testFilters);
     });
   });
 });

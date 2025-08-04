@@ -15,7 +15,6 @@ vi.mock("obsidian", () => ({
 const mockRefreshNotes = vi.fn();
 const mockSetError = vi.fn();
 const mockInitializeFromPluginData = vi.fn();
-const mockSavePinStatesToPlugin = vi.fn();
 
 vi.mock("../store/cardExplorerStore", () => ({
   useCardExplorerStore: vi.fn(),
@@ -72,7 +71,10 @@ describe("CardView", () => {
       vault: {},
       metadataCache: {},
     },
-  } as CardExplorerPlugin;
+    getData: vi.fn().mockReturnValue({}),
+    getSettings: vi.fn().mockReturnValue({ sortKey: "updated" }),
+    saveStoreState: vi.fn().mockResolvedValue(undefined),
+  } as unknown as CardExplorerPlugin;
 
   const mockNotes: NoteData[] = [
     {
@@ -111,7 +113,7 @@ describe("CardView", () => {
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
       initializeFromPluginData: mockInitializeFromPluginData,
-      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
       pinnedNotes: new Set(),
     });
   });
@@ -169,7 +171,7 @@ describe("CardView", () => {
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
       initializeFromPluginData: mockInitializeFromPluginData,
-      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
       pinnedNotes: new Set(),
     });
 
@@ -190,7 +192,7 @@ describe("CardView", () => {
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
       initializeFromPluginData: mockInitializeFromPluginData,
-      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
       pinnedNotes: new Set(),
     });
 
@@ -237,7 +239,7 @@ describe("CardView", () => {
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
       initializeFromPluginData: mockInitializeFromPluginData,
-      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
       pinnedNotes: new Set(),
     });
 
@@ -278,7 +280,7 @@ describe("CardView", () => {
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
       initializeFromPluginData: mockInitializeFromPluginData,
-      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
       pinnedNotes: new Set(),
     });
 
@@ -298,7 +300,7 @@ describe("CardView", () => {
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
       initializeFromPluginData: mockInitializeFromPluginData,
-      savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
       pinnedNotes: new Set(),
     });
 
@@ -346,7 +348,7 @@ describe("CardView", () => {
         refreshNotes: mockRefreshNotes,
         setError: mockSetError,
         initializeFromPluginData: mockInitializeFromPluginData,
-        savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
         pinnedNotes: initialPinnedNotes,
       });
 
@@ -361,14 +363,14 @@ describe("CardView", () => {
         refreshNotes: mockRefreshNotes,
         setError: mockSetError,
         initializeFromPluginData: mockInitializeFromPluginData,
-        savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
         pinnedNotes: updatedPinnedNotes,
       });
 
       rerender(<CardView plugin={mockPlugin} />);
 
       // Should not call save immediately
-      expect(mockSavePinStatesToPlugin).not.toHaveBeenCalled();
+      expect(mockPlugin.saveStoreState).not.toHaveBeenCalled();
 
       // Fast-forward time by 500ms
       await act(async () => {
@@ -377,14 +379,15 @@ describe("CardView", () => {
       });
 
       // Should call save after debounce
-      expect(mockSavePinStatesToPlugin).toHaveBeenCalledWith(mockPlugin);
+      expect(mockPlugin.saveStoreState).toHaveBeenCalled();
     });
 
-    it("should handle pin state save errors with dynamic error handling import", async () => {
+    it("should handle store state save errors with dynamic error handling import", async () => {
       const pinnedNotes = new Set(["note1.md"]);
       const saveError = new Error("Save failed");
 
-      mockSavePinStatesToPlugin.mockRejectedValueOnce(saveError);
+      const mockSaveStoreState = vi.fn().mockRejectedValueOnce(saveError);
+      mockPlugin.saveStoreState = mockSaveStoreState;
 
       mockUseCardExplorerStore.mockReturnValue({
         notes: mockNotes,
@@ -394,7 +397,7 @@ describe("CardView", () => {
         refreshNotes: mockRefreshNotes,
         setError: mockSetError,
         initializeFromPluginData: mockInitializeFromPluginData,
-        savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
         pinnedNotes,
       });
 
@@ -412,7 +415,7 @@ describe("CardView", () => {
         saveError,
         "data", // ErrorCategory.DATA
         {
-          operation: "savePinStates",
+          operation: "saveStoreState",
           pinCount: 1,
         }
       );
@@ -469,7 +472,7 @@ describe("CardView", () => {
         refreshNotes: mockRefreshNotes,
         setError: mockSetError,
         initializeFromPluginData: mockInitializeFromPluginData,
-        savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
         pinnedNotes: new Set(),
       });
 
@@ -559,7 +562,7 @@ describe("CardView", () => {
         refreshNotes: mockRefreshNotes,
         setError: mockSetError,
         initializeFromPluginData: mockInitializeFromPluginData,
-        savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
         pinnedNotes: new Set(),
       });
 
@@ -604,7 +607,7 @@ describe("CardView", () => {
         refreshNotes: mockRefreshNotes,
         setError: mockSetError,
         initializeFromPluginData: mockInitializeFromPluginData,
-        savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
         pinnedNotes: new Set(),
       });
 
@@ -639,7 +642,7 @@ describe("CardView", () => {
         refreshNotes: mockRefreshNotes,
         setError: mockSetError,
         initializeFromPluginData: mockInitializeFromPluginData,
-        savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
         pinnedNotes: new Set(),
       });
 
@@ -688,7 +691,7 @@ describe("CardView", () => {
         refreshNotes: mockRefreshNotes,
         setError: mockSetError,
         initializeFromPluginData: mockInitializeFromPluginData,
-        savePinStatesToPlugin: mockSavePinStatesToPlugin,
+
         pinnedNotes: new Set(),
       });
 

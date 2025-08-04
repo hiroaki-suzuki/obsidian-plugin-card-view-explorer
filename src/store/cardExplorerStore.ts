@@ -1,8 +1,27 @@
+/**
+ * Main Zustand Store - Card Explorer State Management
+ *
+ * This is the central state management hub for the Card View Explorer plugin.
+ * It implements a reactive architecture where raw data (notes) is processed
+ * through filters and sorting to produce derived state (filteredNotes) that
+ * automatically updates when dependencies change.
+ *
+ * Key architectural patterns:
+ * - Immutable state updates: All state changes create new objects/arrays
+ * - Automatic recomputation: Filtered results update when raw data or filters change
+ * - Separation of concerns: Raw data, user configuration, and UI state are distinct
+ * - Error resilience: Comprehensive error handling with retry mechanisms
+ *
+ * The store uses subscribeWithSelector middleware to enable fine-grained
+ * subscriptions for performance optimization in React components.
+ */
+
 import type { App } from "obsidian";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type CardExplorerPlugin from "../main";
-import type { FilterState, NoteData, SortConfig } from "../types";
+import { ErrorCategory, handleError, withRetry } from "../core/errors/errorHandling";
+import type { CardExplorerSettings } from "../settings";
+import type { FilterState, NoteData, PluginData, SortConfig } from "../types";
 import { DEFAULT_SORT_KEY, DEFAULT_SORT_ORDER } from "./constants";
 import { applyFilters, hasAnyActiveFilter } from "./filters";
 import { loadNotesFromVault } from "./noteProcessing";
@@ -10,134 +29,167 @@ import { cardExplorerSelectors } from "./selectors";
 import { sortNotes, togglePinState } from "./sorting";
 
 /**
- * Card View Explorer Store State Interface
+ * Complete state interface for the Card Explorer store
  *
- * Defines the complete state structure and actions for Card View Explorer.
- * This interface clearly separates data, UI state, and actions.
+ * Organizes state into logical groups:
+ * - Raw Data: Source data loaded from Obsidian vault
+ * - Computed Data: Derived state that updates automatically
+ * - User Configuration: Filter and sort preferences
+ * - UI State: Loading indicators and error messages
+ * - Actions: Functions to modify state
  */
 export interface CardExplorerState {
-  // Core Data
-  /** All notes loaded from Obsidian vault */
+  // === Raw Data ===
+  /** All notes loaded from the Obsidian vault */
   notes: NoteData[];
-  /** Notes after applying current filters and sorting (computed state) */
-  filteredNotes: NoteData[];
-  /** Set of file paths for notes that are pinned to the top */
+  /** Set of file paths for notes that are pinned by the user */
   pinnedNotes: Set<string>;
 
-  // Computed State for UI
-  /** All available tags for filter options (includes hierarchical expansion) */
+  // === Computed Data (automatically derived from raw data) ===
+  /** Notes after applying all active filters and sorting */
+  filteredNotes: NoteData[];
+  /** All unique tags available across all notes for filter options */
   availableTags: string[];
-  /** All available folders for filter options (includes parent folders) */
+  /** All unique folder paths available across all notes for filter options */
   availableFolders: string[];
 
-  // UI State
-  /** Current active filter configuration */
+  // === User Configuration ===
+  /** Current filter configuration applied to notes */
   filters: FilterState;
-  /** Current sorting configuration (field and order) */
+  /** Current sort configuration for note ordering */
   sortConfig: SortConfig;
-  /** Loading state for async operations (note loading, etc.) */
+
+  // === UI State ===
+  /** Whether a data loading operation is in progress */
   isLoading: boolean;
-  /** Error message to display to user, null if no error */
+  /** Current error message to display to user, null if no error */
   error: string | null;
 
-  // Actions
+  // === Actions ===
+
+  // === Core Data Operations ===
   /**
-   * Set the complete notes array and recompute filtered results
-   * @param notes - Array of note data from Obsidian
-   */
-  setNotes: (notes: NoteData[]) => void;
-  /**
-   * Update filter configuration (partial update supported)
-   * @param filters - Partial filter state to merge with current filters
-   */
-  updateFilters: (filters: Partial<FilterState>) => void;
-  /**
-   * Update sort configuration and recompute results
-   * @param config - New sort configuration
-   */
-  updateSortConfig: (config: SortConfig) => void;
-  /**
-   * Toggle pin state for a specific note
-   * @param filePath - Full path to the note file
-   */
-  togglePin: (filePath: string) => void;
-  /**
-   * Initialize store from plugin data
-   * @param plugin - Plugin instance with data
-   */
-  initializeFromPluginData: (plugin: CardExplorerPlugin) => void;
-  /**
-   * Save current pin states to plugin data
-   * @param plugin - Plugin instance to save data to
-   */
-  savePinStatesToPlugin: (plugin: CardExplorerPlugin) => Promise<void>;
-  /**
-   * Set loading state for UI feedback
-   * @param loading - Whether the store is in loading state
-   */
-  setLoading: (loading: boolean) => void;
-  /**
-   * Set error state for user feedback
-   * @param error - Error message or null to clear error
-   */
-  setError: (error: string | null) => void;
-  /**
-   * Refresh notes from Obsidian APIs
-   * @param app - Obsidian App instance for API access
+   * Refresh notes from the Obsidian vault
+   *
+   * Loads all markdown files from the vault, extracts metadata,
+   * and updates the store with fresh data. Includes retry logic
+   * for handling temporary failures.
    */
   refreshNotes: (app: App) => Promise<void>;
-  /** Clear all active filters and reset to default state */
+
+  // === User Interaction Actions ===
+  /**
+   * Update filter configuration with partial changes
+   *
+   * Merges new filter settings with existing ones and triggers
+   * automatic recomputation of filtered results.
+   */
+  updateFilters: (filters: Partial<FilterState>) => void;
+
+  /**
+   * Reset all filters to their default empty state
+   *
+   * Clears all active filters and recomputes the filtered results
+   * to show all notes.
+   */
   clearFilters: () => void;
-  /** Reset entire store to initial state */
+
+  /**
+   * Update sort configuration from plugin settings
+   *
+   * Updates the sort key while maintaining the default sort order,
+   * then recomputes filtered results with new sorting.
+   */
+  updateSortFromSettings: (sortKey: string) => void;
+
+  /**
+   * Toggle the pin state of a specific note
+   *
+   * Adds or removes a note from the pinned set and recomputes
+   * filtered results to reflect the new pin state.
+   */
+  togglePin: (filePath: string) => void;
+
+  // === Lifecycle & Persistence ===
+  /**
+   * Initialize store state from saved plugin data
+   *
+   * Loads previously saved pin states and filter preferences
+   * from the plugin's data file.
+   */
+  initializeFromPluginData: (data: PluginData, settings: CardExplorerSettings) => void;
+
+  /**
+   * Reset store to initial empty state
+   *
+   * Clears all data and resets to default configuration.
+   * Used for cleanup and testing.
+   */
   reset: () => void;
 
-  // Computed State Getters
-  /** Get count of pinned notes */
-  getPinnedCount: () => number;
-  /** Check if any filters are currently active */
-  hasActiveFilters: () => boolean;
-}
+  // === UI State Management ===
+  /**
+   * Set or clear the current error message
+   *
+   * Updates the error state for display in the UI.
+   * Pass null to clear the error.
+   */
+  setError: (error: string | null) => void;
 
-/**
- * Factory Functions for Default Configurations
- * These functions create fresh instances to avoid shared object references
- */
+  // === Computed State Getters ===
+  /**
+   * Check if any filters are currently active
+   *
+   * Returns true if any filter criteria are applied,
+   * used to show filter status in the UI.
+   */
+  hasActiveFilters: () => boolean;
+
+  /**
+   * Get serializable data for persistence
+   *
+   * Returns a simplified object containing only the necessary
+   * state for saving to the plugin's data file.
+   */
+  getSerializableData: () => {
+    pinnedNotes: string[];
+    lastFilters: FilterState;
+  };
+}
 
 /**
  * Create default filter state with all filters disabled
  *
  * Returns a fresh FilterState object with empty arrays and null values,
- * ensuring no filters are active by default.
+ * representing no active filters (show all notes).
  */
 const createDefaultFilters = (): FilterState => ({
-  folders: [], // No folder filtering
-  tags: [], // No tag filtering
-  filename: "", // No filename search
-  dateRange: null, // No date filtering
+  folders: [],
+  tags: [],
+  filename: "",
+  dateRange: null,
 });
 
 /**
- * Create default sort configuration
+ * Create default sort configuration with optional custom sort key
  *
- * Returns a fresh SortConfig with default sorting by update time
- * in descending order (newest first).
+ * Uses the provided sort key or falls back to the application default.
+ * Always uses the default sort order (descending).
  */
-const createDefaultSortConfig = (): SortConfig => ({
-  key: DEFAULT_SORT_KEY, // Sort by "updated" field
-  order: DEFAULT_SORT_ORDER, // Descending order (newest first)
+const createDefaultSortConfig = (sortKey?: string): SortConfig => ({
+  key: sortKey || DEFAULT_SORT_KEY,
+  order: DEFAULT_SORT_ORDER,
 });
 
 /**
- * Apply filters and sorting to notes in the correct order
+ * Recompute filtered and sorted notes from raw data
  *
- * This is the main orchestrator function that applies the complete
- * transformation pipeline: filtering → sorting → pinning organization.
+ * This is the core data transformation pipeline that:
+ * 1. Applies all active filters to the raw notes
+ * 2. Sorts the filtered results according to sort configuration
+ * 3. Ensures pinned notes appear first while maintaining sort order
  *
- * @param notes - Array of all notes to process
- * @param filters - Current filter configuration to apply
- * @param sortConfig - Current sort configuration to apply
- * @param pinnedNotes - Set of pinned note paths to prioritize
- * @returns Filtered, sorted array of notes with pinned notes at the top
+ * Used whenever raw data, filters, sort config, or pin states change.
  */
 const recomputeFilteredNotes = (
   notes: NoteData[],
@@ -145,246 +197,61 @@ const recomputeFilteredNotes = (
   sortConfig: SortConfig,
   pinnedNotes: Set<string>
 ): NoteData[] => {
-  // Step 1: Apply filters to reduce the dataset
   const filtered = applyFilters(notes, filters, new Date());
-  // Step 2: Sort and organize with pinned notes first
   return sortNotes(filtered, sortConfig, pinnedNotes);
 };
 
 /**
- * Compute available tags and folders from notes collection
+ * Compute available filter options from the current notes collection
  *
- * Uses selectors to derive computed state for UI components.
- * This enables consistent data processing and efficient memoization.
- *
- * @param notes - Array of all notes to analyze
- * @returns Object containing available tags and folders arrays
+ * Extracts all unique tags and folders from the notes to populate
+ * filter dropdown options. Uses selectors to ensure consistent
+ * hierarchical processing.
  */
 const computeAvailableOptions = (
   notes: NoteData[]
 ): { availableTags: string[]; availableFolders: string[] } => {
-  const state = {
-    notes,
-    filteredNotes: [],
-    pinnedNotes: new Set<string>(),
-  };
   return {
-    availableTags: cardExplorerSelectors.getAvailableTags(state),
-    availableFolders: cardExplorerSelectors.getAvailableFolders(state),
+    availableTags: cardExplorerSelectors.getAvailableTags(notes),
+    availableFolders: cardExplorerSelectors.getAvailableFolders(notes),
   };
 };
 
 /**
- * Card View Explorer Zustand Store
+ * Main Zustand store instance for Card Explorer state management
  *
- * Main state management store for the Card View Explorer plugin.
- * Uses Zustand with subscribeWithSelector middleware for reactive updates.
- * This store serves as the central state management system for the entire plugin.
+ * Creates a reactive store with subscribeWithSelector middleware for
+ * fine-grained subscriptions. The store follows immutable update patterns
+ * and automatically recomputes derived state when dependencies change.
  *
- * Key Features:
- * - Automatic recomputation of filtered notes when state changes
- * - Immutable updates to prevent side effects
- * - Optimized filtering and sorting pipeline
- * - Support for pinned notes that always appear first
- * - Error handling and loading state management
- * - Persistence of user preferences (pins, filters, sort)
+ * Usage example:
+ * ```typescript
+ * const { notes, filteredNotes, updateFilters } = useCardExplorerStore();
+ * const isLoading = useCardExplorerStore(state => state.isLoading);
+ * ```
  */
 export const useCardExplorerStore = create<CardExplorerState>()(
   subscribeWithSelector((set, get) => ({
-    // Initial State - All empty/default values
-    notes: [], // No notes loaded initially
-    filteredNotes: [], // No filtered results initially
-    pinnedNotes: new Set<string>(), // No pinned notes initially
-    availableTags: [], // No tags available initially
-    availableFolders: [], // No folders available initially
-    filters: createDefaultFilters(), // Default filter state (all disabled)
-    sortConfig: createDefaultSortConfig(), // Default sort config (updated desc)
-    isLoading: false, // Not loading initially
-    error: null, // No error initially
+    // === Initial State ===
+    notes: [],
+    filteredNotes: [],
+    pinnedNotes: new Set<string>(),
+    availableTags: [],
+    availableFolders: [],
+    filters: createDefaultFilters(),
+    sortConfig: createDefaultSortConfig(),
+    isLoading: false,
+    error: null,
 
-    // Actions - State mutation functions with automatic recomputation
+    // === Actions - State mutation functions with automatic recomputation ===
 
-    /**
-     * Set the complete notes array from Obsidian
-     * Automatically recomputes filtered results and available options
-     *
-     * @param notes - Array of note data objects loaded from Obsidian vault
-     */
-    setNotes: (notes: NoteData[]) => {
-      const state = get(); // Get current state for filters/sort
+    // === Core Data Operations ===
 
-      // Compute available options for UI
-      const { availableTags, availableFolders } = computeAvailableOptions(notes);
-
-      // Recompute filtered results with new notes
-      const filteredNotes = recomputeFilteredNotes(
-        notes,
-        state.filters,
-        state.sortConfig,
-        state.pinnedNotes
-      );
-
-      // Update all computed state in one operation
-      set({ notes, availableTags, availableFolders, filteredNotes });
-    },
-
-    /**
-     * Update filter configuration with partial updates
-     * Merges new filters with existing ones and recomputes results
-     *
-     * @param newFilters - Partial filter state to merge with current filters
-     *                     Only specified properties will be updated
-     */
-    updateFilters: (newFilters: Partial<FilterState>) => {
-      const state = get();
-      // Merge new filters with existing filters (partial update)
-      const updatedFilters = { ...state.filters, ...newFilters };
-      set({ filters: updatedFilters });
-
-      // Recompute filtered results with updated filters
-      const filteredNotes = recomputeFilteredNotes(
-        state.notes,
-        updatedFilters,
-        state.sortConfig,
-        state.pinnedNotes
-      );
-      set({ filteredNotes });
-    },
-
-    /**
-     * Update sort configuration and recompute results
-     * Replaces entire sort config (not partial like filters)
-     *
-     * @param config - Complete new sort configuration (key and order)
-     */
-    updateSortConfig: (config: SortConfig) => {
-      set({ sortConfig: config });
-
-      const state = get();
-      // Recompute filtered results with new sort configuration
-      const filteredNotes = recomputeFilteredNotes(
-        state.notes,
-        state.filters,
-        config,
-        state.pinnedNotes
-      );
-      set({ filteredNotes });
-    },
-
-    /**
-     * Toggle pin state for a specific note
-     * Uses immutable update pattern and recomputes to move pinned notes to top
-     *
-     * @param filePath - Full path to the note file to toggle pin state
-     */
-    togglePin: (filePath: string) => {
-      const state = get();
-      // Create new Set with toggled pin state (immutable)
-      const newPinnedNotes = togglePinState(state.pinnedNotes, filePath);
-      set({ pinnedNotes: newPinnedNotes });
-
-      // Recompute to reorganize notes with pinned notes first
-      const filteredNotes = recomputeFilteredNotes(
-        state.notes,
-        state.filters,
-        state.sortConfig,
-        newPinnedNotes
-      );
-      set({ filteredNotes });
-    },
-
-    /**
-     * Initialize store from plugin data
-     * Loads saved pin states, filters, and sort config from plugin data
-     *
-     * @param plugin - Plugin instance containing persisted user data
-     */
-    initializeFromPluginData: (plugin: CardExplorerPlugin) => {
-      const data = plugin.getData();
-
-      // Initialize pinned notes from plugin data
-      // Convert array to Set for O(1) lookup performance
-      const pinnedNotes = new Set(data.pinnedNotes || []);
-
-      // Initialize filters from plugin data (use last filters if available)
-      // This restores the user's previous filter selections
-      const filters = data.lastFilters || createDefaultFilters();
-
-      // Initialize sort config from plugin data
-      // This restores the user's preferred sort order
-      const sortConfig = data.sortConfig || createDefaultSortConfig();
-
-      // Update store state
-      set({
-        pinnedNotes,
-        filters,
-        sortConfig,
-      });
-
-      // Recompute filtered notes with loaded state
-      const state = get();
-      const filteredNotes = recomputeFilteredNotes(state.notes, filters, sortConfig, pinnedNotes);
-      set({ filteredNotes });
-    },
-
-    /**
-     * Save current pin states to plugin data
-     * Persists current pin states, filters, and sort config to plugin data file
-     *
-     * @param plugin - Plugin instance to save data to
-     * @returns Promise that resolves when data is saved
-     */
-    savePinStatesToPlugin: async (plugin: CardExplorerPlugin) => {
-      const state = get();
-
-      // Update plugin data with current state
-      // This preserves other plugin data while updating only what we need
-      const currentData = plugin.getData();
-      plugin.updateData({
-        ...currentData,
-        pinnedNotes: Array.from(state.pinnedNotes), // Convert Set back to array for storage
-        lastFilters: state.filters, // Save current filters for next session
-        sortConfig: state.sortConfig, // Save current sort config for next session
-      });
-
-      // Save to disk
-      await plugin.savePluginData();
-    },
-
-    /**
-     * Set loading state for UI feedback during async operations
-     *
-     * @param loading - Boolean indicating whether loading is in progress
-     */
-    setLoading: (loading: boolean) => set({ isLoading: loading }),
-
-    /**
-     * Set error state for user feedback
-     *
-     * @param error - Error message to display or null to clear error state
-     */
-    setError: (error: string | null) => set({ error }),
-
-    /**
-     * Refresh notes from Obsidian APIs
-     * Loads all notes from vault and updates store state
-     * Includes error handling with retry mechanism for API failures
-     *
-     * @param app - Obsidian App instance for API access
-     * @returns Promise that resolves when notes are refreshed
-     */
     refreshNotes: async (app: App) => {
-      // Import error handling utilities dynamically
-      const { withRetry, handleError, ErrorCategory } = await import(
-        "../core/errors/errorHandling"
-      );
-
       try {
-        // Set loading state
         set({ isLoading: true, error: null });
 
-        // Load notes from vault with retry mechanism
-        // withRetry will attempt the operation multiple times with exponential backoff
+        // Load notes with retry logic for resilience against temporary failures
         const notes = await withRetry(() => loadNotesFromVault(app), {
           maxRetries: 3, // Try up to 3 times
           baseDelay: 1000, // Start with 1 second delay
@@ -392,13 +259,12 @@ export const useCardExplorerStore = create<CardExplorerState>()(
           context: { operation: "loadNotesFromVault", notesCount: get().notes.length },
         });
 
-        // Update store with new notes (this will trigger recomputation)
-        const state = get();
-
-        // Compute available options for UI
+        // Compute filter options from the new notes data
         const { availableTags, availableFolders } = computeAvailableOptions(notes);
 
-        // Recompute filtered results with current filters/sort
+        const state = get();
+
+        // Apply current filters and sorting to the new notes
         const filteredNotes = recomputeFilteredNotes(
           notes,
           state.filters,
@@ -406,14 +272,11 @@ export const useCardExplorerStore = create<CardExplorerState>()(
           state.pinnedNotes
         );
 
-        // Update all computed state in one operation
+        // Update all derived state in a single operation
         set({ notes, availableTags, availableFolders, filteredNotes });
 
-        // Clear loading state
         set({ isLoading: false });
       } catch (error) {
-        // Handle error with comprehensive error handling
-        // This converts technical errors to user-friendly messages
         const errorInfo = handleError(error, ErrorCategory.API, {
           operation: "refreshNotes",
           notesCount: get().notes.length,
@@ -427,11 +290,24 @@ export const useCardExplorerStore = create<CardExplorerState>()(
       }
     },
 
-    /**
-     * Clear all active filters and reset to default state
-     * Recomputes results to show all notes with current sort
-     * Maintains pin states and sort configuration
-     */
+    // === User Interaction Actions ===
+
+    updateFilters: (newFilters: Partial<FilterState>) => {
+      const state = get();
+      // Immutable update: merge new filters with existing ones
+      const updatedFilters = { ...state.filters, ...newFilters };
+      set({ filters: updatedFilters });
+
+      // Recompute filtered results with the new filter configuration
+      const filteredNotes = recomputeFilteredNotes(
+        state.notes,
+        updatedFilters,
+        state.sortConfig,
+        state.pinnedNotes
+      );
+      set({ filteredNotes });
+    },
+
     clearFilters: () => {
       const defaultFilters = createDefaultFilters(); // Fresh default filters
       set({ filters: defaultFilters });
@@ -447,45 +323,93 @@ export const useCardExplorerStore = create<CardExplorerState>()(
       set({ filteredNotes });
     },
 
-    /**
-     * Reset entire store to initial state
-     * Used for cleanup or when switching contexts
-     * Clears all data including notes, filters, pins, and errors
-     */
-    reset: () => {
+    updateSortFromSettings: (sortKey: string) => {
+      const state = get();
+      const newSortConfig = createDefaultSortConfig(sortKey);
+      set({ sortConfig: newSortConfig });
+
+      // Recompute with new sort configuration
+      const filteredNotes = recomputeFilteredNotes(
+        state.notes,
+        state.filters,
+        newSortConfig,
+        state.pinnedNotes
+      );
+      set({ filteredNotes });
+    },
+
+    togglePin: (filePath: string) => {
+      const state = get();
+      // Immutable toggle: creates new Set with updated pin state
+      const newPinnedNotes = togglePinState(state.pinnedNotes, filePath);
+      set({ pinnedNotes: newPinnedNotes });
+
+      // Recompute to reflect new pin state in sort order
+      const filteredNotes = recomputeFilteredNotes(
+        state.notes,
+        state.filters,
+        state.sortConfig,
+        newPinnedNotes
+      );
+      set({ filteredNotes });
+    },
+
+    // === Lifecycle & Persistence ===
+
+    initializeFromPluginData: (data: PluginData, settings: CardExplorerSettings) => {
+      // Restore pinned notes from saved data
+      const pinnedNotes = new Set(data.pinnedNotes || []);
+
+      // Restore last used filters or use defaults
+      const filters = data.lastFilters || createDefaultFilters();
+
+      // Use sort key from settings (user preference)
+      const sortConfig = createDefaultSortConfig(settings.sortKey);
+
       set({
-        notes: [], // Clear all notes
-        filteredNotes: [], // Clear filtered results
-        pinnedNotes: new Set<string>(), // Clear pinned notes
-        availableTags: [], // Clear available tags
-        availableFolders: [], // Clear available folders
-        filters: createDefaultFilters(), // Reset filters to default
-        sortConfig: createDefaultSortConfig(), // Reset sort to default
-        isLoading: false, // Clear loading state
-        error: null, // Clear error state
+        pinnedNotes,
+        filters,
+        sortConfig,
+      });
+
+      // Recompute filtered results with restored configuration
+      const state = get();
+      const filteredNotes = recomputeFilteredNotes(state.notes, filters, sortConfig, pinnedNotes);
+      set({ filteredNotes });
+    },
+
+    reset: () => {
+      // Reset all state to initial values - used for cleanup and testing
+      set({
+        notes: [],
+        filteredNotes: [],
+        pinnedNotes: new Set<string>(),
+        availableTags: [],
+        availableFolders: [],
+        filters: createDefaultFilters(),
+        sortConfig: createDefaultSortConfig(),
+        isLoading: false,
+        error: null,
       });
     },
 
-    // Computed State Getters - Direct access to computed values
+    // === UI State Management ===
 
-    /**
-     * Get the count of currently pinned notes
-     * Simple accessor for UI display
-     *
-     * @returns Number of pinned notes
-     */
-    getPinnedCount: () => {
-      return get().pinnedNotes.size;
+    setError: (error: string | null) => set({ error }),
+
+    // === Computed State Getters - Direct access to computed values ===
+
+    hasActiveFilters: () => {
+      // Delegate to pure function for consistency and testability
+      return hasAnyActiveFilter(get().filters);
     },
 
-    /**
-     * Check if any filters are currently active
-     * Used to control UI state (e.g., show/hide clear filters button)
-     *
-     * @returns True if any filters are active, false otherwise
-     */
-    hasActiveFilters: () => {
-      return hasAnyActiveFilter(get().filters);
+    getSerializableData: () => {
+      const state = get();
+      return {
+        pinnedNotes: Array.from(state.pinnedNotes),
+        lastFilters: state.filters,
+      };
     },
   }))
 );

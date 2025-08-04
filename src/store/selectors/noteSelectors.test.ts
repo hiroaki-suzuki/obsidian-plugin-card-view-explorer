@@ -47,38 +47,9 @@ class TestNoteBuilder {
   }
 }
 
-class TestStateBuilder {
-  private state: CardExplorerSelectorState = {
-    notes: [],
-    filteredNotes: [],
-    pinnedNotes: new Set(),
-  };
-
-  withNotes(...notes: NoteData[]): this {
-    this.state.notes = notes;
-    return this;
-  }
-
-  withFilteredNotes(...notes: NoteData[]): this {
-    this.state.filteredNotes = notes;
-    return this;
-  }
-
-  withPinnedNotes(...paths: string[]): this {
-    this.state.pinnedNotes = new Set(paths);
-    return this;
-  }
-
-  build(): CardExplorerSelectorState {
-    return this.state;
-  }
-}
-
 // Factory functions for common test data patterns
 const createNote = (title: string, path: string) =>
   new TestNoteBuilder().withTitle(title).withPath(path);
-
-const createState = () => new TestStateBuilder();
 
 // Common test data sets
 const SAMPLE_NOTES = {
@@ -130,10 +101,7 @@ describe("noteSelectors", () => {
 
       testCases.forEach(({ name, notes, expected }) => {
         it(name, () => {
-          const state = createState()
-            .withNotes(...notes)
-            .build();
-          const result = cardExplorerSelectors.getAvailableFolders(state);
+          const result = cardExplorerSelectors.getAvailableFolders(notes);
           expect(result).toEqual(expected);
         });
       });
@@ -163,10 +131,7 @@ describe("noteSelectors", () => {
 
       testCases.forEach(({ name, notes, expected }) => {
         it(name, () => {
-          const state = createState()
-            .withNotes(...notes)
-            .build();
-          const result = cardExplorerSelectors.getAvailableTags(state);
+          const result = cardExplorerSelectors.getAvailableTags(notes);
           expect(result).toEqual(expected);
         });
       });
