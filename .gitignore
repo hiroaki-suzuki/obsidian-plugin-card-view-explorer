@@ -65,6 +65,9 @@ web_modules/
 # Yarn Integrity file
 .yarn-integrity
 
+# NPM lock file (not needed for Bun projects)
+package-lock.json
+
 # dotenv environment variable files
 .env
 .env.*
