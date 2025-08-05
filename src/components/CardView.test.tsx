@@ -1,6 +1,8 @@
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useCardViewInitialization } from "../hooks/useCardViewInitialization";
+import { useCardViewState } from "../hooks/useCardViewState";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
@@ -11,50 +13,88 @@ vi.mock("obsidian", () => ({
   setIcon: vi.fn(),
 }));
 
-// Mock the store
-const mockRefreshNotes = vi.fn();
-const mockSetError = vi.fn();
-const mockInitializeFromPluginData = vi.fn();
+// Mock the hooks
+vi.mock("../hooks/useCardViewInitialization", () => ({
+  useCardViewInitialization: vi.fn(),
+}));
 
+vi.mock("../hooks/useCardViewState", () => ({
+  useCardViewState: vi.fn(),
+}));
+
+// Mock the store
 vi.mock("../store/cardExplorerStore", () => ({
   useCardExplorerStore: vi.fn(),
 }));
 
-const mockUseCardExplorerStore = vi.mocked(useCardExplorerStore);
-
-// Mock CardViewErrorBoundary
-vi.mock("./CardViewErrorBoundary", () => ({
-  CardViewErrorBoundary: ({ children, onError }: any) => {
-    // Simulate error boundary behavior
-    const TestErrorBoundary = ({ children }: any) => {
-      try {
-        return children;
-      } catch (error: any) {
-        onError(error, { componentStack: "test stack" });
-        return <div data-testid="error-boundary-fallback">Error caught by boundary</div>;
-      }
-    };
-    return <TestErrorBoundary>{children}</TestErrorBoundary>;
-  },
-}));
-
-// Mock error handling utilities
-const mockHandleError = vi.fn();
-vi.mock("../core/errors/errorHandling", () => ({
-  handleError: mockHandleError,
-  ErrorCategory: {
-    DATA: "data",
-    API: "api",
-    UI: "ui",
-    GENERAL: "general",
-  },
-}));
-
 // Mock child components
+vi.mock("./CardViewErrorBoundary", () => ({
+  CardViewErrorBoundary: ({ children }: any) => <div data-testid="error-boundary">{children}</div>,
+}));
+
+vi.mock("./CardViewHeader", () => ({
+  CardViewHeader: ({
+    totalNotes,
+    filteredNotes,
+    isFilterPanelOpen,
+    isLoading,
+    onToggleFilter,
+    onRefresh,
+  }: any) => (
+    <div data-testid="card-view-header">
+      <h2>Card View Explorer</h2>
+      <span>
+        {totalNotes} total note{totalNotes !== 1 ? "s" : ""}
+      </span>
+      {filteredNotes !== totalNotes && <span>• {filteredNotes} filtered</span>}
+      <button type="button" onClick={onToggleFilter}>
+        Filters {isFilterPanelOpen ? "▲" : "▼"}
+      </button>
+      <button type="button" onClick={onRefresh} disabled={isLoading}>
+        {isLoading ? "Refreshing..." : "Refresh Notes"}
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("./ErrorDisplay", () => ({
+  ErrorDisplay: ({ error, onRetry, onDismiss, isRetrying }: any) => (
+    <div data-testid="error-display">
+      <h3>Error Loading Card View Explorer</h3>
+      <p>{error}</p>
+      <button type="button" onClick={onRetry} disabled={isRetrying}>
+        {isRetrying ? "Retrying..." : "Retry"}
+      </button>
+      <button type="button" onClick={onDismiss} disabled={isRetrying}>
+        Dismiss
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("./FilterPanel", () => ({
   FilterPanel: ({ availableTags, availableFolders }: any) => (
     <div data-testid="filter-panel">
       Filter Panel - Tags: {availableTags.length}, Folders: {availableFolders.length}
+    </div>
+  ),
+}));
+
+vi.mock("./LoadingSpinner", () => ({
+  LoadingSpinner: ({ title, message, className }: any) => (
+    <div data-testid="loading-spinner" className={className}>
+      <h3>{title}</h3>
+      <p>{message}</p>
+    </div>
+  ),
+  FullPageLoading: () => (
+    <div className="card-view-container">
+      <div className="card-view-loading">
+        <div data-testid="full-page-loading">
+          <h3>Loading Card View Explorer</h3>
+          <p>Loading your notes...</p>
+        </div>
+      </div>
     </div>
   ),
 }));
@@ -73,7 +113,6 @@ describe("CardView", () => {
     },
     getData: vi.fn().mockReturnValue({}),
     getSettings: vi.fn().mockReturnValue({ sortKey: "updated" }),
-    saveStoreState: vi.fn().mockResolvedValue(undefined),
   } as unknown as CardExplorerPlugin;
 
   const mockNotes: NoteData[] = [
@@ -99,468 +138,397 @@ describe("CardView", () => {
     },
   ];
 
+  // Mock functions
+  const mockRefreshNotes = vi.fn();
+  const mockSetError = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Default mock return value
-    mockUseCardExplorerStore.mockReturnValue({
+    // Default mock for useCardViewState
+    vi.mocked(useCardViewState).mockReturnValue({
+      shouldShowError: false,
+      shouldShowFullPageLoading: false,
+      shouldShowLoadingOverlay: false,
+      canShowMainContent: true,
+      error: null,
+      isLoading: false,
       notes: mockNotes,
+    });
+
+    // Default mock for useCardExplorerStore
+    vi.mocked(useCardExplorerStore).mockReturnValue({
       filteredNotes: mockNotes,
-      availableTags: ["ai", "ai/ml", "project"],
-      availableFolders: ["folder1", "folder2"],
-      isLoading: false,
-      error: null,
+      availableTags: ["tag1", "tag2", "tag3"],
+      availableFolders: ["Folder1", "Folder2"],
       refreshNotes: mockRefreshNotes,
       setError: mockSetError,
-      initializeFromPluginData: mockInitializeFromPluginData,
-
-      pinnedNotes: new Set(),
     });
   });
 
-  it("should render CardView with header, filter toggle, and virtual list", () => {
-    render(<CardView plugin={mockPlugin} />);
+  describe("Initialization", () => {
+    it("should call useCardViewInitialization hook with plugin", () => {
+      render(<CardView plugin={mockPlugin} />);
 
-    // Check header
-    expect(screen.getByText("Card View Explorer")).toBeInTheDocument();
-    expect(screen.getByText("2 total notes")).toBeInTheDocument();
-
-    // Check virtual list is rendered
-    expect(screen.getByTestId("virtual-list")).toBeInTheDocument();
-
-    // Check filter toggle button (FilterPanel is collapsed by default)
-    expect(screen.getByText("Filters ▼")).toBeInTheDocument();
-
-    // Check refresh button
-    expect(screen.getByText("Refresh Notes")).toBeInTheDocument();
-  });
-
-  it("should toggle filter panel when filter toggle button is clicked", async () => {
-    const user = userEvent.setup();
-    render(<CardView plugin={mockPlugin} />);
-
-    // Filter panel should be hidden initially
-    expect(screen.queryByTestId("filter-panel")).not.toBeInTheDocument();
-    expect(screen.getByText("Filters ▼")).toBeInTheDocument();
-
-    // Click filter toggle to show panel
-    const filterToggle = screen.getByText("Filters ▼");
-    await user.click(filterToggle);
-
-    // Filter panel should now be visible
-    expect(screen.getByText("Filters ▲")).toBeInTheDocument();
-    expect(screen.getByTestId("filter-panel")).toBeInTheDocument();
-
-    // Click again to hide panel
-    const filterToggleActive = screen.getByText("Filters ▲");
-    await user.click(filterToggleActive);
-
-    // Filter panel should be hidden again
-    expect(screen.getByText("Filters ▼")).toBeInTheDocument();
-    expect(screen.queryByTestId("filter-panel")).not.toBeInTheDocument();
-  });
-
-  it("should show loading state when loading", () => {
-    mockUseCardExplorerStore.mockReturnValue({
-      notes: [],
-      filteredNotes: [],
-      availableTags: [],
-      availableFolders: [],
-      isLoading: true,
-      error: null,
-      refreshNotes: mockRefreshNotes,
-      setError: mockSetError,
-      initializeFromPluginData: mockInitializeFromPluginData,
-
-      pinnedNotes: new Set(),
+      expect(useCardViewInitialization).toHaveBeenCalledWith(mockPlugin);
     });
 
-    render(<CardView plugin={mockPlugin} />);
+    it("should call useCardViewState hook", () => {
+      render(<CardView plugin={mockPlugin} />);
 
-    expect(screen.getByText("Loading Card View Explorer")).toBeInTheDocument();
-    expect(screen.getByText("Loading your notes...")).toBeInTheDocument();
-  });
-
-  it("should show error state when there is an error", () => {
-    mockUseCardExplorerStore.mockReturnValue({
-      notes: [],
-      filteredNotes: [],
-      availableTags: [],
-      availableFolders: [],
-      isLoading: false,
-      error: "Failed to load notes",
-      refreshNotes: mockRefreshNotes,
-      setError: mockSetError,
-      initializeFromPluginData: mockInitializeFromPluginData,
-
-      pinnedNotes: new Set(),
+      expect(useCardViewState).toHaveBeenCalled();
     });
 
-    render(<CardView plugin={mockPlugin} />);
+    it("should call useCardExplorerStore hook", () => {
+      render(<CardView plugin={mockPlugin} />);
 
-    expect(screen.getByText("Error Loading Card View Explorer")).toBeInTheDocument();
-    expect(screen.getByText("Failed to load notes")).toBeInTheDocument();
-    expect(screen.getByText("Retry")).toBeInTheDocument();
-    expect(screen.getByText("Dismiss")).toBeInTheDocument();
-  });
-
-  it("should compute available tags correctly when filter panel is open", async () => {
-    const user = userEvent.setup();
-    render(<CardView plugin={mockPlugin} />);
-
-    // Open filter panel first
-    const filterToggle = screen.getByText("Filters ▼");
-    await user.click(filterToggle);
-
-    // Should show 3 unique tags (tag1, tag2, tag3) in the filter panel
-    expect(screen.getByText(/Tags: 3/)).toBeInTheDocument();
-  });
-
-  it("should compute available folders correctly when filter panel is open", async () => {
-    const user = userEvent.setup();
-    render(<CardView plugin={mockPlugin} />);
-
-    // Open filter panel first
-    const filterToggle = screen.getByText("Filters ▼");
-    await user.click(filterToggle);
-
-    // Should show 2 unique folders (Folder1, Folder2) in the filter panel
-    expect(screen.getByText(/Folders: 2/)).toBeInTheDocument();
-  });
-
-  it("should show filtered count when different from total", () => {
-    mockUseCardExplorerStore.mockReturnValue({
-      notes: mockNotes,
-      filteredNotes: [mockNotes[0]], // Only one filtered note
-      availableTags: ["ai", "ai/ml", "project"],
-      availableFolders: ["folder1", "folder2"],
-      isLoading: false,
-      error: null,
-      refreshNotes: mockRefreshNotes,
-      setError: mockSetError,
-      initializeFromPluginData: mockInitializeFromPluginData,
-
-      pinnedNotes: new Set(),
+      expect(useCardExplorerStore).toHaveBeenCalled();
     });
-
-    render(<CardView plugin={mockPlugin} />);
-
-    expect(screen.getByText("2 total notes")).toBeInTheDocument();
-    expect(screen.getByText("• 1 filtered")).toBeInTheDocument();
   });
 
-  it("should call refreshNotes on mount", () => {
-    render(<CardView plugin={mockPlugin} />);
-
-    expect(mockRefreshNotes).toHaveBeenCalledWith(mockPlugin.app);
-  });
-
-  it("should show loading overlay when refreshing with existing notes", () => {
-    mockUseCardExplorerStore.mockReturnValue({
-      notes: mockNotes,
-      filteredNotes: mockNotes,
-      availableTags: ["ai", "ai/ml", "project"],
-      availableFolders: ["folder1", "folder2"],
-      isLoading: true, // Loading while notes exist
-      error: null,
-      refreshNotes: mockRefreshNotes,
-      setError: mockSetError,
-      initializeFromPluginData: mockInitializeFromPluginData,
-
-      pinnedNotes: new Set(),
-    });
-
-    render(<CardView plugin={mockPlugin} />);
-
-    expect(screen.getByText("Refreshing notes...")).toBeInTheDocument();
-  });
-
-  it("should handle singular note count", () => {
-    mockUseCardExplorerStore.mockReturnValue({
-      notes: [mockNotes[0]], // Only one note
-      filteredNotes: [mockNotes[0]],
-      availableTags: ["ai"],
-      availableFolders: ["folder1"],
-      isLoading: false,
-      error: null,
-      refreshNotes: mockRefreshNotes,
-      setError: mockSetError,
-      initializeFromPluginData: mockInitializeFromPluginData,
-
-      pinnedNotes: new Set(),
-    });
-
-    render(<CardView plugin={mockPlugin} />);
-
-    expect(screen.getByText("1 total note")).toBeInTheDocument();
-  });
-
-  describe("Error Boundary Integration", () => {
-    it("should define handleErrorBoundaryError function internally", () => {
-      // This test verifies the error boundary integration exists
-      // The actual handleErrorBoundaryError logic is tested implicitly
-      // through the fact that CardView renders successfully with the error boundary
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  describe("Error State", () => {
+    it("should render ErrorDisplay when shouldShowError is true", () => {
+      const errorMessage = "Failed to load notes";
+      vi.mocked(useCardViewState).mockReturnValue({
+        shouldShowError: true,
+        shouldShowFullPageLoading: false,
+        shouldShowLoadingOverlay: false,
+        canShowMainContent: false,
+        error: errorMessage,
+        isLoading: false,
+        notes: [],
+      });
 
       render(<CardView plugin={mockPlugin} />);
 
-      // If there were any errors in the handleErrorBoundaryError function definition,
-      // the component would fail to render, so successful rendering validates the integration
-      expect(screen.getByText("Card View Explorer")).toBeInTheDocument();
-
-      consoleSpy.mockRestore();
+      expect(screen.getByTestId("error-display")).toBeInTheDocument();
+      expect(screen.getByText("Error Loading Card View Explorer")).toBeInTheDocument();
+      expect(screen.getByText(errorMessage)).toBeInTheDocument();
+      expect(screen.getByText("Retry")).toBeInTheDocument();
+      expect(screen.getByText("Dismiss")).toBeInTheDocument();
     });
-  });
 
-  describe("Retry Functionality", () => {
-    it("should handle retry button click in footer", async () => {
+    it("should handle retry in error state", async () => {
       const user = userEvent.setup();
+      vi.mocked(useCardViewState).mockReturnValue({
+        shouldShowError: true,
+        shouldShowFullPageLoading: false,
+        shouldShowLoadingOverlay: false,
+        canShowMainContent: false,
+        error: "Failed to load notes",
+        isLoading: false,
+        notes: [],
+      });
 
       render(<CardView plugin={mockPlugin} />);
 
-      const retryButton = screen.getByRole("button", { name: "Refresh Notes" });
+      const retryButton = screen.getByText("Retry");
       await user.click(retryButton);
 
       expect(mockSetError).toHaveBeenCalledWith(null);
       expect(mockRefreshNotes).toHaveBeenCalledWith(mockPlugin.app);
     });
 
-    it("should disable retry button when loading", () => {
-      mockUseCardExplorerStore.mockReturnValue({
-        notes: mockNotes,
-        filteredNotes: mockNotes,
+    it("should handle dismiss in error state", async () => {
+      const user = userEvent.setup();
+      vi.mocked(useCardViewState).mockReturnValue({
+        shouldShowError: true,
+        shouldShowFullPageLoading: false,
+        shouldShowLoadingOverlay: false,
+        canShowMainContent: false,
+        error: "Failed to load notes",
+        isLoading: false,
+        notes: [],
+      });
+
+      render(<CardView plugin={mockPlugin} />);
+
+      const dismissButton = screen.getByText("Dismiss");
+      await user.click(dismissButton);
+
+      expect(mockSetError).toHaveBeenCalledWith(null);
+    });
+
+    it("should show retry state when retrying", () => {
+      vi.mocked(useCardViewState).mockReturnValue({
+        shouldShowError: true,
+        shouldShowFullPageLoading: false,
+        shouldShowLoadingOverlay: false,
+        canShowMainContent: false,
+        error: "Failed to load notes",
+        isLoading: true, // Loading while in error state
+        notes: [],
+      });
+
+      render(<CardView plugin={mockPlugin} />);
+
+      expect(screen.getByText("Retrying...")).toBeInTheDocument();
+      expect(screen.getByText("Retrying...")).toBeDisabled();
+    });
+  });
+
+  describe("Loading State", () => {
+    it("should show full page loading when shouldShowFullPageLoading is true", () => {
+      vi.mocked(useCardViewState).mockReturnValue({
+        shouldShowError: false,
+        shouldShowFullPageLoading: true,
+        shouldShowLoadingOverlay: false,
+        canShowMainContent: false,
+        error: null,
         isLoading: true,
-        error: null,
-        refreshNotes: mockRefreshNotes,
-        setError: mockSetError,
-        initializeFromPluginData: mockInitializeFromPluginData,
-
-        pinnedNotes: new Set(),
+        notes: [],
       });
 
       render(<CardView plugin={mockPlugin} />);
 
-      const retryButton = screen.getByRole("button", { name: "Refreshing..." });
-      expect(retryButton).toBeDisabled();
+      expect(screen.getByTestId("full-page-loading")).toBeInTheDocument();
+      expect(screen.getByText("Loading Card View Explorer")).toBeInTheDocument();
+      expect(screen.getByText("Loading your notes...")).toBeInTheDocument();
     });
   });
 
-  describe("Memory Leak Prevention", () => {
-    it("should cleanup on unmount and prevent state updates", async () => {
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  describe("Main Content", () => {
+    it("should render main content when no error or full page loading", () => {
+      render(<CardView plugin={mockPlugin} />);
 
-      // Mock a delayed refreshNotes that resolves after unmount
-      let resolveRefresh: (value?: any) => void;
-      const delayedRefresh = new Promise((resolve) => {
-        resolveRefresh = resolve;
-      });
-      mockRefreshNotes.mockReturnValueOnce(delayedRefresh);
-
-      const { unmount } = render(<CardView plugin={mockPlugin} />);
-
-      // Unmount before the async operation completes
-      unmount();
-
-      // Resolve the delayed operation
-      await act(async () => {
-        resolveRefresh!();
-        await Promise.resolve();
-      });
-
-      // setError should not be called because component is unmounted
-      // The isMounted flag should prevent it
-      expect(mockSetError).not.toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
+      expect(screen.getByTestId("error-boundary")).toBeInTheDocument();
+      expect(screen.getByTestId("card-view-header")).toBeInTheDocument();
+      expect(screen.getByTestId("virtual-list")).toBeInTheDocument();
+      expect(screen.getByText("Card View Explorer")).toBeInTheDocument();
     });
 
-    it("should cleanup properly on unmount", () => {
-      // This test verifies general cleanup behavior
-      // Pin state auto-save timeout cleanup is now handled in main.ts
-      const { unmount } = render(<CardView plugin={mockPlugin} />);
+    it("should display correct note counts in header", () => {
+      render(<CardView plugin={mockPlugin} />);
 
-      // Should unmount without errors
-      expect(() => unmount()).not.toThrow();
+      expect(screen.getByText("2 total notes")).toBeInTheDocument();
+      expect(screen.getByText("Filters ▼")).toBeInTheDocument(); // Filter panel closed by default
+      expect(screen.getByText("Refresh Notes")).toBeInTheDocument();
+    });
+
+    it("should pass plugin to VirtualList", () => {
+      render(<CardView plugin={mockPlugin} />);
+
+      expect(screen.getByText("Virtual List - Plugin: present")).toBeInTheDocument();
     });
   });
 
-  describe("Memoization Behavior", () => {
-    it("should recompute available tags when notes change", async () => {
-      const user = userEvent.setup();
-      // Initial render with 2 notes
-      const { rerender } = render(<CardView plugin={mockPlugin} />);
+  describe("Filter Panel", () => {
+    it("should not show filter panel by default", () => {
+      render(<CardView plugin={mockPlugin} />);
 
-      // Open filter panel first
-      const filterToggle = screen.getByText("Filters ▼");
-      await user.click(filterToggle);
-
-      expect(screen.getByText(/Tags: 3/)).toBeInTheDocument(); // tag1, tag2, tag3
-
-      // Update with different notes
-      const newNotes: NoteData[] = [
-        {
-          file: { path: "note3.md" } as any,
-          title: "Note 3",
-          path: "note3.md",
-          preview: "Preview 3",
-          lastModified: new Date("2024-01-03"),
-          frontmatter: null,
-          tags: ["newTag1", "newTag2"],
-          folder: "NewFolder",
-        },
-      ];
-
-      mockUseCardExplorerStore.mockReturnValue({
-        notes: newNotes,
-        filteredNotes: newNotes,
-        availableTags: ["newTag1", "newTag2"],
-        availableFolders: ["NewFolder"],
-        isLoading: false,
-        error: null,
-        refreshNotes: mockRefreshNotes,
-        setError: mockSetError,
-        initializeFromPluginData: mockInitializeFromPluginData,
-
-        pinnedNotes: new Set(),
-      });
-
-      rerender(<CardView plugin={mockPlugin} />);
-
-      // Filter panel should still be open, check new tag count
-      expect(screen.getByText(/Tags: 2/)).toBeInTheDocument(); // newTag1, newTag2
+      expect(screen.queryByTestId("filter-panel")).not.toBeInTheDocument();
+      expect(screen.getByText("Filters ▼")).toBeInTheDocument();
     });
 
-    it("should recompute available folders when notes change", async () => {
+    it("should toggle filter panel when filter toggle is clicked", async () => {
       const user = userEvent.setup();
-      // Initial render with 2 notes
+      render(<CardView plugin={mockPlugin} />);
+
+      // Initially closed
+      expect(screen.queryByTestId("filter-panel")).not.toBeInTheDocument();
+      expect(screen.getByText("Filters ▼")).toBeInTheDocument();
+
+      // Click to open
+      await user.click(screen.getByText("Filters ▼"));
+
+      expect(screen.getByTestId("filter-panel")).toBeInTheDocument();
+      expect(screen.getByText("Filters ▲")).toBeInTheDocument();
+
+      // Click to close
+      await user.click(screen.getByText("Filters ▲"));
+
+      expect(screen.queryByTestId("filter-panel")).not.toBeInTheDocument();
+      expect(screen.getByText("Filters ▼")).toBeInTheDocument();
+    });
+
+    it("should pass availableTags and availableFolders to FilterPanel", async () => {
+      const user = userEvent.setup();
+      render(<CardView plugin={mockPlugin} />);
+
+      // Open filter panel
+      await user.click(screen.getByText("Filters ▼"));
+
+      expect(screen.getByText("Filter Panel - Tags: 3, Folders: 2")).toBeInTheDocument();
+    });
+
+    it("should maintain filter panel state across re-renders", async () => {
+      const user = userEvent.setup();
       const { rerender } = render(<CardView plugin={mockPlugin} />);
 
-      // Open filter panel first
-      const filterToggle = screen.getByText("Filters ▼");
-      await user.click(filterToggle);
+      // Open filter panel
+      await user.click(screen.getByText("Filters ▼"));
+      expect(screen.getByTestId("filter-panel")).toBeInTheDocument();
 
-      expect(screen.getByText(/Folders: 2/)).toBeInTheDocument(); // Folder1, Folder2
-
-      // Update with single note in different folder
-      const newNotes: NoteData[] = [
-        {
-          file: { path: "note3.md" } as any,
-          title: "Note 3",
-          path: "note3.md",
-          preview: "Preview 3",
-          lastModified: new Date("2024-01-03"),
-          frontmatter: null,
-          tags: ["tag1"],
-          folder: "SingleFolder",
-        },
-      ];
-
-      mockUseCardExplorerStore.mockReturnValue({
-        notes: newNotes,
-        filteredNotes: newNotes,
+      // Re-render with different data
+      vi.mocked(useCardExplorerStore).mockReturnValue({
+        filteredNotes: [mockNotes[0]],
         availableTags: ["tag1"],
-        availableFolders: ["SingleFolder"],
-        isLoading: false,
-        error: null,
+        availableFolders: ["Folder1"],
         refreshNotes: mockRefreshNotes,
         setError: mockSetError,
-        initializeFromPluginData: mockInitializeFromPluginData,
-
-        pinnedNotes: new Set(),
       });
 
       rerender(<CardView plugin={mockPlugin} />);
 
-      // Filter panel should still be open, check new folder count
-      expect(screen.getByText(/Folders: 1/)).toBeInTheDocument(); // SingleFolder
+      // Filter panel should still be open
+      expect(screen.getByTestId("filter-panel")).toBeInTheDocument();
+      expect(screen.getByText("Filter Panel - Tags: 1, Folders: 1")).toBeInTheDocument();
+    });
+  });
+
+  describe("Loading Overlay", () => {
+    it("should show loading overlay when shouldShowLoadingOverlay is true", () => {
+      vi.mocked(useCardViewState).mockReturnValue({
+        shouldShowError: false,
+        shouldShowFullPageLoading: false,
+        shouldShowLoadingOverlay: true,
+        canShowMainContent: true,
+        error: null,
+        isLoading: true,
+        notes: mockNotes,
+      });
+
+      render(<CardView plugin={mockPlugin} />);
+
+      expect(screen.getByText("Refreshing notes...")).toBeInTheDocument();
+      expect(screen.getByTestId("loading-spinner")).toHaveClass("overlay-loading");
     });
 
-    it("should sort available tags alphabetically", async () => {
-      const user = userEvent.setup();
-      const unsortedNotes: NoteData[] = [
-        {
-          file: { path: "note1.md" } as any,
-          title: "Note 1",
-          path: "note1.md",
-          preview: "Preview 1",
-          lastModified: new Date("2024-01-01"),
-          frontmatter: null,
-          tags: ["zebra", "alpha", "beta"],
-          folder: "Folder1",
-        },
-      ];
+    it("should not show loading overlay when shouldShowLoadingOverlay is false", () => {
+      render(<CardView plugin={mockPlugin} />);
 
-      mockUseCardExplorerStore.mockReturnValue({
-        notes: unsortedNotes,
-        filteredNotes: unsortedNotes,
-        availableTags: ["alpha", "beta", "zebra"], // Sorted order
+      expect(screen.queryByText("Refreshing notes...")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Header Integration", () => {
+    it("should show filtered count when different from total", () => {
+      vi.mocked(useCardExplorerStore).mockReturnValue({
+        filteredNotes: [mockNotes[0]], // Only one filtered note
+        availableTags: ["tag1", "tag2", "tag3"],
+        availableFolders: ["Folder1", "Folder2"],
+        refreshNotes: mockRefreshNotes,
+        setError: mockSetError,
+      });
+
+      render(<CardView plugin={mockPlugin} />);
+
+      expect(screen.getByText("2 total notes")).toBeInTheDocument();
+      expect(screen.getByText("• 1 filtered")).toBeInTheDocument();
+    });
+
+    it("should handle singular note count", () => {
+      vi.mocked(useCardViewState).mockReturnValue({
+        shouldShowError: false,
+        shouldShowFullPageLoading: false,
+        shouldShowLoadingOverlay: false,
+        canShowMainContent: true,
+        error: null,
+        isLoading: false,
+        notes: [mockNotes[0]], // Only one note
+      });
+
+      vi.mocked(useCardExplorerStore).mockReturnValue({
+        filteredNotes: [mockNotes[0]],
+        availableTags: ["tag1"],
         availableFolders: ["Folder1"],
-        isLoading: false,
-        error: null,
         refreshNotes: mockRefreshNotes,
         setError: mockSetError,
-        initializeFromPluginData: mockInitializeFromPluginData,
-
-        pinnedNotes: new Set(),
       });
 
       render(<CardView plugin={mockPlugin} />);
 
-      // Open filter panel first
-      const filterToggle = screen.getByText("Filters ▼");
-      await user.click(filterToggle);
-
-      // Verify tags are passed in sorted order (3 total: alpha, beta, zebra)
-      expect(screen.getByText(/Tags: 3/)).toBeInTheDocument();
+      expect(screen.getByText("1 total note")).toBeInTheDocument();
     });
 
-    it("should sort available folders alphabetically", async () => {
+    it("should handle refresh button click", async () => {
       const user = userEvent.setup();
-      const unsortedNotes: NoteData[] = [
-        {
-          file: { path: "note1.md" } as any,
-          title: "Note 1",
-          path: "note1.md",
-          preview: "Preview 1",
-          lastModified: new Date("2024-01-01"),
-          frontmatter: null,
-          tags: ["tag1"],
-          folder: "ZFolder",
-        },
-        {
-          file: { path: "note2.md" } as any,
-          title: "Note 2",
-          path: "note2.md",
-          preview: "Preview 2",
-          lastModified: new Date("2024-01-02"),
-          frontmatter: null,
-          tags: ["tag2"],
-          folder: "AFolder",
-        },
-      ];
+      render(<CardView plugin={mockPlugin} />);
 
-      mockUseCardExplorerStore.mockReturnValue({
-        notes: unsortedNotes,
-        filteredNotes: unsortedNotes,
-        availableTags: ["tag1", "tag2"],
-        availableFolders: ["AFolder", "ZFolder"], // Sorted order
-        isLoading: false,
+      const refreshButton = screen.getByText("Refresh Notes");
+      await user.click(refreshButton);
+
+      expect(mockSetError).toHaveBeenCalledWith(null);
+      expect(mockRefreshNotes).toHaveBeenCalledWith(mockPlugin.app);
+    });
+
+    it("should disable refresh button when loading", () => {
+      vi.mocked(useCardViewState).mockReturnValue({
+        shouldShowError: false,
+        shouldShowFullPageLoading: false,
+        shouldShowLoadingOverlay: false,
+        canShowMainContent: true,
         error: null,
-        refreshNotes: mockRefreshNotes,
-        setError: mockSetError,
-        initializeFromPluginData: mockInitializeFromPluginData,
-
-        pinnedNotes: new Set(),
+        isLoading: true,
+        notes: mockNotes,
       });
 
       render(<CardView plugin={mockPlugin} />);
 
-      // Open filter panel first
-      const filterToggle = screen.getByText("Filters ▼");
-      await user.click(filterToggle);
+      const refreshButton = screen.getByText("Refreshing...");
+      expect(refreshButton).toBeDisabled();
+    });
+  });
 
-      // Verify folders are passed in sorted order (2 total: AFolder, ZFolder)
-      expect(screen.getByText(/Folders: 2/)).toBeInTheDocument();
+  describe("Error Boundary Integration", () => {
+    it("should wrap main content in CardViewErrorBoundary", () => {
+      render(<CardView plugin={mockPlugin} />);
+
+      expect(screen.getByTestId("error-boundary")).toBeInTheDocument();
+    });
+  });
+
+  describe("Accessibility", () => {
+    it("should have proper ARIA attributes for filter panel", async () => {
+      const user = userEvent.setup();
+      render(<CardView plugin={mockPlugin} />);
+
+      // Open filter panel
+      await user.click(screen.getByText("Filters ▼"));
+
+      const filterPanel = screen.getByRole("region", { name: "Note filters" });
+      expect(filterPanel).toBeInTheDocument();
+      expect(filterPanel).toHaveAttribute("id", "filter-panel");
+    });
+  });
+
+  describe("Component Structure", () => {
+    it("should have correct CSS class structure", () => {
+      const { container } = render(<CardView plugin={mockPlugin} />);
+
+      expect(container.querySelector(".card-view-container")).toBeInTheDocument();
+      expect(container.querySelector(".card-view-content")).toBeInTheDocument();
+      expect(container.querySelector(".card-view-main")).toBeInTheDocument();
+    });
+
+    it("should conditionally render filter panel container", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<CardView plugin={mockPlugin} />);
+
+      // Initially no filter panel container
+      expect(container.querySelector(".card-view-filter-panel")).not.toBeInTheDocument();
+
+      // Open filter panel
+      await user.click(screen.getByText("Filters ▼"));
+
+      // Now filter panel container should exist
+      expect(container.querySelector(".card-view-filter-panel")).toBeInTheDocument();
+    });
+
+    it("should conditionally render loading overlay container", () => {
+      vi.mocked(useCardViewState).mockReturnValue({
+        shouldShowError: false,
+        shouldShowFullPageLoading: false,
+        shouldShowLoadingOverlay: true,
+        canShowMainContent: true,
+        error: null,
+        isLoading: true,
+        notes: mockNotes,
+      });
+
+      const { container } = render(<CardView plugin={mockPlugin} />);
+
+      expect(container.querySelector(".card-view-loading-overlay")).toBeInTheDocument();
     });
   });
 });
