@@ -349,7 +349,7 @@ describe("cardExplorerStore", () => {
 
         // Verify filter state is updated
         Object.entries(filter).forEach(([key, value]) => {
-          expect(state.filters[key]).toEqual(value);
+          expect(state.filters[key as keyof typeof state.filters]).toEqual(value);
         });
       });
     });

@@ -13,8 +13,6 @@ interface ErrorDisplayProps {
   onRetry: () => void;
   /** Callback function triggered when user clicks the dismiss button */
   onDismiss: () => void;
-  /** Optional title for the error display. Defaults to "Error Loading Card View Explorer" */
-  title?: string;
   /** Whether retry action is in progress. Controls button disabled state and text */
   isRetrying?: boolean;
 }
@@ -51,7 +49,6 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   error,
   onRetry,
   onDismiss,
-  title = "Error Loading Card View Explorer",
   isRetrying = false,
 }) => {
   // Reference to the DOM element where we'll render the Obsidian icon
@@ -76,7 +73,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
           {/* Icon container that will be populated by the useEffect hook */}
           <div className="error-icon" ref={iconRef}></div>
           {/* Error title */}
-          <h3>{title}</h3>
+          <h3>Error Loading Card View Explorer</h3>
           {/* Error message text */}
           <p>{error}</p>
           {/* Action buttons for user interaction */}

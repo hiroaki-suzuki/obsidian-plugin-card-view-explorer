@@ -73,6 +73,22 @@ export default class CardExplorerPlugin extends Plugin {
   private eventRefs: EventRef[] = [];
 
   /**
+   * Store subscription unsubscribe function for pinned notes auto-save
+   *
+   * This subscription monitors changes to the pinnedNotes state in the Zustand store
+   * and automatically saves the state to disk with debouncing to prevent excessive I/O.
+   */
+  private unsubscribePinnedNotesAutoSave?: () => void;
+
+  /**
+   * Debounced function for automatic store state saving
+   *
+   * Prevents excessive save operations when pinned notes are changed rapidly.
+   * Uses a 500ms delay to batch save operations efficiently.
+   */
+  private readonly debouncedSaveStoreState: () => void;
+
+  /**
    * Debounced function for note refresh operations
    *
    * Prevents excessive UI updates when multiple file system events
@@ -100,6 +116,11 @@ export default class CardExplorerPlugin extends Plugin {
     this.debouncedRefreshNotes = debounce(async () => {
       await this.refreshNotes();
     }, DEFAULT_REFRESH_DEBOUNCE_DELAY);
+
+    // Initialize debounced store state save function
+    this.debouncedSaveStoreState = debounce(async () => {
+      await this.saveStoreState();
+    }, 500); // 500ms debounce for save operations
   }
 
   /**
@@ -142,6 +163,9 @@ export default class CardExplorerPlugin extends Plugin {
     // Set up real-time event processing
     this.setupEventHandlers();
 
+    // Set up automatic save for pinned notes changes
+    this.setupPinnedNotesAutoSave();
+
     // If auto-start is enabled
     if (this.settings.autoStart) {
       // Wait for workspace to be ready
@@ -163,6 +187,9 @@ export default class CardExplorerPlugin extends Plugin {
   async onunload(): Promise<void> {
     // Clean up event handlers
     this.cleanupEventHandlers();
+
+    // Clean up pinned notes auto-save subscription
+    this.cleanupPinnedNotesAutoSave();
 
     // Cleanup - detach all Card View Explorer views
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_CARD_EXPLORER);
@@ -427,6 +454,49 @@ export default class CardExplorerPlugin extends Plugin {
 
     // Clear event reference array
     this.eventRefs = [];
+  }
+
+  /**
+   * Set up automatic save subscription for pinned notes changes
+   *
+   * Uses Zustand's subscribeWithSelector to monitor changes to the pinnedNotes
+   * state and automatically trigger a debounced save operation. This ensures
+   * pinned note preferences are persisted without manual intervention.
+   */
+  private async setupPinnedNotesAutoSave(): Promise<void> {
+    try {
+      // Dynamically import store to avoid circular dependencies
+      const { useCardExplorerStore } = await import("./store/cardExplorerStore");
+
+      // Subscribe to pinnedNotes changes with fine-grained monitoring
+      this.unsubscribePinnedNotesAutoSave = useCardExplorerStore.subscribe(
+        (state) => state.pinnedNotes,
+        () => {
+          // Only trigger save if there are actual pinned notes or if the set was cleared
+          // This prevents saving on initial empty state
+          this.debouncedSaveStoreState();
+        },
+        {
+          // Use size comparison for efficient change detection
+          equalityFn: (a, b) => a.size === b.size && Array.from(a).every((item) => b.has(item)),
+        }
+      );
+    } catch (error) {
+      console.error("Card View Explorer: Failed to setup pinned notes auto-save:", error);
+    }
+  }
+
+  /**
+   * Clean up pinned notes auto-save subscription
+   *
+   * Removes the subscription to prevent memory leaks and unwanted
+   * save operations after plugin unload.
+   */
+  private cleanupPinnedNotesAutoSave(): void {
+    if (this.unsubscribePinnedNotesAutoSave) {
+      this.unsubscribePinnedNotesAutoSave();
+      this.unsubscribePinnedNotesAutoSave = undefined;
+    }
   }
 
   /**

@@ -27,11 +27,11 @@ describe("ErrorDisplay", () => {
     expect(document.querySelector(".error-icon")).toBeInTheDocument();
   });
 
-  it("should render custom title when provided", () => {
-    render(<ErrorDisplay {...defaultProps} title="Custom Error Title" />);
+  it("should render default title", () => {
+    render(<ErrorDisplay {...defaultProps} />);
 
-    expect(screen.getByText("Custom Error Title")).toBeInTheDocument();
-    expect(screen.queryByText("Error Loading Card View Explorer")).not.toBeInTheDocument();
+    expect(screen.getByText("Error Loading Card View Explorer")).toBeInTheDocument();
+    expect(screen.getByText("Test error message")).toBeInTheDocument();
   });
 
   it("should call onRetry when retry button is clicked", async () => {

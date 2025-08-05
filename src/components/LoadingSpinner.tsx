@@ -15,16 +15,6 @@ interface LoadingSpinnerProps {
 }
 
 /**
- * Props for the FullPageLoading component
- */
-interface FullPageLoadingProps {
-  /** Main title to display above the loading message */
-  title?: string;
-  /** Subtitle or description text explaining what's loading */
-  message?: string;
-}
-
-/**
  * LoadingSpinner Component
  *
  * Displays a loading state with spinner animation, title, and message.
@@ -80,32 +70,15 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
  * Used for initial loading states when no content is available yet.
  *
  * @component
- * @example
- * ```tsx
- * // Basic usage with default title and message
- * <FullPageLoading />
  *
- * // Custom loading message
- * <FullPageLoading
- *   title="Initializing"
- *   message="Setting up Card View Explorer..."
- * />
- * ```
- *
- * @param props - Component props
- * @param props.title - Main loading title (defaults to "Loading Card View Explorer")
- * @param props.message - Loading description message (defaults to "Loading your notes...")
  * @returns Full page loading component with proper Card View Explorer layout structure
  * @see LoadingSpinner - The underlying component used for the actual loading UI
  */
-export const FullPageLoading: React.FC<FullPageLoadingProps> = ({
-  title = "Loading Card View Explorer",
-  message = "Loading your notes...",
-}) => {
+export const FullPageLoading: React.FC = () => {
   return (
     <div className="card-view-container">
       <div className="card-view-loading">
-        <LoadingSpinner title={title} message={message} />
+        <LoadingSpinner title="Loading Card View Explorer" message="Loading your notes..." />
       </div>
     </div>
   );

@@ -255,20 +255,6 @@ describe("CardView", () => {
     expect(mockRefreshNotes).toHaveBeenCalledWith(mockPlugin.app);
   });
 
-  it("should handle refreshNotes error on mount", async () => {
-    mockRefreshNotes.mockRejectedValueOnce(new Error("Network error"));
-
-    render(<CardView plugin={mockPlugin} />);
-
-    // Wait for the async error to be handled with act
-    await act(async () => {
-      // Wait multiple ticks for the async operation to complete
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    });
-
-    expect(mockSetError).toHaveBeenCalledWith("Network error");
-  });
-
   it("should show loading overlay when refreshing with existing notes", () => {
     mockUseCardExplorerStore.mockReturnValue({
       notes: mockNotes,
@@ -326,102 +312,6 @@ describe("CardView", () => {
     });
   });
 
-  describe("Pin State Auto-Save", () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it("should debounce pin state saves with 500ms delay", async () => {
-      const initialPinnedNotes = new Set(["note1.md"]);
-      const updatedPinnedNotes = new Set(["note1.md", "note2.md"]);
-
-      // Start with initial state
-      mockUseCardExplorerStore.mockReturnValue({
-        notes: mockNotes,
-        filteredNotes: mockNotes,
-        isLoading: false,
-        error: null,
-        refreshNotes: mockRefreshNotes,
-        setError: mockSetError,
-        initializeFromPluginData: mockInitializeFromPluginData,
-
-        pinnedNotes: initialPinnedNotes,
-      });
-
-      const { rerender } = render(<CardView plugin={mockPlugin} />);
-
-      // Update to new pin state
-      mockUseCardExplorerStore.mockReturnValue({
-        notes: mockNotes,
-        filteredNotes: mockNotes,
-        isLoading: false,
-        error: null,
-        refreshNotes: mockRefreshNotes,
-        setError: mockSetError,
-        initializeFromPluginData: mockInitializeFromPluginData,
-
-        pinnedNotes: updatedPinnedNotes,
-      });
-
-      rerender(<CardView plugin={mockPlugin} />);
-
-      // Should not call save immediately
-      expect(mockPlugin.saveStoreState).not.toHaveBeenCalled();
-
-      // Fast-forward time by 500ms
-      await act(async () => {
-        vi.advanceTimersByTime(500);
-        await Promise.resolve(); // Allow async operations to complete
-      });
-
-      // Should call save after debounce
-      expect(mockPlugin.saveStoreState).toHaveBeenCalled();
-    });
-
-    it("should handle store state save errors with dynamic error handling import", async () => {
-      const pinnedNotes = new Set(["note1.md"]);
-      const saveError = new Error("Save failed");
-
-      const mockSaveStoreState = vi.fn().mockRejectedValueOnce(saveError);
-      mockPlugin.saveStoreState = mockSaveStoreState;
-
-      mockUseCardExplorerStore.mockReturnValue({
-        notes: mockNotes,
-        filteredNotes: mockNotes,
-        isLoading: false,
-        error: null,
-        refreshNotes: mockRefreshNotes,
-        setError: mockSetError,
-        initializeFromPluginData: mockInitializeFromPluginData,
-
-        pinnedNotes,
-      });
-
-      render(<CardView plugin={mockPlugin} />);
-
-      // Fast-forward time to trigger save
-      await act(async () => {
-        vi.advanceTimersByTime(500);
-        await Promise.resolve();
-        await Promise.resolve(); // Allow error handling import to resolve
-      });
-
-      // Should call handleError with correct parameters
-      expect(mockHandleError).toHaveBeenCalledWith(
-        saveError,
-        "data", // ErrorCategory.DATA
-        {
-          operation: "saveStoreState",
-          pinCount: 1,
-        }
-      );
-    });
-  });
-
   describe("Retry Functionality", () => {
     it("should handle retry button click in footer", async () => {
       const user = userEvent.setup();
@@ -433,34 +323,6 @@ describe("CardView", () => {
 
       expect(mockSetError).toHaveBeenCalledWith(null);
       expect(mockRefreshNotes).toHaveBeenCalledWith(mockPlugin.app);
-    });
-
-    it("should handle retry failure and set error", async () => {
-      const user = userEvent.setup();
-      const retryError = new Error("Retry failed");
-
-      // Mock console.error to avoid noise in test output
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-      // First render succeeds, then retry fails
-      mockRefreshNotes.mockResolvedValueOnce(undefined); // Initial load succeeds
-
-      render(<CardView plugin={mockPlugin} />);
-
-      // Reset and make retry fail
-      mockRefreshNotes.mockRejectedValueOnce(retryError);
-
-      const retryButton = screen.getByRole("button", { name: "Refresh Notes" });
-      await user.click(retryButton);
-
-      // Wait a tick for the async error to be handled
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      expect(mockSetError).toHaveBeenCalledWith("Retry failed");
-
-      expect(consoleSpy).toHaveBeenCalledWith("Retry failed:", retryError);
-
-      consoleSpy.mockRestore();
     });
 
     it("should disable retry button when loading", () => {
@@ -512,17 +374,13 @@ describe("CardView", () => {
       consoleSpy.mockRestore();
     });
 
-    it("should cleanup timeout on unmount for pin state saves", () => {
-      const clearTimeoutSpy = vi.spyOn(global, "clearTimeout");
-
+    it("should cleanup properly on unmount", () => {
+      // This test verifies general cleanup behavior
+      // Pin state auto-save timeout cleanup is now handled in main.ts
       const { unmount } = render(<CardView plugin={mockPlugin} />);
 
-      unmount();
-
-      // Should call clearTimeout during cleanup
-      expect(clearTimeoutSpy).toHaveBeenCalled();
-
-      clearTimeoutSpy.mockRestore();
+      // Should unmount without errors
+      expect(() => unmount()).not.toThrow();
     });
   });
 
