@@ -273,6 +273,10 @@
   z-index: var(--layer-popover); /* Above content but below modals */
   backdrop-filter: blur(2px); /* Subtle blur effect for focus */
 
+  .loading-content {
+    text-align: center;
+  }
+
   span {
     font-size: var(--font-ui-small);
     color: var(--text-muted);
@@ -281,6 +285,7 @@
 
 /* Spinner animation */
 .loading-spinner {
+  margin: 0 auto;
   width: var(--size-4-6);
   height: var(--size-4-6);
   border: 2px solid var(--background-modifier-border);

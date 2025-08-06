@@ -105,11 +105,7 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
             {/* Loading overlay for refresh operations - shown during refreshes but not initial load */}
             {shouldShowLoadingOverlay && (
               <div className="card-view-loading-overlay">
-                <LoadingSpinner
-                  title=""
-                  message="Refreshing notes..."
-                  className="overlay-loading"
-                />
+                <LoadingSpinner message="Refreshing notes..." />
               </div>
             )}
 

@@ -389,9 +389,7 @@ describe("CardView", () => {
 
       const loadingProps = getLastComponentCall(LoadingSpinner);
       expect(loadingProps).toEqual({
-        title: "",
         message: "Refreshing notes...",
-        className: "overlay-loading",
       });
     });
 
