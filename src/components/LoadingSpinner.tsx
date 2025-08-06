@@ -8,10 +8,6 @@ interface LoadingSpinnerProps {
   title?: string;
   /** Subtitle or description text explaining what's loading */
   message?: string;
-  /** Whether to show the spinner animation (true) or hide it (false) */
-  showSpinner?: boolean;
-  /** Additional CSS class name for custom styling */
-  className?: string;
 }
 
 /**
@@ -19,42 +15,19 @@ interface LoadingSpinnerProps {
  *
  * Displays a loading state with spinner animation, title, and message.
  * Used for both overlay loading indicators and inline loading states.
+ * The spinner animation is always shown and styled via CSS.
  *
  * @component
- * @example
- * ```tsx
- * // Basic usage
- * <LoadingSpinner />
- *
- * // Custom messages
- * <LoadingSpinner
- *   title="Processing Notes"
- *   message="Applying filters..."
- * />
- *
- * // Without spinner animation
- * <LoadingSpinner
- *   showSpinner={false}
- *   title="Please wait"
- * />
- *
- * // With custom styling
- * <LoadingSpinner className="custom-loader" />
- * ```
  */
 export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   title = "Loading",
-  message = "Please wait...",
-  showSpinner = true,
-  className = "",
+  message = "Loading your notes...",
 }) => {
   return (
-    <div className={`loading-content ${className}`}>
-      {/* Spinner animation element, conditionally rendered based on showSpinner prop */}
-      {showSpinner && <div className="loading-spinner" />}
-      {/* Title element - always rendered, but only with content if title is provided */}
+    <div className="loading-content">
+      {/* CSS-animated spinner - styled via .loading-spinner class */}
+      <div className="loading-spinner" />
       <h3>{title}</h3>
-      {/* Message element - always rendered, but only with content if message is provided */}
       <p>{message}</p>
     </div>
   );
@@ -70,7 +43,6 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
  * Used for initial loading states when no content is available yet.
  *
  * @component
- *
  * @returns Full page loading component with proper Card View Explorer layout structure
  * @see LoadingSpinner - The underlying component used for the actual loading UI
  */
@@ -78,7 +50,7 @@ export const FullPageLoading: React.FC = () => {
   return (
     <div className="card-view-container">
       <div className="card-view-loading">
-        <LoadingSpinner title="Loading Card View Explorer" message="Loading your notes..." />
+        <LoadingSpinner title="Loading Card View Explorer" />
       </div>
     </div>
   );
