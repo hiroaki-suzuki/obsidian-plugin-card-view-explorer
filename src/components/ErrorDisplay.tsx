@@ -1,6 +1,6 @@
 import { setIcon } from "obsidian";
 import type React from "react";
-import { useEffect, useRef } from "react";
+import { use, useCallback, useEffect, useRef } from "react";
 
 /**
  * Props for the ErrorDisplay component.
@@ -66,6 +66,14 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
     }
   }, []);
 
+  const handleRetry = useCallback(() => {
+    onRetry();
+  }, [onRetry]);
+
+  const handleDismiss = useCallback(() => {
+    onDismiss();
+  }, [onDismiss]);
+
   return (
     <div className="card-view-container">
       <div className="card-view-error">
@@ -81,7 +89,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
             <button
               type="button"
               className="error-retry-button"
-              onClick={onRetry}
+              onClick={handleRetry}
               disabled={isRetrying}
               aria-busy={isRetrying}
             >
@@ -90,7 +98,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
             <button
               type="button"
               className="error-clear-button"
-              onClick={onDismiss}
+              onClick={handleDismiss}
               disabled={isRetrying}
             >
               Dismiss
