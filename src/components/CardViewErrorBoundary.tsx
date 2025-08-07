@@ -7,7 +7,7 @@ const MAX_RETRIES = 3;
 /**
  * Props for the CardViewErrorBoundary component
  */
-interface ErrorBoundaryProps {
+interface CardViewErrorBoundaryProps {
   /** Child components to render when no error has occurred */
   children: React.ReactNode;
   /** Optional callback invoked when an error is caught by the boundary */
@@ -17,13 +17,11 @@ interface ErrorBoundaryProps {
 /**
  * Internal state management for the error boundary component
  */
-interface ErrorBoundaryState {
+interface CardViewErrorBoundaryState {
   /** Whether an error has been caught */
   hasError: boolean;
   /** The caught error instance, if any */
   error: Error | null;
-  /** Unique identifier for the error (currently unused but reserved for future error tracking) */
-  errorId: string | null;
   /** Number of retry attempts made */
   retryCount: number;
 }
@@ -43,13 +41,15 @@ interface ErrorBoundaryState {
  * </CardViewErrorBoundary>
  * ```
  */
-export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
+export class CardViewErrorBoundary extends React.Component<
+  CardViewErrorBoundaryProps,
+  CardViewErrorBoundaryState
+> {
+  constructor(props: CardViewErrorBoundaryProps) {
     super(props);
     this.state = {
       hasError: false,
       error: null,
-      errorId: null,
       retryCount: 0,
     };
   }
@@ -156,7 +156,6 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
       this.setState({
         hasError: false,
         error: null,
-        errorId: null,
         retryCount: this.state.retryCount + 1,
       });
     } else {
