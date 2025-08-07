@@ -1,5 +1,5 @@
 import type React from "react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 /**
  * Props for the CardViewHeader component
@@ -63,6 +63,14 @@ export const CardViewHeader: React.FC<CardViewHeaderProps> = ({
     [isFilterPanelOpen, isLoading]
   );
 
+  const handleToggleFilter = useCallback(() => {
+    onToggleFilter();
+  }, [onToggleFilter]);
+
+  const handleRefresh = useCallback(() => {
+    onRefresh();
+  }, [onRefresh]);
+
   return (
     <div className="card-view-header">
       <h2 className="card-view-title">Card View Explorer</h2>
@@ -78,7 +86,7 @@ export const CardViewHeader: React.FC<CardViewHeaderProps> = ({
         <button
           type="button"
           className={`filter-toggle-button ${isFilterPanelOpen ? "active" : ""}`}
-          onClick={onToggleFilter}
+          onClick={handleToggleFilter}
           title={buttonLabels.filterButton}
           aria-expanded={isFilterPanelOpen}
           aria-controls="filter-panel"
@@ -89,7 +97,7 @@ export const CardViewHeader: React.FC<CardViewHeaderProps> = ({
         <button
           type="button"
           className="refresh-button"
-          onClick={onRefresh}
+          onClick={handleRefresh}
           disabled={isLoading}
           title="Refresh notes from vault"
           aria-busy={isLoading}
