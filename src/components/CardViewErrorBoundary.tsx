@@ -1,57 +1,47 @@
 import React from "react";
+import { ErrorCategory, handleError } from "../core/errors/errorHandling";
 
-/**
- * Maximum number of retry attempts before showing permanent error state.
- * After this many retries, the user will be prompted to restart the plugin.
- */
+/** Maximum number of automatic retry attempts before requiring manual intervention */
 const MAX_RETRIES = 3;
 
 /**
- * Props for the CardViewErrorBoundary component.
- * @interface ErrorBoundaryProps
+ * Props for the CardViewErrorBoundary component
  */
 interface ErrorBoundaryProps {
-  /** Child components to be wrapped by the error boundary */
+  /** Child components to render when no error has occurred */
   children: React.ReactNode;
-  /**
-   * Optional callback function called when an error is caught.
-   * Useful for reporting errors to a monitoring service or parent component.
-   */
+  /** Optional callback invoked when an error is caught by the boundary */
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
 }
 
 /**
- * Internal state for the error boundary component.
- * @interface ErrorBoundaryState
+ * Internal state management for the error boundary component
  */
 interface ErrorBoundaryState {
   /** Whether an error has been caught */
   hasError: boolean;
-  /** The caught error object, if any */
+  /** The caught error instance, if any */
   error: Error | null;
-  /**
-   * Unique identifier for the error instance.
-   * Used to distinguish between different error occurrences.
-   */
+  /** Unique identifier for the error (currently unused but reserved for future error tracking) */
   errorId: string | null;
-  /** Number of retry attempts made for the current error */
+  /** Number of retry attempts made */
   retryCount: number;
 }
 
 /**
- * Error Boundary Component for React Error Handling
+ * Error boundary component that catches React rendering errors and provides user-friendly error handling
+ * with automatic retry functionality for the Card View Explorer plugin.
  *
- * A React error boundary that catches JavaScript errors anywhere in the child component tree,
- * logs those errors with detailed information, and displays a fallback UI instead of crashing.
+ * This component implements React's error boundary pattern to gracefully handle errors that occur
+ * during component rendering, lifecycle methods, and constructors of the whole component tree below them.
+ * It provides automatic retry attempts up to MAX_RETRIES before requiring manual intervention.
  *
- * Features:
- * - Automatic retry mechanism with configurable maximum attempts
- * - Detailed error logging with component stack traces
- * - Integration with plugin's error handling utilities
- * - User-friendly error UI with actionable options
- *
- * This component follows the React Error Boundary pattern and is specifically designed
- * for the Card View Explorer plugin's needs, including plugin restart functionality.
+ * @example
+ * ```tsx
+ * <CardViewErrorBoundary onError={(error, errorInfo) => console.log(error)}>
+ *   <CardView plugin={plugin} />
+ * </CardViewErrorBoundary>
+ * ```
  */
 export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -65,63 +55,39 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
   }
 
   /**
-   * React lifecycle method called when an error is thrown during rendering.
-   * Updates component state to trigger fallback UI rendering.
+   * Static method called when an error is thrown during rendering.
+   * Updates component state to trigger error UI rendering.
    *
    * @param error - The error that was thrown
-   * @returns Updated state object to trigger error UI
+   * @returns Partial state update to trigger error display
    */
   static getDerivedStateFromError(error: Error) {
-    // Update state so the next render will show the fallback UI
     return { hasError: true, error };
   }
 
   /**
-   * React lifecycle method called after an error has been thrown by a descendant component.
-   * Handles error logging, reporting, and integration with plugin error handling utilities.
+   * Called when an error is caught by this boundary.
+   * Logs the error through the centralized error handling system and calls the optional onError callback.
    *
    * @param error - The error that was thrown
-   * @param errorInfo - Additional information about the error including component stack
+   * @param errorInfo - Additional information about the error (component stack, etc.)
    */
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log detailed error information for debugging (console only)
-    console.group("🛑 CardViewErrorBoundary - Error Details");
-    console.error("Error:", error);
-    console.error("Error Info:", errorInfo);
-    console.error("Component Stack:", errorInfo.componentStack);
-    console.error("Retry Count:", this.state.retryCount);
-    console.error("Timestamp:", new Date().toISOString());
-    console.groupEnd();
+    handleError(error, ErrorCategory.UI, {
+      componentStack: errorInfo.componentStack || "No component stack available",
+      errorBoundary: "CardViewErrorBoundary",
+      retryCount: this.state.retryCount,
+    });
 
-    // Import error handling utilities for internal processing
-    // Dynamic import prevents circular dependencies and ensures error handling
-    // utilities are available even if there are issues with static imports
-    import("../core/errors/errorHandling")
-      .then(({ handleError, ErrorCategory }) => {
-        handleError(error, ErrorCategory.UI, {
-          componentStack: errorInfo.componentStack || "No component stack available",
-          errorBoundary: "CardViewErrorBoundary",
-          retryCount: this.state.retryCount,
-        });
-      })
-      .catch((importError) => {
-        console.error("Failed to import error handling utilities:", importError);
-      });
-
-    // Call optional error handler
     this.props.onError?.(error, errorInfo);
   }
 
   /**
-   * Renders either the error UI when an error is caught or the children components when no error exists.
-   * The error UI includes retry functionality and helpful information for users.
-   *
-   * @returns React elements representing either the error UI or the wrapped children
+   * Renders either the error UI (when an error has occurred) or the children components.
+   * The error UI includes retry functionality and helpful user guidance.
    */
   render() {
     if (this.state.hasError && this.state.error) {
-      // Simple user-friendly error UI
-      // Check if retry is still possible based on current retry count
       const canRetry = this.state.retryCount < MAX_RETRIES;
 
       return (
@@ -131,7 +97,6 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
             <h3>Loading Error</h3>
             <p>An error occurred while loading Card View Explorer.</p>
 
-            {/* Display retry counter information when retries have been attempted */}
             {this.state.retryCount > 0 && (
               <p className="retry-info">
                 Retrying... ({this.state.retryCount}/{MAX_RETRIES})
@@ -139,11 +104,6 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
             )}
 
             <div className="error-actions">
-              {/*
-                Conditional rendering based on retry count:
-                - Show "Retry" button if under MAX_RETRIES
-                - Show "Restart Plugin" button if max retries reached
-              */}
               {canRetry ? (
                 <button
                   type="button"
@@ -157,7 +117,7 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
                 <button
                   type="button"
                   className="error-reload-button"
-                  onClick={() => window.location.reload()}
+                  onClick={() => window.location.reload()} // Force page reload when max retries exceeded
                   aria-label="Restart plugin"
                 >
                   Restart Plugin
@@ -165,7 +125,6 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
               )}
             </div>
 
-            {/* Help text with link to GitHub repository for issue reporting */}
             <p className="error-help-text">
               If the problem persists, please report it on GitHub.
               <br />
@@ -188,14 +147,12 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
 
   /**
    * Handles retry attempts when the user clicks the retry button.
-   * Resets error state and increments retry count, or shows permanent error if max retries exceeded.
-   *
-   * This is implemented as an arrow function to preserve the correct 'this' context
-   * when used as an event handler in the JSX.
+   * Resets the error state to allow re-rendering of children components.
+   * If max retries have been reached, logs this as an error for debugging purposes.
    */
   handleRetry = () => {
     if (this.state.retryCount < MAX_RETRIES) {
-      // Reset error state but increment retry counter to track attempts
+      // Reset error state and increment retry count to attempt re-rendering
       this.setState({
         hasError: false,
         error: null,
@@ -203,9 +160,12 @@ export class CardViewErrorBoundary extends React.Component<ErrorBoundaryProps, E
         retryCount: this.state.retryCount + 1,
       });
     } else {
-      // Max retries reached, show permanent error state
-      // This code path should rarely execute since the UI shows a restart button instead
-      console.error("Card View Explorer: Max retries reached for error boundary");
+      // Log when user attempts to retry beyond the maximum allowed attempts
+      handleError(new Error("Max retries reached"), ErrorCategory.UI, {
+        componentStack: "CardViewErrorBoundary",
+        errorBoundary: "CardViewErrorBoundary",
+        retryCount: this.state.retryCount,
+      });
     }
   };
 }
