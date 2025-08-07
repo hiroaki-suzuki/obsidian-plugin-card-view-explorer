@@ -204,7 +204,6 @@ describe("CardViewErrorBoundary", () => {
       errorBoundary.state = {
         hasError: true,
         error: new Error("Test error"),
-        errorId: null,
         retryCount: MAX_RETRIES,
       };
 
