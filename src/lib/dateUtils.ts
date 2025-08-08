@@ -105,6 +105,37 @@ export const getDisplayDate = (note: NoteData): Date => {
   return updatedDate ?? note.lastModified;
 };
 
+// === Date filter parsing (moved from dateFilter.ts) ===
+export type DateFilterType = "within" | "after";
+
+/**
+ * Parse user input and date filter type into a concrete Date value.
+ * - within: interprets input as a number of days (parseInt), must be > 0
+ * - after: interprets input as a date string, must be a valid date
+ * Returns null if parsing fails or input is empty/invalid.
+ */
+export const parseDateFilter = (
+  type: DateFilterType,
+  input: string,
+  now: Date = new Date()
+): Date | null => {
+  const raw = input.trim();
+  if (!raw) return null;
+
+  if (type === "within") {
+    const days = parseInt(raw, 10);
+    if (!Number.isNaN(days) && days > 0) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - days);
+      return date;
+    }
+    return null;
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 /**
  * Parses a frontmatter updated value into a Date object if possible
  * Handles both Date objects and string representations gracefully
