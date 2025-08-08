@@ -1,6 +1,6 @@
-import { setIcon } from "obsidian";
 import type React from "react";
-import { use, useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
+import { ObsidianIcon } from "./ObsidianIcon";
 
 /**
  * Props for the ErrorDisplay component.
@@ -51,21 +51,6 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   onDismiss,
   isRetrying = false,
 }) => {
-  // Reference to the DOM element where we'll render the Obsidian icon
-  const iconRef = useRef<HTMLDivElement>(null);
-
-  /**
-   * Effect hook to render the Obsidian warning icon
-   * Uses Obsidian's native icon system for consistent styling across themes
-   */
-  useEffect(() => {
-    if (iconRef.current) {
-      // The alert-triangle icon is part of Obsidian's icon set
-      // and provides visual indication of the error state
-      setIcon(iconRef.current, "alert-triangle");
-    }
-  }, []);
-
   const handleRetry = useCallback(() => {
     onRetry();
   }, [onRetry]);
@@ -78,8 +63,10 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
     <div className="card-view-container">
       <div className="card-view-error">
         <div className="error-content">
-          {/* Icon container that will be populated by the useEffect hook */}
-          <div className="error-icon" ref={iconRef}></div>
+          {/* Error icon using the shared ObsidianIcon component */}
+          <div className="error-icon">
+            <ObsidianIcon iconName="alert-triangle" />
+          </div>
           {/* Error title */}
           <h3>Error Loading Card View Explorer</h3>
           {/* Error message text */}
