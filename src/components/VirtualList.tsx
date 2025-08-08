@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { ErrorCategory, handleError } from "../core/errors/errorHandling";
+import { useErrorFallback } from "../hooks";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
-import { ErrorFallback, useErrorFallback } from "./ErrorFallback";
+import { ErrorFallback } from "./ErrorFallback";
 import { NoteCard } from "./NoteCard";
 import { ObsidianIcon } from "./ObsidianIcon";
 

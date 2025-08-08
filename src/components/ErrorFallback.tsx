@@ -1,59 +1,80 @@
-import { setIcon } from "obsidian";
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ErrorCategory } from "../core/errors/errorHandling";
+import { useCallback, useEffect } from "react";
+import { ErrorCategory, handleError } from "../core/errors/errorHandling";
+
+// Configuration for error messages and suggestions by category
+/**
+ * Immutable mapping of {@link ErrorCategory} to user-facing copy.
+ *
+ * Design notes:
+ * - Centralizes messages so UI copy stays consistent across the app and is easy to localize later.
+ * - Keeps presentation concerns (human-friendly message/suggestion) separate from error objects.
+ */
+const ERROR_CONFIG = {
+  [ErrorCategory.DATA]: {
+    message: "Failed to load note data. Your information may be temporarily unavailable.",
+    suggestion: "Try refreshing your notes or restart the plugin.",
+  },
+  [ErrorCategory.API]: {
+    message: "Failed to communicate with Obsidian. Please try refreshing.",
+    suggestion: "Try refreshing the view or restart Obsidian.",
+  },
+  [ErrorCategory.UI]: {
+    message: "Interface error occurred. Please try refreshing the view.",
+    suggestion: "Try refreshing the view or restart the plugin.",
+  },
+  [ErrorCategory.GENERAL]: {
+    message: "An unexpected error occurred.",
+    suggestion: "Try refreshing the view or restart the plugin.",
+  },
+} as const;
 
 /**
- * Props for the ErrorFallback component
+ * Props for {@link ErrorFallback}.
  *
- * This interface defines all possible configuration options for the error display,
- * allowing customization of messages, retry behavior, and styling based on error category.
+ * The component shows a safe, user-friendly error message and (optionally) a retry action
+ * while the raw error details are reported via {@link handleError} for diagnostics.
  */
 interface ErrorFallbackProps {
-  /** The Error object that was caught */
+  /** The error instance that triggered the fallback UI. */
   error: Error;
-  /** Callback function to retry the failed operation */
+  /**
+   * Optional retry handler. When provided and {@link showRetry} is true, a button is shown.
+   * Keep the handler idempotent and fast; it should be safe to invoke multiple times.
+   */
   onRetry?: () => void;
-  /** Custom error message to display instead of the default category-based message */
+  /** Optional message override; when provided it replaces the category default. */
   message?: string;
-  /** Whether to show the retry button (defaults to true) */
+  /** Controls whether the retry button is rendered (only if {@link onRetry} exists). Defaults to true. */
   showRetry?: boolean;
-  /** Custom text for the retry button (defaults to "Try Again") */
+  /** Label for the retry button. Defaults to "Try Again". */
   retryText?: string;
-  /** Error category that determines styling and default messages */
+  /**
+   * Error category to tailor the message/suggestion and to classify telemetry.
+   * Defaults to {@link ErrorCategory.GENERAL}.
+   */
   category?: ErrorCategory;
-  /** Additional context information for debugging (logged to console only) */
+  /**
+   * Additional structured context included in error reporting (non-sensitive metadata only).
+   * Example: { view: 'card', operation: 'loadNotes' }
+   */
   context?: Record<string, any>;
 }
 
 /**
- * User-Friendly Error Fallback Component
+ * Presentational error boundary fallback for Card View Explorer.
  *
- * Displays a user-friendly error message with appropriate icon and recovery suggestions
- * based on the error category. Provides retry functionality and logs detailed error
- * information to the console for debugging purposes.
+ * Responsibilities:
+ * - Renders a human-friendly error state based on an {@link ErrorCategory}.
+ * - Reports the underlying error once via {@link handleError} with optional context for diagnostics.
+ * - Optionally exposes a retry affordance supplied by the parent.
  *
- * This component is designed to be used:
- * 1. Within React error boundaries to catch rendering errors
- * 2. For explicit error states in components (e.g., API failures)
- * 3. As a fallback UI when operations fail
+ * Design rationale:
+ * - Keep user-facing messages decoupled from error objects to avoid leaking technical details.
+ * - Log in a side-effect (useEffect) so render remains pure and error reporting integrates with app telemetry.
+ * - Configuration-driven copy (see ERROR_CONFIG) simplifies future localization and consistency.
  *
- * @example
- * // Within an error boundary
- * <CardViewErrorBoundary>
- *   <YourComponent />
- * </CardViewErrorBoundary>
- *
- * // For explicit error states
- * {error ? (
- *   <ErrorFallback
- *     error={error}
- *     onRetry={handleRetry}
- *     category={ErrorCategory.API}
- *   />
- * ) : (
- *   <YourComponent />
- * )}
+ * @public
  */
 export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
   error,
@@ -64,213 +85,53 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
   category = ErrorCategory.GENERAL,
   context,
 }) => {
-  /**
-   * Log detailed error information to console for debugging purposes
-   * This effect runs when the component mounts or when error/category/context changes
-   */
+  // Report the error as a side-effect to avoid coupling render with I/O.
+  // Note: including `context` in the dependency array means new object identities will trigger re-reporting.
+  // If the parent constructs `context` inline and it changes each render, consider memoizing at the call site.
   useEffect(() => {
-    // Use console.group to organize error information in collapsible sections
-    console.group("🛑 Card View Explorer Error");
-    console.error("Error:", error);
-    console.error("Category:", category);
-    console.error("Context:", context);
-    console.error("Stack:", error.stack);
-    console.error("Timestamp:", new Date().toISOString());
-    console.groupEnd();
+    handleError(error, category, {
+      ...context,
+      component: "ErrorFallback",
+      timestamp: new Date().toISOString(),
+    });
   }, [error, category, context]);
 
-  /**
-   * Get appropriate icon name for the current error category
-   *
-   * Maps error categories to relevant Obsidian icons:
-   * - DATA: database icon (for data loading/processing errors)
-   * - API: plug icon (for API communication errors)
-   * - UI: monitor icon (for interface rendering errors)
-   * - GENERAL: alert-triangle icon (for uncategorized errors)
-   *
-   * @returns Icon name string from Obsidian's icon library
-   */
-  const getErrorIconName = useCallback(() => {
-    switch (category) {
-      case ErrorCategory.DATA:
-        return "database";
-      case ErrorCategory.API:
-        return "plug";
-      case ErrorCategory.UI:
-        return "monitor";
-      default:
-        return "alert-triangle";
+  const displayMessage = message || ERROR_CONFIG[category].message;
+  const suggestionText = ERROR_CONFIG[category].suggestion;
+
+  const handleRetry = useCallback(() => {
+    if (onRetry) {
+      onRetry();
     }
-  }, [category]);
-
-  /**
-   * Internal Icon component that renders Obsidian icons using the setIcon API
-   *
-   * This component creates a span element and uses Obsidian's setIcon function
-   * to render SVG icons from Obsidian's icon library. The icon is updated
-   * whenever the iconName prop changes.
-   *
-   * @param iconName - Name of the Obsidian icon to render
-   * @param className - Additional CSS class names to apply to the icon container
-   */
-  const ObsidianIcon: React.FC<{ iconName: string; className?: string }> = ({
-    iconName,
-    className = "",
-  }) => {
-    // Reference to the DOM element where the icon will be rendered
-    const iconRef = useRef<HTMLSpanElement>(null);
-
-    // Set or update the icon when the component mounts or iconName changes
-    useEffect(() => {
-      if (iconRef.current) {
-        // Clear any existing content before setting the new icon
-        iconRef.current.innerHTML = "";
-        // Use Obsidian's setIcon API to render the SVG icon
-        setIcon(iconRef.current, iconName);
-      }
-    }, [iconName]);
-
-    return <span ref={iconRef} className={`obsidian-icon ${className}`} />;
-  };
-
-  /**
-   * Get CSS class name based on the error category
-   *
-   * Creates a category-specific CSS class for styling the error component
-   * differently based on the error type (e.g., different colors or borders)
-   *
-   * @returns CSS class name string
-   */
-  const getCategoryClass = useCallback(() => {
-    return `error-${category}`;
-  }, [category]);
-
-  /**
-   * Get user-friendly error message based on category or custom message
-   *
-   * Returns either the custom message provided in props or a default
-   * user-friendly message based on the error category. Each category
-   * has a specific message that guides the user toward appropriate action.
-   *
-   * @returns A user-friendly error message string
-   */
-  const getDisplayMessage = useCallback(() => {
-    // If a custom message is provided, use it instead of category-based messages
-    if (message) return message;
-
-    // Provide category-specific user-friendly messages
-    switch (category) {
-      case ErrorCategory.DATA:
-        return "Failed to load note data. Your information may be temporarily unavailable.";
-      case ErrorCategory.API:
-        return "Failed to communicate with Obsidian. Please try refreshing.";
-      case ErrorCategory.UI:
-        return "Interface error occurred. Please try refreshing the view.";
-      default:
-        return "An unexpected error occurred.";
-    }
-  }, [message, category]);
+  }, [onRetry]);
 
   return (
-    <div className={`error-fallback ${getCategoryClass()}`}>
+    <div className={`error-fallback error-${category}`}>
       <div className="error-content">
-        {/* Error Icon and Title */}
         <div className="error-header">
-          <div className="error-icon">
-            <ObsidianIcon iconName={getErrorIconName()} className="error-icon-element" />
-          </div>
           <h3 className="error-title">Something went wrong</h3>
         </div>
 
-        {/* Error Message */}
         <div className="error-message">
-          <p>{getDisplayMessage()}</p>
+          <p>{displayMessage}</p>
         </div>
 
-        {/* Error Actions */}
-        <div className="error-actions">
-          {showRetry && onRetry && (
+        {showRetry && onRetry && (
+          <div className="error-actions">
             <button
               type="button"
               className="error-action-button error-retry-button"
-              onClick={onRetry}
+              onClick={handleRetry}
             >
               {retryText}
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Simple Recovery Suggestions */}
         <div className="error-suggestions">
-          <p className="suggestion-text">
-            {category === ErrorCategory.DATA && "Try refreshing your notes or restart the plugin."}
-            {category === ErrorCategory.API && "Try refreshing the view or restart Obsidian."}
-            {(category === ErrorCategory.UI || category === ErrorCategory.GENERAL) &&
-              "Try refreshing the view or restart the plugin."}
-          </p>
+          <p className="suggestion-text">{suggestionText}</p>
         </div>
       </div>
     </div>
   );
-};
-
-/**
- * Custom hook for managing error states in functional components
- *
- * This hook provides a simple way to capture, display, and reset errors
- * in React components without using class-based error boundaries.
- *
- * @example
- * const MyComponent = () => {
- *   const { error, captureError, resetError, hasError } = useErrorFallback();
- *
- *   const handleAction = async () => {
- *     try {
- *       await someOperation();
- *     } catch (err) {
- *       captureError(err);
- *     }
- *   };
- *
- *   if (hasError) {
- *     return (
- *       <ErrorFallback
- *         error={error}
- *         onRetry={resetError}
- *         category={ErrorCategory.API}
- *       />
- *     );
- *   }
- *
- *   return <div>Normal component content</div>;
- * };
- *
- * @returns Object containing error state and management functions
- */
-export const useErrorFallback = () => {
-  // State to track the current error (null when no error)
-  const [error, setError] = useState<Error | null>(null);
-
-  /**
-   * Reset the error state back to null
-   * Used to clear errors or as a retry callback
-   */
-  const resetError = useCallback(() => {
-    setError(null);
-  }, []);
-
-  /**
-   * Capture and store an error
-   * @param error - The error to capture
-   */
-  const captureError = useCallback((error: Error) => {
-    setError(error);
-  }, []);
-
-  return {
-    error, // The current error object or null
-    resetError, // Function to clear the error state
-    captureError, // Function to set a new error
-    hasError: error !== null, // Boolean flag indicating if an error exists
-  };
 };
