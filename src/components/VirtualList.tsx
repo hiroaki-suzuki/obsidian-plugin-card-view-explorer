@@ -1,4 +1,3 @@
-import { setIcon } from "obsidian";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { ErrorCategory, handleError } from "../core/errors/errorHandling";
@@ -6,6 +5,7 @@ import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import { ErrorFallback, useErrorFallback } from "./ErrorFallback";
 import { NoteCard } from "./NoteCard";
+import { ObsidianIcon } from "./ObsidianIcon";
 
 /**
  * Props for the VirtualList component
@@ -378,26 +378,12 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
    * not seeing any content and how to resolve it.
    */
   if (filteredNotes.length === 0) {
-    /**
-     * Internal component that renders an Obsidian icon for the empty state
-     * Uses Obsidian's setIcon API to render the file-search SVG icon
-     */
-    const EmptyStateIcon: React.FC = () => {
-      const iconRef = useRef<HTMLDivElement>(null);
-
-      useEffect(() => {
-        if (iconRef.current) {
-          setIcon(iconRef.current, "file-search");
-        }
-      }, []);
-
-      return <div ref={iconRef} className="empty-icon" />;
-    };
-
     return (
       <div className="virtual-list-container">
         <div className="virtual-list-empty">
-          <EmptyStateIcon />
+          <div className="empty-icon">
+            <ObsidianIcon iconName="file-search" />
+          </div>
           <h3>No Notes Found</h3>
           <p>
             No notes match your current filters. Try adjusting your search criteria or clearing
