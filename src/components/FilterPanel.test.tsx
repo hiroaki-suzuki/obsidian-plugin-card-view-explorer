@@ -1,12 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
-import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import { FilterPanel } from "./FilterPanel";
 
-// Mock the store
+// Mock functions
 const mockUpdateFilters = vi.fn();
 const mockClearFilters = vi.fn();
 const mockHasActiveFilters = vi.fn();
@@ -17,342 +16,451 @@ vi.mock("../store/cardExplorerStore", () => ({
 
 const mockUseCardExplorerStore = vi.mocked(useCardExplorerStore);
 
-describe("FilterPanel", () => {
-  const defaultProps = {
+// Test data factories
+interface MockStoreData {
+  filters?: {
+    folders?: string[];
+    tags?: string[];
+    filename?: string;
+    dateRange?: { type: string; value: Date } | null;
+  };
+  updateFilters?: typeof mockUpdateFilters;
+  clearFilters?: typeof mockClearFilters;
+  hasActiveFilters?: typeof mockHasActiveFilters;
+}
+
+const createMockStoreData = (overrides: MockStoreData = {}): any => {
+  const defaultFilters = {
+    folders: [],
+    tags: [],
+    filename: "",
+    dateRange: null,
+  };
+
+  const defaults = {
+    filters: {
+      ...defaultFilters,
+      ...overrides.filters,
+    },
+    updateFilters: overrides.updateFilters || mockUpdateFilters,
+    clearFilters: overrides.clearFilters || mockClearFilters,
+    hasActiveFilters: overrides.hasActiveFilters || mockHasActiveFilters,
+  };
+  return defaults;
+};
+
+// Test fixtures
+const TEST_PROPS = {
+  default: {
     availableTags: ["tag1", "tag2", "tag3"],
     availableFolders: ["folder1", "folder2", "subfolder/nested"],
-  };
+  },
+  empty: {
+    availableTags: [] as string[],
+    availableFolders: [] as string[],
+  },
+  withRoot: {
+    availableTags: ["tag1", "tag2", "tag3"],
+    availableFolders: ["", "folder1"],
+  },
+};
+
+// Test helper class
+class FilterPanelTestHelper {
+  public user = userEvent.setup();
+
+  async renderWithMockStore(props: typeof TEST_PROPS.default, storeOverrides: MockStoreData = {}) {
+    mockUseCardExplorerStore.mockReturnValue(createMockStoreData(storeOverrides));
+    render(<FilterPanel {...props} />);
+  }
+
+  // Element getters
+  getFilenameInput() {
+    return screen.getByLabelText("Filename:");
+  }
+
+  getFolderCheckbox(folderName: string) {
+    return screen.getByRole("checkbox", { name: new RegExp(folderName) });
+  }
+
+  getTagLabel(tagName: string) {
+    return screen.getByText(tagName).closest("label")!;
+  }
+
+  getClearAllButton() {
+    return screen.getByRole("button", { name: "Clear All" });
+  }
+
+  getDateTypeSelect() {
+    return screen.getByTitle("Date filter type");
+  }
+
+  getDateInput() {
+    return screen.getByLabelText("Date:");
+  }
+
+  getDateInputByType() {
+    // Both types use the same element with id="filter-date"
+    return this.getDateInput() as HTMLInputElement;
+  }
+
+  // Action methods
+  async typeFilename(text: string) {
+    const input = this.getFilenameInput();
+    await this.user.type(input, text);
+  }
+
+  async selectFolder(folderName: string) {
+    const checkbox = this.getFolderCheckbox(folderName);
+    await this.user.click(checkbox);
+  }
+
+  async selectTag(tagName: string) {
+    const label = this.getTagLabel(tagName);
+    await this.user.click(label);
+  }
+
+  async clickClearAll() {
+    const button = this.getClearAllButton();
+    await this.user.click(button);
+  }
+
+  async changeDateType(dateType: "within" | "after") {
+    const select = this.getDateTypeSelect();
+    await this.user.selectOptions(select, dateType);
+  }
+
+  async typeDateInput(value: string) {
+    const input = this.getDateInputByType();
+    await this.user.type(input, value);
+  }
+
+  // Assertion methods
+  expectUpdateFiltersCalledWith(expectedFilters: any) {
+    expect(mockUpdateFilters).toHaveBeenCalledWith(expectedFilters);
+  }
+
+  expectClearFiltersCalled() {
+    expect(mockClearFilters).toHaveBeenCalled();
+  }
+
+  async waitForFilenameUpdate(expectedFilename: string) {
+    await waitFor(
+      () => {
+        this.expectUpdateFiltersCalledWith({ filename: expectedFilename });
+      },
+      { timeout: 300 }
+    );
+  }
+}
+
+describe("FilterPanel", () => {
+  let helper: FilterPanelTestHelper;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    helper = new FilterPanelTestHelper();
     // Set default mock return value
-    mockUseCardExplorerStore.mockReturnValue({
-      filters: {
-        folders: [],
-        tags: [],
-        filename: "",
-        dateRange: null,
+    mockUseCardExplorerStore.mockReturnValue(createMockStoreData());
+  });
+
+  // Rendering tests
+  describe("Rendering", () => {
+    it("renders filter panel structure", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default);
+
+      expect(screen.getByText("Filters")).toBeInTheDocument();
+      expect(screen.getByLabelText("Filename:")).toBeInTheDocument();
+      expect(screen.getByText("Folders:")).toBeInTheDocument();
+      expect(screen.getByText("Tags:")).toBeInTheDocument();
+      expect(screen.getByText("Date:")).toBeInTheDocument();
+    });
+
+    it("handles empty available options", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.empty);
+
+      expect(screen.getByText("No folders available")).toBeInTheDocument();
+      expect(screen.getByText("No tags available")).toBeInTheDocument();
+    });
+  });
+
+  // Filename filtering tests
+  describe("Filename Filtering", () => {
+    it("handles filename search input with debounce", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default);
+
+      await helper.typeFilename("test");
+      await helper.waitForFilenameUpdate("test");
+    });
+  });
+
+  // Folder filtering tests with parameterized tests
+  describe("Folder Filtering", () => {
+    const folderTestCases = [
+      {
+        description: "handles folder selection",
+        initialState: {},
+        action: "folder1",
+        expected: { folders: ["folder1"] },
       },
-      updateFilters: mockUpdateFilters,
-      clearFilters: mockClearFilters,
-      hasActiveFilters: mockHasActiveFilters,
-    } as any);
+      {
+        description: "handles multiple folder selection",
+        initialState: { filters: { folders: ["folder1"] } },
+        action: "folder2",
+        expected: { folders: ["folder1", "folder2"] },
+      },
+      {
+        description: "handles folder deselection",
+        initialState: { filters: { folders: ["folder1", "folder2"] } },
+        action: "folder1",
+        expected: { folders: ["folder2"] },
+      },
+    ];
+
+    folderTestCases.forEach(({ description, initialState, action, expected }) => {
+      it(description, async () => {
+        await helper.renderWithMockStore(TEST_PROPS.default, initialState);
+        await helper.selectFolder(action);
+        helper.expectUpdateFiltersCalledWith(expected);
+      });
+    });
+
+    it("displays (Root) for empty folder and toggles selection", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.withRoot);
+
+      const rootLabel = screen.getByText("(Root)");
+      expect(rootLabel).toBeInTheDocument();
+
+      const rootCheckbox = rootLabel.previousElementSibling as HTMLInputElement;
+      await helper.user.click(rootCheckbox);
+
+      helper.expectUpdateFiltersCalledWith({ folders: [""] });
+    });
   });
 
-  it("renders filter panel structure", () => {
-    render(<FilterPanel {...defaultProps} />);
+  // Tag filtering tests with parameterized tests
+  describe("Tag Filtering", () => {
+    const tagTestCases = [
+      {
+        description: "handles tag selection",
+        initialState: {},
+        action: "tag1",
+        expected: { tags: ["tag1"] },
+      },
+      {
+        description: "toggles selected tag off",
+        initialState: { filters: { tags: ["tag1"] } },
+        action: "tag1",
+        expected: { tags: [] },
+      },
+    ];
 
-    expect(screen.getByText("Filters")).toBeInTheDocument();
-    expect(screen.getByLabelText("Filename:")).toBeInTheDocument();
-    expect(screen.getByText("Folders:")).toBeInTheDocument();
-    expect(screen.getByText("Tags:")).toBeInTheDocument();
-    expect(screen.getByText("Date:")).toBeInTheDocument();
+    tagTestCases.forEach(({ description, initialState, action, expected }) => {
+      it(description, async () => {
+        await helper.renderWithMockStore(TEST_PROPS.default, initialState);
+        await helper.selectTag(action);
+        helper.expectUpdateFiltersCalledWith(expected);
+      });
+    });
   });
 
-  it("handles filename search input", async () => {
-    // Create a mock that tracks the filename state
-    let currentFilename = "";
-    mockUpdateFilters.mockImplementation(({ filename }) => {
-      if (filename !== undefined) {
-        currentFilename = filename;
-        // Update the mock store to return the new filename
-        mockUseCardExplorerStore.mockReturnValue({
+  // Clear filters tests
+  describe("Clear Filters", () => {
+    const clearFilterTestCases = [
+      {
+        description: "shows clear filters button when filters are active",
+        setupAction: async () => {
+          mockHasActiveFilters.mockReturnValue(true);
+          await helper.renderWithMockStore(TEST_PROPS.default, {
+            filters: { folders: ["folder1"], filename: "test" },
+            hasActiveFilters: mockHasActiveFilters,
+          });
+        },
+        assertion: () => {
+          const clearButton = screen.getByRole("button", { name: "Clear All" });
+          expect(clearButton).toBeInTheDocument();
+        },
+      },
+      {
+        description: "handles clear filters button click",
+        setupAction: async () => {
+          mockHasActiveFilters.mockReturnValue(true);
+          await helper.renderWithMockStore(TEST_PROPS.default, {
+            filters: { folders: ["folder1"], tags: ["tag1"], filename: "test" },
+            hasActiveFilters: mockHasActiveFilters,
+          });
+        },
+        action: async () => {
+          await helper.clickClearAll();
+        },
+        assertion: () => {
+          helper.expectClearFiltersCalled();
+        },
+      },
+    ];
+
+    clearFilterTestCases.forEach(({ description, setupAction, action, assertion }) => {
+      it(description, async () => {
+        await setupAction();
+        if (action) await action();
+        assertion();
+      });
+    });
+  });
+
+  // Date filtering tests
+  describe("Date Filtering", () => {
+    it("handles date filter - within days", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default);
+
+      await helper.typeDateInput("7");
+
+      helper.expectUpdateFiltersCalledWith({
+        dateRange: {
+          type: "within",
+          value: expect.any(Date),
+        },
+      });
+    });
+
+    it("handles date filter - after date", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default);
+
+      await helper.changeDateType("after");
+      await helper.typeDateInput("2024-01-01");
+
+      helper.expectUpdateFiltersCalledWith({
+        dateRange: {
+          type: "after",
+          value: expect.any(Date),
+        },
+      });
+    });
+
+    describe("handleDateTypeChange functionality", () => {
+      it("syncs date type from store when dateRange exists", async () => {
+        await helper.renderWithMockStore(TEST_PROPS.default, {
           filters: {
-            folders: [],
-            tags: [],
-            filename: currentFilename,
-            dateRange: null,
+            dateRange: { type: "after", value: new Date("2024-01-01") },
           },
-          updateFilters: mockUpdateFilters,
-          clearFilters: mockClearFilters,
-          hasActiveFilters: mockHasActiveFilters,
-        } as any);
-      }
+        });
+
+        // The select should reflect the store-provided type "after"
+        expect(screen.getByDisplayValue("After date")).toBeInTheDocument();
+      });
+
+      it("reapplies date filter on type change when input exists", async () => {
+        await helper.renderWithMockStore(TEST_PROPS.default);
+
+        // First, switch to "after" and input a valid date
+        await helper.changeDateType("after");
+        await helper.typeDateInput("2024-01-01");
+
+        // Wait a moment for the input to be processed
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // Clear the mock calls to focus on the next change
+        mockUpdateFilters.mockClear();
+
+        // Now change the type back to "within" - this should trigger handleDateTypeChange
+        await helper.changeDateType("within");
+
+        // Wait for the handleDateTypeChange effect
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // Expect an update triggered by handleDateTypeChange using existing input
+        helper.expectUpdateFiltersCalledWith({
+          dateRange: {
+            type: "within",
+            value: expect.any(Date),
+          },
+        });
+      });
+
+      it("reapplies date filter when switching back to 'after' with existing input", async () => {
+        await helper.renderWithMockStore(TEST_PROPS.default);
+
+        // Switch to 'after' and enter a valid date
+        await helper.changeDateType("after");
+        await helper.typeDateInput("2024-01-02");
+
+        // Switch to 'within' (will trigger handleDateTypeChange once)
+        await helper.changeDateType("within");
+
+        // Wait a moment for processing
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // Clear mock calls to focus on the next change
+        mockUpdateFilters.mockClear();
+
+        // Switch back to 'after' with existing dateInput still present
+        await helper.changeDateType("after");
+
+        // Wait for the handleDateTypeChange effect
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // Expect an update triggered by handleDateTypeChange using existing date string
+        helper.expectUpdateFiltersCalledWith({
+          dateRange: {
+            type: "after",
+            value: expect.any(Date),
+          },
+        });
+      });
+
+      it("does not call updateFilters when switching types with empty input", async () => {
+        await helper.renderWithMockStore(TEST_PROPS.default);
+
+        // Clear any previous calls
+        mockUpdateFilters.mockClear();
+
+        // Change type without any input - should not trigger updateFilters
+        await helper.changeDateType("after");
+        await helper.changeDateType("within");
+
+        // updateFilters should not have been called for type changes without input
+        expect(mockUpdateFilters).not.toHaveBeenCalled();
+      });
     });
 
-    const user = userEvent.setup();
-    const { rerender } = render(<FilterPanel {...defaultProps} />);
+    it("clears date filter when input is empty", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default);
 
-    const filenameInput = screen.getByLabelText("Filename:");
-    await user.type(filenameInput, "test");
+      await helper.typeDateInput("7");
+      const dateInput = helper.getDateInput();
+      await helper.user.clear(dateInput);
 
-    // Force a re-render to pick up the updated mock state
-    rerender(<FilterPanel {...defaultProps} />);
+      expect(mockUpdateFilters).toHaveBeenLastCalledWith({ dateRange: null });
+    });
 
-    // Check that updateFilters was called
-    expect(mockUpdateFilters).toHaveBeenCalled();
-    expect(mockUpdateFilters).toHaveBeenCalledWith({ filename: "t" });
-  });
+    it("handles invalid date input gracefully", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default);
 
-  it("handles folder selection", async () => {
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
+      await helper.typeDateInput("invalid");
 
-    const folder1Checkbox = screen.getByRole("checkbox", { name: /folder1/ });
-    await user.click(folder1Checkbox);
-
-    expect(mockUpdateFilters).toHaveBeenCalledWith({ folders: ["folder1"] });
-  });
-
-  it("handles tag selection", async () => {
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
-
-    const tag1Label = screen.getByText("tag1").closest("label");
-    await user.click(tag1Label!);
-
-    expect(mockUpdateFilters).toHaveBeenCalledWith({ tags: ["tag1"] });
-  });
-
-  it("handles empty available options", () => {
-    render(<FilterPanel availableTags={[]} availableFolders={[]} />);
-
-    expect(screen.getByText("No folders available")).toBeInTheDocument();
-    expect(screen.getByText("No tags available")).toBeInTheDocument();
-  });
-
-  it("shows clear filters button when filters are active", () => {
-    // Mock store with active filters
-    mockHasActiveFilters.mockReturnValue(true);
-    mockUseCardExplorerStore.mockReturnValue({
-      filters: {
-        folders: ["folder1"],
-        tags: [],
-        filename: "test",
-        dateRange: null,
-      },
-      updateFilters: mockUpdateFilters,
-      clearFilters: mockClearFilters,
-      hasActiveFilters: mockHasActiveFilters,
-    } as any);
-
-    render(<FilterPanel {...defaultProps} />);
-
-    const clearButton = screen.getByRole("button", { name: "Clear All" });
-    expect(clearButton).toBeInTheDocument();
-  });
-
-  it("handles clear filters button click", async () => {
-    // Mock store with active filters
-    mockHasActiveFilters.mockReturnValue(true);
-    mockUseCardExplorerStore.mockReturnValue({
-      filters: {
-        folders: ["folder1"],
-        tags: [],
-        filename: "test",
-        dateRange: null,
-      },
-      updateFilters: mockUpdateFilters,
-      clearFilters: mockClearFilters,
-      hasActiveFilters: mockHasActiveFilters,
-    } as any);
-
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
-
-    const clearButton = screen.getByRole("button", { name: "Clear All" });
-    await user.click(clearButton);
-
-    expect(mockClearFilters).toHaveBeenCalled();
-  });
-
-  it("handles date filter - within days", async () => {
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
-
-    const dateTypeSelect = screen.getByDisplayValue("Within last");
-    const dateInput = screen.getByRole("spinbutton");
-
-    await user.selectOptions(dateTypeSelect, "within");
-    await user.type(dateInput, "7");
-
-    expect(mockUpdateFilters).toHaveBeenCalledWith({
-      dateRange: {
-        type: "within",
-        value: expect.any(Date),
-      },
+      expect(mockUpdateFilters).not.toHaveBeenCalled();
     });
   });
 
-  it("handles date filter - after date", async () => {
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
+  // Visual state tests
+  describe("Visual State", () => {
+    it("shows selected folders and tags as checked", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default, {
+        filters: {
+          folders: ["folder1"],
+          tags: ["tag1", "tag2"],
+        },
+      });
 
-    const dateTypeSelect = screen.getByDisplayValue("Within last");
-    await user.selectOptions(dateTypeSelect, "after");
+      // Check that the checkboxes are checked for selected items
+      const folder1Checkbox = screen.getByText("folder1")
+        .previousElementSibling as HTMLInputElement;
+      const tag1Checkbox = screen.getByText("tag1").previousElementSibling as HTMLInputElement;
+      const tag2Checkbox = screen.getByText("tag2").previousElementSibling as HTMLInputElement;
 
-    const dateInput = screen
-      .getAllByDisplayValue("")
-      .find((input) => (input as HTMLInputElement).type === "date") as HTMLInputElement;
-
-    await user.type(dateInput, "2024-01-01");
-
-    expect(mockUpdateFilters).toHaveBeenCalledWith({
-      dateRange: {
-        type: "after",
-        value: expect.any(Date),
-      },
-    });
-  });
-
-  it("clears date filter when input is empty", async () => {
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
-
-    const dateInput = screen.getByRole("spinbutton");
-
-    // First add some text then clear it
-    await user.type(dateInput, "7");
-    await user.clear(dateInput);
-
-    // Should call updateFilters with null dateRange when input is cleared
-    expect(mockUpdateFilters).toHaveBeenLastCalledWith({ dateRange: null });
-  });
-
-  it("shows clear all button when filters are active", () => {
-    // Mock store with active filters
-    mockHasActiveFilters.mockReturnValue(true);
-    mockUseCardExplorerStore.mockReturnValue({
-      filters: {
-        folders: [],
-        tags: [],
-        filename: "test", // This makes filters active
-        dateRange: null,
-      },
-      updateFilters: mockUpdateFilters,
-      clearFilters: mockClearFilters,
-      hasActiveFilters: mockHasActiveFilters,
-    } as any);
-
-    render(<FilterPanel {...defaultProps} />);
-
-    expect(screen.getByText("Clear All")).toBeInTheDocument();
-  });
-
-  it("handles clear all filters", async () => {
-    // Mock store with active filters
-    mockHasActiveFilters.mockReturnValue(true);
-    mockUseCardExplorerStore.mockReturnValue({
-      filters: {
-        folders: ["folder1"],
-        tags: ["tag1"],
-        filename: "test",
-        dateRange: null,
-      },
-      updateFilters: mockUpdateFilters,
-      clearFilters: mockClearFilters,
-      hasActiveFilters: mockHasActiveFilters,
-    } as any);
-
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
-
-    const clearAllButton = screen.getByText("Clear All");
-    await user.click(clearAllButton);
-
-    expect(mockClearFilters).toHaveBeenCalled();
-  });
-
-  it("shows selected folders and tags as checked", () => {
-    // Mock store with selected items
-    mockUseCardExplorerStore.mockReturnValue({
-      filters: {
-        folders: ["folder1"],
-        tags: ["tag1", "tag2"],
-        filename: "",
-        dateRange: null,
-      },
-      updateFilters: mockUpdateFilters,
-      clearFilters: mockClearFilters,
-      hasActiveFilters: mockHasActiveFilters,
-    } as any);
-
-    render(<FilterPanel {...defaultProps} />);
-
-    // Check that the checkboxes are checked for selected items
-    const folder1Checkbox = screen.getByText("folder1").previousElementSibling as HTMLInputElement;
-    const tag1Checkbox = screen.getByText("tag1").previousElementSibling as HTMLInputElement;
-    const tag2Checkbox = screen.getByText("tag2").previousElementSibling as HTMLInputElement;
-
-    expect(folder1Checkbox?.checked).toBe(true);
-    expect(tag1Checkbox?.checked).toBe(true);
-    expect(tag2Checkbox?.checked).toBe(true);
-  });
-
-  it("handles multiple folder selection", async () => {
-    // Mock store with one folder already selected
-    mockUseCardExplorerStore.mockReturnValue({
-      filters: {
-        folders: ["folder1"],
-        tags: [],
-        filename: "",
-        dateRange: null,
-      },
-      updateFilters: mockUpdateFilters,
-      clearFilters: mockClearFilters,
-      hasActiveFilters: mockHasActiveFilters,
-    } as any);
-
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
-
-    const folder2Checkbox = screen.getByRole("checkbox", { name: /folder2/ });
-    await user.click(folder2Checkbox);
-
-    expect(mockUpdateFilters).toHaveBeenCalledWith({ folders: ["folder1", "folder2"] });
-  });
-
-  it("handles folder deselection", async () => {
-    // Mock store with folder already selected
-    mockUseCardExplorerStore.mockReturnValue({
-      filters: {
-        folders: ["folder1", "folder2"],
-        tags: [],
-        filename: "",
-        dateRange: null,
-      },
-      updateFilters: mockUpdateFilters,
-      clearFilters: mockClearFilters,
-      hasActiveFilters: mockHasActiveFilters,
-    } as any);
-
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
-
-    const folder1Checkbox = screen.getByRole("checkbox", { name: /folder1/ });
-    await user.click(folder1Checkbox);
-
-    expect(mockUpdateFilters).toHaveBeenCalledWith({ folders: ["folder2"] });
-  });
-
-  it("handles invalid date input gracefully", async () => {
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
-
-    const dateInput = screen.getByRole("spinbutton");
-
-    await user.type(dateInput, "invalid");
-
-    // Should not call updateFilters with invalid date (NaN or negative numbers)
-    // Only valid positive numbers should trigger updateFilters
-    expect(mockUpdateFilters).not.toHaveBeenCalled();
-  });
-
-  it("handles real-time date filter updates", async () => {
-    const user = userEvent.setup();
-    render(<FilterPanel {...defaultProps} />);
-
-    const dateInput = screen.getByRole("spinbutton");
-
-    // Type each character and verify filter updates happen in real-time
-    await user.type(dateInput, "7");
-
-    // Should have called updateFilters with the date range
-    expect(mockUpdateFilters).toHaveBeenCalledWith({
-      dateRange: {
-        type: "within",
-        value: expect.any(Date),
-      },
+      expect(folder1Checkbox?.checked).toBe(true);
+      expect(tag1Checkbox?.checked).toBe(true);
+      expect(tag2Checkbox?.checked).toBe(true);
     });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRelativeDate, getDisplayDate } from "./dateUtils";
+import { formatRelativeDate, getDisplayDate, parseDateFilter } from "./dateUtils";
 
 /**
  * Test data constants for consistent date testing.
@@ -228,6 +228,34 @@ describe("dateUtils", () => {
           expect(result).toMatch(expectedPattern);
         }
       );
+    });
+  });
+
+  describe("parseDateFilter", () => {
+    it("parses within days with valid positive number", () => {
+      const now = TEST_DATES.MOCK_NOW;
+      const result = parseDateFilter("within", "7", now)!;
+      expect(result).toBeInstanceOf(Date);
+      // now - 7 days
+      expect(result.getTime()).toBe(new Date("2024-01-08T12:00:00.000Z").getTime());
+    });
+
+    it("returns null for within with invalid inputs", () => {
+      const now = TEST_DATES.MOCK_NOW;
+      expect(parseDateFilter("within", "")).toBeNull();
+      expect(parseDateFilter("within", "0", now)).toBeNull();
+      expect(parseDateFilter("within", "-3", now)).toBeNull();
+      expect(parseDateFilter("within", "abc", now)).toBeNull();
+    });
+
+    it("parses after with valid date string", () => {
+      const result = parseDateFilter("after", " 2024-01-01 ");
+      expect(result).toBeInstanceOf(Date);
+      expect(result!.getTime()).toBe(new Date("2024-01-01T00:00:00.000Z").getTime());
+    });
+
+    it("returns null for after with invalid date string", () => {
+      expect(parseDateFilter("after", "not-a-date")).toBeNull();
     });
   });
 });

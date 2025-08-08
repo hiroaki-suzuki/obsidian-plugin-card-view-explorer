@@ -1,58 +1,56 @@
 import type React from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { toggleInArray } from "../lib/array";
+import { parseDateFilter } from "../lib/dateUtils";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 
 /**
- * Props for the FilterPanel component
+ * Props for the `FilterPanel` component.
+ *
+ * - The component does not derive these values itself; callers should provide the
+ *   current set of available tags and folders (typically computed from the current vault/index).
+ * - Selected filter state is sourced from and written to the global card explorer store.
  */
 interface FilterPanelProps {
-  /** Available tags from all notes for tag filter dropdown */
+  /** Distinct list of tag names that can be filtered against. */
   availableTags: string[];
-  /** Available folders from all notes for folder filter dropdown */
+  /** Distinct list of folder paths ("" represents the vault root). */
   availableFolders: string[];
 }
 
 /**
- * FilterPanel Component
+ * FilterPanel
  *
- * Provides comprehensive filtering controls for the Card View Explorer:
- * - Filename search with partial matching
- * - Multi-select folder filtering
- * - Tag filtering with available tags
- * - Date range filtering (within X days or after specific date)
- * - Clear filters functionality
+ * Provides interactive controls to filter card results by filename, date, tags, and folders.
  *
- * Integrates with Zustand store for filter state management.
+ * Design notes:
+ * - Single source of truth: Reads and writes filter state via `useCardExplorerStore` so other
+ *   components react to changes consistently.
+ * - Input hygiene: Filename updates are debounced to avoid frequent store updates and expensive
+ *   downstream recomputations while the user is typing.
+ * - Date validation: Date inputs are parsed through `parseDateFilter` and only committed when valid
+ *   to keep the store free from invalid or partial values.
+ * - Stable options: Available tags/folders are memoized and sorted to produce predictable rendering
+ *   and checkbox order independent of incoming array order.
  */
 export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availableFolders }) => {
   const { filters, updateFilters, clearFilters, hasActiveFilters } = useCardExplorerStore();
 
-  /**
-   * Local state for date filter input value
-   * Stores the raw input string from the date filter field
-   */
   const [dateInput, setDateInput] = useState("");
-
-  /**
-   * Local state for date filter type
-   * "within" - Filter notes modified within X days
-   * "after" - Filter notes modified after a specific date
-   */
   const [dateType, setDateType] = useState<"within" | "after">("within");
 
-  /**
-   * Handle filename search input changes
-   */
-  const handleFilenameChange = useCallback(
-    (value: string) => {
-      updateFilters({ filename: value });
-    },
-    [updateFilters]
-  );
+  // Sort once per input-change to keep checkbox order stable across renders.
+  const sortedTags = useMemo(() => [...availableTags].sort(), [availableTags]);
+  const sortedFolders = useMemo(() => [...availableFolders].sort(), [availableFolders]);
 
-  /**
-   * Handle folder selection changes (multi-select)
-   */
+  // Debounce filename input to limit store updates while typing.
+  const [filenameInput, setFilenameInput] = useState(filters.filename);
+  const debouncedFilename = useDebouncedValue(filenameInput, 200);
+  // Track initial mount to avoid dispatching a redundant update on first render
+  // (we hydrate local state from the store, then begin debounced updates).
+  const isInitialRender = useRef(true);
+
   const handleFolderChange = useCallback(
     (selectedFolders: string[]) => {
       updateFilters({ folders: selectedFolders });
@@ -60,9 +58,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
     [updateFilters]
   );
 
-  /**
-   * Handle tag selection changes (multi-select)
-   */
   const handleTagChange = useCallback(
     (selectedTags: string[]) => {
       updateFilters({ tags: selectedTags });
@@ -70,59 +65,30 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
     [updateFilters]
   );
 
-  /**
-   * Toggle folder selection in multi-select
-   */
   const toggleFolder = useCallback(
     (folder: string) => {
-      const isSelected = filters.folders.includes(folder);
-      const newFolders = isSelected
-        ? filters.folders.filter((f) => f !== folder)
-        : [...filters.folders, folder];
+      const newFolders = toggleInArray(filters.folders, folder);
       handleFolderChange(newFolders);
     },
     [filters.folders, handleFolderChange]
   );
 
-  /**
-   * Toggle tag selection in multi-select
-   */
   const toggleTag = useCallback(
     (tag: string) => {
-      const isSelected = filters.tags.includes(tag);
-      const newTags = isSelected ? filters.tags.filter((t) => t !== tag) : [...filters.tags, tag];
+      const newTags = toggleInArray(filters.tags, tag);
       handleTagChange(newTags);
     },
     [filters.tags, handleTagChange]
   );
 
-  /**
-   * Handles date type selection change between "within" and "after"
-   * Re-applies the filter with the new date type if there's existing input
-   *
-   * @param newDateType - The new date filter type ("within" or "after")
-   */
   const handleDateTypeChange = useCallback(
     (newDateType: "within" | "after") => {
       setDateType(newDateType);
 
-      // Re-apply filter with new date type if there's input
+      // If the user already entered a value, re-parse and apply it using the new type.
+      // This avoids leaving the store with an outdated interpretation (e.g., number vs date).
       if (dateInput.trim()) {
-        let dateValue: Date | null = null;
-
-        if (newDateType === "within") {
-          const days = parseInt(dateInput, 10);
-          if (!Number.isNaN(days) && days > 0) {
-            dateValue = new Date();
-            dateValue.setDate(dateValue.getDate() - days);
-          }
-        } else {
-          const parsedDate = new Date(dateInput);
-          if (!Number.isNaN(parsedDate.getTime())) {
-            dateValue = parsedDate;
-          }
-        }
-
+        const dateValue = parseDateFilter(newDateType, dateInput);
         if (dateValue) {
           updateFilters({
             dateRange: {
@@ -136,37 +102,18 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
     [dateInput, updateFilters]
   );
 
-  /**
-   * Handles date input changes and updates the filter accordingly
-   * For "within" type, converts days to a date range
-   * For "after" type, uses the specific date provided
-   *
-   * @param value - The new date input value
-   */
   const handleDateInputChange = useCallback(
     (value: string) => {
       setDateInput(value);
 
+      // Clear the date filter when the input becomes empty to avoid stale constraints.
       if (!value.trim()) {
         updateFilters({ dateRange: null });
         return;
       }
 
-      let dateValue: Date | null = null;
-
-      if (dateType === "within") {
-        const days = parseInt(value, 10);
-        if (!Number.isNaN(days) && days > 0) {
-          dateValue = new Date();
-          dateValue.setDate(dateValue.getDate() - days);
-        }
-      } else {
-        const parsedDate = new Date(value);
-        if (!Number.isNaN(parsedDate.getTime())) {
-          dateValue = parsedDate;
-        }
-      }
-
+      // Only commit to the store when the input can be parsed into a valid date constraint.
+      const dateValue = parseDateFilter(dateType, value);
       if (dateValue) {
         updateFilters({
           dateRange: {
@@ -178,6 +125,31 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
     },
     [dateType, updateFilters]
   );
+
+  useEffect(() => {
+    if (!filters.dateRange) {
+      setDateInput("");
+      setDateType("within");
+      return;
+    }
+    setDateType(filters.dateRange.type);
+  }, [filters.dateRange]);
+
+  useEffect(() => {
+    setFilenameInput(filters.filename);
+  }, [filters.filename]);
+
+  useEffect(() => {
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
+    // Only push a change when the debounced value actually differs from the store value.
+    // This keeps the store as the canonical source and prevents unnecessary re-renders.
+    if (debouncedFilename !== filters.filename) {
+      updateFilters({ filename: debouncedFilename });
+    }
+  }, [debouncedFilename, filters.filename, updateFilters]);
 
   return (
     <div className="filter-panel">
@@ -195,7 +167,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
         )}
       </div>
 
-      {/* Filename Search - Text input for filtering notes by filename */}
       <div className="filter-group">
         <h4>
           <label htmlFor="filter-filename">Filename:</label>
@@ -203,16 +174,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
         <input
           id="filter-filename"
           type="text"
-          value={filters.filename}
-          onChange={(e) => handleFilenameChange(e.target.value)}
+          value={filenameInput}
+          onChange={(e) => setFilenameInput(e.target.value)}
           placeholder="Type to search filename"
           className="filter-input"
         />
       </div>
 
-      {/* Date Range Filter - Filter notes by modification date with two modes:
-           1. "Within last X days" - Shows notes modified within a specific number of days
-           2. "After date" - Shows notes modified after a specific calendar date */}
       <div className="filter-group">
         <h4>
           <label htmlFor="filter-date">Date:</label>
@@ -242,16 +210,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
         </div>
       </div>
 
-      {/* Tag Filter - Multi-select checkboxes for filtering notes by tags
-           Shows all available tags from the notes collection */}
       <div className="filter-group">
         <h4>Tags:</h4>
         <div className="multi-select-container">
-          {availableTags.length === 0 ? (
+          {sortedTags.length === 0 ? (
             <div className="no-options">No tags available</div>
           ) : (
             <div className="multi-select-options">
-              {availableTags.map((tag) => (
+              {sortedTags.map((tag) => (
                 <label key={tag} className="checkbox-label">
                   <input
                     type="checkbox"
@@ -266,16 +232,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
         </div>
       </div>
 
-      {/* Folder Filter - Multi-select checkboxes for filtering notes by folders
-           Shows all available folders from the notes collection */}
       <div className="filter-group">
         <h4>Folders:</h4>
         <div className="multi-select-container">
-          {availableFolders.length === 0 ? (
+          {sortedFolders.length === 0 ? (
             <div className="no-options">No folders available</div>
           ) : (
             <div className="multi-select-options">
-              {availableFolders.map((folder) => (
+              {sortedFolders.map((folder) => (
                 <label key={folder} className="checkbox-label">
                   <input
                     type="checkbox"
