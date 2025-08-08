@@ -1,4 +1,4 @@
-# Obsidian Card View Explorer
+# Obsidian Plugin Card View Explorer
 
 A card-based interface for browsing recently edited notes in Obsidian with filtering and search capabilities.
 
@@ -102,23 +102,6 @@ bun run test
 
 # Run tests in watch mode
 bun run test:watch
-```
-
-### Project Structure
-
-```
-src/
-├── main.ts                 # Plugin entry point
-├── settings.ts             # Plugin settings interface
-├── view.ts                 # Card view explorer view implementation
-├── components/             # React components
-│   ├── CardView.tsx        # Main card container
-│   ├── NoteCard.tsx        # Individual note card
-│   ├── FilterPanel.tsx     # Search/filter controls
-│   └── VirtualList.tsx     # Virtualized list wrapper
-├── types/                  # TypeScript type definitions
-├── utils/                  # Utility functions
-└── styles/                 # CSS stylesheets
 ```
 
 ### Technology Stack
