@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ErrorCategory, handleError } from "../core/errors/errorHandling";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
@@ -10,6 +11,17 @@ import { NoteCard } from "./NoteCard";
 vi.mock("../store/cardExplorerStore", () => ({
   useCardExplorerStore: vi.fn(),
 }));
+
+// Mock only handleError while preserving actual ErrorCategory and other exports
+vi.mock("../core/errors/errorHandling", async () => {
+  const actual = await vi.importActual<typeof import("../core/errors/errorHandling")>(
+    "../core/errors/errorHandling"
+  );
+  return {
+    ...actual,
+    handleError: vi.fn(),
+  };
+});
 
 const mockTogglePin = vi.fn();
 const mockUseCardExplorerStore = vi.mocked(useCardExplorerStore);
@@ -212,14 +224,21 @@ describe("NoteCard", () => {
         throw new Error("Failed to open file");
       });
       const errorPlugin = createPlugin(openFile);
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       render(<NoteCard note={note} plugin={errorPlugin} />);
       await user.click(screen.getByRole("button", { name: /Open note/ }));
 
       expect(openFile).toHaveBeenCalledWith(note.file);
-      expect(consoleSpy).toHaveBeenCalled();
-      consoleSpy.mockRestore();
+      expect(handleError).toHaveBeenCalledTimes(1);
+      expect(handleError).toHaveBeenCalledWith(
+        expect.any(Error),
+        ErrorCategory.API,
+        expect.objectContaining({
+          operation: "openFile",
+          notePath: note.path,
+          noteTitle: note.title,
+        })
+      );
     });
 
     it("handles keyboard errors", async () => {
@@ -227,7 +246,6 @@ describe("NoteCard", () => {
         throw new Error("Failed to open file via keyboard");
       });
       const errorPlugin = createPlugin(openFile);
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       render(<NoteCard note={note} plugin={errorPlugin} />);
       const card = screen.getByRole("button", { name: /Open note/ });
@@ -235,8 +253,16 @@ describe("NoteCard", () => {
       await user.keyboard("{Enter}");
 
       expect(openFile).toHaveBeenCalledWith(note.file);
-      expect(consoleSpy).toHaveBeenCalled();
-      consoleSpy.mockRestore();
+      expect(handleError).toHaveBeenCalledTimes(1);
+      expect(handleError).toHaveBeenCalledWith(
+        expect.any(Error),
+        ErrorCategory.API,
+        expect.objectContaining({
+          operation: "openFile",
+          notePath: note.path,
+          noteTitle: note.title,
+        })
+      );
     });
   });
 });
