@@ -6,50 +6,28 @@ import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
 
-/**
- * Props for the NoteCard component
- */
+/** Props for {@link NoteCard}. */
 interface NoteCardProps {
-  /** Note data to display in the card including title, path, preview, tags, etc. */
+  /** The note to display. */
   note: NoteData;
-  /** Plugin instance for accessing Obsidian APIs like workspace and file operations */
+  /** Plugin instance for accessing Obsidian APIs. */
   plugin: CardExplorerPlugin;
 }
 
 /**
- * NoteCard Component
+ * Renders a single note as an interactive card.
  *
- * Displays an individual note as an interactive card with comprehensive metadata.
- * Provides one-click access to notes and pin management functionality.
- *
- * Features:
- * - Click to open note in Obsidian workspace
- * - Pin/unpin notes with visual indicators
- * - Display tags (maximum 3 visible + count)
- * - Show relative dates with fallback to absolute dates
- * - Keyboard accessibility (Enter/Space to open)
- * - Comprehensive error handling for all interactions
- *
- * Design decisions:
- * - Uses Obsidian's workspace API for seamless note opening
- * - Integrates with Zustand store for pin state management
- * - Implements defensive error handling for all user interactions
+ * Uses the Obsidian workspace API to open files and Zustand store to persist
+ * pinned state across sessions.
  */
 export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   const { pinnedNotes, togglePin } = useCardExplorerStore();
 
-  /**
-   * Determines if the current note is pinned by checking if its path exists in the pinnedNotes Set
-   */
   const isPinned = pinnedNotes.has(note.path);
 
-  /**
-   * Handles note card click to open the note in Obsidian's active pane.
-   * Uses getLeaf() to respect user's current workspace layout.
-   */
   const handleNoteClick = useCallback(() => {
     try {
-      // getLeaf() returns the active leaf to maintain user's workspace context
+      // Open in the active pane to respect the user's workspace layout.
       plugin.app.workspace.getLeaf().openFile(note.file);
     } catch (error) {
       handleError(error, ErrorCategory.API, {
@@ -60,56 +38,30 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
     }
   }, [plugin.app.workspace, note.file, note.path, note.title]);
 
-  /**
-   * Handles pin toggle button click while preventing event bubbling.
-   * Event propagation must be stopped to avoid triggering note opening.
-   */
   const handlePinToggle = useCallback(
     (event: React.MouseEvent) => {
-      event.stopPropagation(); // Essential to prevent handleNoteClick from firing
+      event.stopPropagation(); // prevent click from also opening the note
       togglePin(note.path);
     },
     [togglePin, note.path]
   );
 
-  /**
-   * Gets the appropriate display date for the note
-   *
-   * The function prioritizes dates in the following order:
-   * 1. Frontmatter 'updated' field if available
-   * 2. Frontmatter 'date' field if available
-   * 3. File modification time as fallback
-   */
   const displayDate = getDisplayDate(note);
 
-  /**
-   * Formats the display date without additional error handling.
-   */
   const formatDate = useCallback((date: Date): string => {
     return formatRelativeDate(date, new Date());
   }, []);
 
-  /**
-   * Handles keyboard accessibility for note opening.
-   * Supports standard accessibility patterns (Enter and Space keys).
-   */
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault(); // Prevent default scrolling behavior for Space
+        e.preventDefault(); // space scrolls the page by default
         handleNoteClick();
       }
     },
     [handleNoteClick]
   );
 
-  /**
-   * Renders the note card with all its sections:
-   * - Header with title and pin button
-   * - Preview text showing the first few lines of content
-   * - Tags section with overflow handling (max 3 visible)
-   * - Footer with folder path and formatted date
-   */
   return (
     <div
       className={`note-card ${isPinned ? "pinned" : ""}`}
@@ -119,7 +71,6 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
       tabIndex={0}
       aria-label={`Open note: ${note.title}`}
     >
-      {/* Note header with title and pin button */}
       <div className="note-card-header">
         <h3 className="note-card-title" title={note.title}>
           {note.title}
@@ -136,17 +87,10 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
         </button>
       </div>
 
-      {/* Preview text */}
       <div className="note-card-preview" title={note.preview}>
         {note.preview}
       </div>
 
-      {/*
-        Tags section with overflow handling
-        - Shows maximum of 3 tags to prevent UI clutter
-        - Displays a count indicator (+N) when more than 3 tags exist
-        - Each tag is prefixed with # for visual identification
-      */}
       {note.tags.length > 0 && (
         <div className="note-card-tags">
           {note.tags.slice(0, 3).map((tag) => (
@@ -154,16 +98,13 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
               #{tag}
             </span>
           ))}
-          {note.tags.length > 3 && <span className="note-card-tag">+{note.tags.length - 3}</span>}
+          {note.tags.length > 3 && (
+            // Display count of remaining tags to avoid cluttering the card.
+            <span className="note-card-tag">+{note.tags.length - 3}</span>
+          )}
         </div>
       )}
 
-      {/*
-        Footer with folder path and formatted date
-        - Folder is conditionally displayed only if available
-        - Date is shown in relative format (e.g., "2 days ago") with full date on hover
-        - Both elements have title attributes for showing complete information on hover
-      */}
       <div className="note-card-footer">
         {note.folder && (
           <span className="note-card-folder" title={note.folder}>
