@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback } from "react";
-import { ErrorCategory, handleError, safeSync } from "../core/errors/errorHandling";
+import { ErrorCategory, handleError } from "../core/errors/errorHandling";
 import { formatRelativeDate, getDisplayDate } from "../lib/dateUtils";
 import type CardExplorerPlugin from "../main";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
@@ -83,23 +83,11 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   const displayDate = getDisplayDate(note);
 
   /**
-   * Formats display date with defensive error handling to prevent UI crashes.
+   * Formats the display date without additional error handling.
    */
-  const formatDate = useCallback(
-    (date: Date): string => {
-      return safeSync(
-        () => formatRelativeDate(date, new Date()),
-        "Invalid date", // Fallback value
-        ErrorCategory.DATA,
-        {
-          operation: "formatDate",
-          date: date.toString(),
-          notePath: note.path,
-        }
-      );
-    },
-    [note.path]
-  );
+  const formatDate = useCallback((date: Date): string => {
+    return formatRelativeDate(date, new Date());
+  }, []);
 
   /**
    * Handles keyboard accessibility for note opening.
