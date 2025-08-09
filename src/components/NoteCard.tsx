@@ -67,19 +67,9 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   const handlePinToggle = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation(); // Essential to prevent handleNoteClick from firing
-
-      try {
-        togglePin(note.path);
-      } catch (error) {
-        handleError(error, ErrorCategory.DATA, {
-          operation: "togglePin",
-          notePath: note.path,
-          noteTitle: note.title,
-          currentPinState: isPinned,
-        });
-      }
+      togglePin(note.path);
     },
-    [togglePin, note.path, note.title, isPinned]
+    [togglePin, note.path]
   );
 
   /**

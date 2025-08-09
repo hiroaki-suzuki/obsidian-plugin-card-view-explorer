@@ -327,26 +327,13 @@ describe("NoteCard", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it("should handle togglePin error gracefully", () => {
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const mockTogglePinWithError = vi.fn(() => {
-      throw new Error("Failed to toggle pin");
-    });
-
-    mockUseCardExplorerStore.mockReturnValue({
-      pinnedNotes: new Set<string>(),
-      togglePin: mockTogglePinWithError,
-    });
-
+  it("should call togglePin when pin button clicked", () => {
     render(<NoteCard note={mockNote} plugin={mockPlugin} />);
 
     const pinButton = screen.getByRole("button", { name: "Pin note" });
     fireEvent.click(pinButton);
 
-    expect(mockTogglePinWithError).toHaveBeenCalledWith(mockNote.path);
-    expect(consoleErrorSpy).toHaveBeenCalled();
-
-    consoleErrorSpy.mockRestore();
+    expect(mockTogglePin).toHaveBeenCalledWith(mockNote.path);
   });
 
   it("should handle keyboard event error gracefully", () => {
