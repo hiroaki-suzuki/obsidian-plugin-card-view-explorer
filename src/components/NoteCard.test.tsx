@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type CardExplorerPlugin from "../main";
@@ -6,412 +7,236 @@ import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
 import { NoteCard } from "./NoteCard";
 
-// Mock the store
-const mockTogglePin = vi.fn();
-
 vi.mock("../store/cardExplorerStore", () => ({
   useCardExplorerStore: vi.fn(),
 }));
 
+const mockTogglePin = vi.fn();
 const mockUseCardExplorerStore = vi.mocked(useCardExplorerStore);
 
-describe("NoteCard", () => {
-  const mockNote: NoteData = {
-    file: {
-      path: "test-note.md",
-      name: "test-note.md",
-      basename: "test-note",
-    } as any,
-    title: "Test Note",
+const createNote = (overrides: Partial<NoteData> = {}): NoteData => ({
+  file: {
     path: "test-note.md",
-    preview: "This is a test note\nwith multiple lines\nof content",
-    lastModified: new Date("2024-01-15T10:30:00Z"),
-    frontmatter: { updated: "2024-01-15" },
-    tags: ["test", "example"],
-    folder: "Notes",
-  };
+    name: "test-note.md",
+    basename: "test-note",
+  } as any,
+  title: "Test Note",
+  path: "test-note.md",
+  preview: "This is a test note\nwith multiple lines\nof content",
+  lastModified: new Date("2024-01-15T10:30:00Z"),
+  frontmatter: { updated: "2024-01-15" },
+  tags: ["test", "example"],
+  folder: "Notes",
+  ...overrides,
+});
 
-  const mockPlugin = {
+const createPlugin = (openFile = vi.fn()): CardExplorerPlugin =>
+  ({
     app: {
       workspace: {
-        getLeaf: vi.fn(() => ({
-          openFile: vi.fn(),
-        })),
+        getLeaf: vi.fn(() => ({ openFile })),
       },
     },
-  } as any as CardExplorerPlugin;
+  }) as unknown as CardExplorerPlugin;
+
+describe("NoteCard", () => {
+  const user = userEvent.setup();
+  const note = createNote();
+  const plugin = createPlugin();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Set default mock return value
     mockUseCardExplorerStore.mockReturnValue({
       pinnedNotes: new Set<string>(),
       togglePin: mockTogglePin,
     });
   });
 
-  it("should render note card with title, preview, and date", () => {
-    render(<NoteCard note={mockNote} plugin={mockPlugin} />);
+  describe("Rendering", () => {
+    it("shows title, preview, folder and pin button", () => {
+      render(<NoteCard note={note} plugin={plugin} />);
 
-    expect(screen.getByText("Test Note")).toBeInTheDocument();
-    expect(screen.getByText(/This is a test note/)).toBeInTheDocument();
-    expect(screen.getByText("Notes")).toBeInTheDocument();
-  });
-
-  it("should handle note click to open file", () => {
-    const mockOpenFile = vi.fn();
-    const mockGetLeaf = vi.fn(() => ({ openFile: mockOpenFile }));
-    const pluginWithMock = {
-      ...mockPlugin,
-      app: {
-        workspace: {
-          getLeaf: mockGetLeaf,
-        },
-      },
-    } as any;
-
-    render(<NoteCard note={mockNote} plugin={pluginWithMock} />);
-
-    const noteCard = screen.getByRole("button", { name: /Open note: Test Note/ });
-    fireEvent.click(noteCard);
-
-    expect(mockGetLeaf).toHaveBeenCalled();
-    expect(mockOpenFile).toHaveBeenCalledWith(mockNote.file);
-  });
-
-  it("should render pin button", () => {
-    render(<NoteCard note={mockNote} plugin={mockPlugin} />);
-
-    const pinButton = screen.getByRole("button", { name: "Pin note" });
-    expect(pinButton).toBeInTheDocument();
-  });
-
-  it("should format dates correctly", () => {
-    // Test with a recent date (today) and no frontmatter updated field
-    const recentNote = {
-      ...mockNote,
-      lastModified: new Date(),
-      frontmatter: null, // No frontmatter, should use lastModified
-    };
-
-    render(<NoteCard note={recentNote} plugin={mockPlugin} />);
-
-    // Should show time for today's notes
-    const timeRegex = /\d{1,2}:\d{2}/;
-    expect(screen.getByText(timeRegex)).toBeInTheDocument();
-  });
-
-  it("should handle keyboard navigation", () => {
-    const mockOpenFile = vi.fn();
-    const mockGetLeaf = vi.fn(() => ({ openFile: mockOpenFile }));
-    const pluginWithMock = {
-      ...mockPlugin,
-      app: {
-        workspace: {
-          getLeaf: mockGetLeaf,
-        },
-      },
-    } as any;
-
-    render(<NoteCard note={mockNote} plugin={pluginWithMock} />);
-
-    const noteCard = screen.getByRole("button", { name: /Open note: Test Note/ });
-
-    // Test Enter key
-    fireEvent.keyDown(noteCard, { key: "Enter" });
-    expect(mockOpenFile).toHaveBeenCalledWith(mockNote.file);
-
-    // Test Space key
-    fireEvent.keyDown(noteCard, { key: " " });
-    expect(mockOpenFile).toHaveBeenCalledTimes(2);
-  });
-
-  it("should handle pin button click", () => {
-    render(<NoteCard note={mockNote} plugin={mockPlugin} />);
-
-    const pinButton = screen.getByRole("button", { name: "Pin note" });
-    fireEvent.click(pinButton);
-
-    expect(mockTogglePin).toHaveBeenCalledWith(mockNote.path);
-  });
-
-  it("should prevent note opening when pin button is clicked", () => {
-    const mockOpenFile = vi.fn();
-    const mockGetLeaf = vi.fn(() => ({ openFile: mockOpenFile }));
-    const pluginWithMock = {
-      ...mockPlugin,
-      app: {
-        workspace: {
-          getLeaf: mockGetLeaf,
-        },
-      },
-    } as any;
-
-    render(<NoteCard note={mockNote} plugin={pluginWithMock} />);
-
-    const pinButton = screen.getByRole("button", { name: "Pin note" });
-    fireEvent.click(pinButton);
-
-    // Pin toggle should be called but note should not open
-    expect(mockTogglePin).toHaveBeenCalledWith(mockNote.path);
-    expect(mockOpenFile).not.toHaveBeenCalled();
-  });
-
-  it("should show pinned state when note is pinned", () => {
-    // Mock store with pinned note
-    mockUseCardExplorerStore.mockReturnValue({
-      pinnedNotes: new Set([mockNote.path]),
-      togglePin: mockTogglePin,
+      expect(screen.getByText("Test Note")).toBeInTheDocument();
+      expect(screen.getByText(/This is a test note/)).toBeInTheDocument();
+      expect(screen.getByText("Notes")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Pin note" })).toBeInTheDocument();
     });
 
-    render(<NoteCard note={mockNote} plugin={mockPlugin} />);
+    it("omits folder when not provided", () => {
+      const noteWithoutFolder = createNote({ folder: "" });
+      render(<NoteCard note={noteWithoutFolder} plugin={plugin} />);
 
-    const pinButton = screen.getByRole("button", { name: "Unpin note" });
-    expect(pinButton).toBeInTheDocument();
-  });
-
-  it("should handle note without folder", () => {
-    const noteWithoutFolder = {
-      ...mockNote,
-      folder: "",
-    };
-
-    render(<NoteCard note={noteWithoutFolder} plugin={mockPlugin} />);
-
-    expect(screen.getByText("Test Note")).toBeInTheDocument();
-    expect(screen.queryByText("Notes")).not.toBeInTheDocument();
-  });
-
-  it("should format date for this week", () => {
-    const thisWeekNote = {
-      ...mockNote,
-      lastModified: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-      frontmatter: null, // No frontmatter, should use lastModified
-    };
-
-    render(<NoteCard note={thisWeekNote} plugin={mockPlugin} />);
-
-    // Should show full date with year (no longer showing day of week)
-    const dateRegex = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\/\d{1,2}\/\d{1,2}/;
-    expect(screen.getByText(dateRegex)).toBeInTheDocument();
-  });
-
-  it("should format date for older notes", () => {
-    const oldNote = {
-      ...mockNote,
-      lastModified: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
-    };
-
-    render(<NoteCard note={oldNote} plugin={mockPlugin} />);
-
-    // Should show full date with year (no longer showing month/day only)
-    const dateRegex = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\/\d{1,2}\/\d{1,2}/;
-    expect(screen.getByText(dateRegex)).toBeInTheDocument();
-  });
-
-  it("should handle long titles with tooltip", () => {
-    const longTitleNote = {
-      ...mockNote,
-      title:
-        "This is a very long note title that should be truncated in the display but shown in full in the tooltip",
-    };
-
-    render(<NoteCard note={longTitleNote} plugin={mockPlugin} />);
-
-    const titleElement = screen.getByText(longTitleNote.title);
-    expect(titleElement).toHaveAttribute("title", longTitleNote.title);
-  });
-
-  it("should handle long preview with tooltip", () => {
-    const longPreviewNote = {
-      ...mockNote,
-      preview:
-        "This is a very long preview text that might be truncated in the display but should be shown in full in the tooltip when hovered",
-    };
-
-    render(<NoteCard note={longPreviewNote} plugin={mockPlugin} />);
-
-    const previewElement = screen.getByText(longPreviewNote.preview);
-    expect(previewElement).toHaveAttribute("title", longPreviewNote.preview);
-  });
-
-  it("should show full date in tooltip", () => {
-    // Since mockNote has frontmatter.updated, it will use that instead of lastModified
-    const expectedDate = new Date("2024-01-15"); // From frontmatter.updated
-    render(<NoteCard note={mockNote} plugin={mockPlugin} />);
-
-    const dateElement = screen.getByTitle(expectedDate.toLocaleString());
-    expect(dateElement).toBeInTheDocument();
-  });
-
-  it("should handle keyboard navigation ignoring other keys", () => {
-    const mockOpenFile = vi.fn();
-    const mockGetLeaf = vi.fn(() => ({ openFile: mockOpenFile }));
-    const pluginWithMock = {
-      ...mockPlugin,
-      app: {
-        workspace: {
-          getLeaf: mockGetLeaf,
-        },
-      },
-    } as any;
-
-    render(<NoteCard note={mockNote} plugin={pluginWithMock} />);
-
-    const noteCard = screen.getByRole("button", { name: /Open note: Test Note/ });
-
-    // Test other keys that should not trigger opening
-    fireEvent.keyDown(noteCard, { key: "Tab" });
-    fireEvent.keyDown(noteCard, { key: "Escape" });
-    fireEvent.keyDown(noteCard, { key: "a" });
-
-    expect(mockOpenFile).not.toHaveBeenCalled();
-  });
-
-  it("should have proper accessibility attributes", () => {
-    render(<NoteCard note={mockNote} plugin={mockPlugin} />);
-
-    const noteCard = screen.getByRole("button", { name: /Open note: Test Note/ });
-    expect(noteCard).toHaveAttribute("tabIndex", "0");
-    expect(noteCard).toHaveAttribute("aria-label", "Open note: Test Note");
-
-    const pinButton = screen.getByRole("button", { name: "Pin note" });
-    expect(pinButton).toHaveAttribute("aria-label", "Pin note");
-  });
-
-  it("should display tags with overflow indicator when more than 3 tags", () => {
-    const noteWithManyTags = {
-      ...mockNote,
-      tags: ["tag1", "tag2", "tag3", "tag4", "tag5"],
-    };
-
-    render(<NoteCard note={noteWithManyTags} plugin={mockPlugin} />);
-
-    // Should show first 3 tags
-    expect(screen.getByText("#tag1")).toBeInTheDocument();
-    expect(screen.getByText("#tag2")).toBeInTheDocument();
-    expect(screen.getByText("#tag3")).toBeInTheDocument();
-
-    // Should show overflow indicator
-    expect(screen.getByText("+2")).toBeInTheDocument();
-
-    // Should not show 4th and 5th tags directly
-    expect(screen.queryByText("#tag4")).not.toBeInTheDocument();
-    expect(screen.queryByText("#tag5")).not.toBeInTheDocument();
-  });
-
-  it("should handle openFile error gracefully", () => {
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    const mockOpenFile = vi.fn(() => {
-      throw new Error("Failed to open file");
+      expect(screen.getByText("Test Note")).toBeInTheDocument();
+      expect(screen.queryByText("Notes")).not.toBeInTheDocument();
     });
-    const mockGetLeaf = vi.fn(() => ({ openFile: mockOpenFile }));
-    const pluginWithError = {
-      ...mockPlugin,
-      app: {
-        workspace: {
-          getLeaf: mockGetLeaf,
-        },
-      },
-    } as any;
 
-    render(<NoteCard note={mockNote} plugin={pluginWithError} />);
+    it("renders pinned state", () => {
+      mockUseCardExplorerStore.mockReturnValue({
+        pinnedNotes: new Set([note.path]),
+        togglePin: mockTogglePin,
+      });
 
-    const noteCard = screen.getByRole("button", { name: /Open note: Test Note/ });
-    fireEvent.click(noteCard);
-
-    expect(mockOpenFile).toHaveBeenCalledWith(mockNote.file);
-    expect(consoleErrorSpy).toHaveBeenCalled();
-
-    consoleErrorSpy.mockRestore();
-  });
-
-  it("should call togglePin when pin button clicked", () => {
-    render(<NoteCard note={mockNote} plugin={mockPlugin} />);
-
-    const pinButton = screen.getByRole("button", { name: "Pin note" });
-    fireEvent.click(pinButton);
-
-    expect(mockTogglePin).toHaveBeenCalledWith(mockNote.path);
-  });
-
-  it("should handle keyboard event error gracefully", () => {
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    // Mock handleNoteClick to throw an error
-    const mockOpenFile = vi.fn(() => {
-      throw new Error("Failed to open file via keyboard");
+      render(<NoteCard note={note} plugin={plugin} />);
+      expect(screen.getByRole("button", { name: "Unpin note" })).toBeInTheDocument();
     });
-    const mockGetLeaf = vi.fn(() => ({ openFile: mockOpenFile }));
-    const pluginWithError = {
-      ...mockPlugin,
-      app: {
-        workspace: {
-          getLeaf: mockGetLeaf,
-        },
-      },
-    } as any;
 
-    render(<NoteCard note={mockNote} plugin={pluginWithError} />);
+    it("shows long text in tooltip", () => {
+      const longNote = createNote({
+        title: "This is a very long note title that should appear in full in tooltip",
+        preview:
+          "This is a very long preview text that might be truncated in the card but shown in tooltip",
+      });
 
-    const noteCard = screen.getByRole("button", { name: /Open note: Test Note/ });
+      render(<NoteCard note={longNote} plugin={plugin} />);
 
-    // Test both Enter and Space keys to cover the keyboard event handler
-    fireEvent.keyDown(noteCard, { key: "Enter" });
-    expect(mockOpenFile).toHaveBeenCalledWith(mockNote.file);
-    expect(consoleErrorSpy).toHaveBeenCalled();
-
-    // Reset mocks to test space key
-    mockOpenFile.mockClear();
-    consoleErrorSpy.mockClear();
-
-    fireEvent.keyDown(noteCard, { key: " " });
-    expect(mockOpenFile).toHaveBeenCalledWith(mockNote.file);
-    expect(consoleErrorSpy).toHaveBeenCalled();
-
-    consoleErrorSpy.mockRestore();
+      expect(screen.getByText(longNote.title)).toHaveAttribute("title", longNote.title);
+      expect(screen.getByText(longNote.preview)).toHaveAttribute("title", longNote.preview);
+    });
   });
 
-  it("should handle invalid date gracefully", () => {
-    const noteWithInvalidDate = {
-      ...mockNote,
-      lastModified: new Date("invalid-date"),
-      frontmatter: null, // No frontmatter, should use lastModified
-    };
+  describe("Interactions", () => {
+    it("opens file on click", async () => {
+      const openFile = vi.fn();
+      const clickPlugin = createPlugin(openFile);
 
-    render(<NoteCard note={noteWithInvalidDate} plugin={mockPlugin} />);
+      render(<NoteCard note={note} plugin={clickPlugin} />);
+      await user.click(screen.getByRole("button", { name: /Open note/ }));
 
-    // Should fallback to "Invalid date" text
-    expect(screen.getByText("Invalid date")).toBeInTheDocument();
+      expect(openFile).toHaveBeenCalledWith(note.file);
+    });
+
+    it("opens file with keyboard", async () => {
+      const openFile = vi.fn();
+      const keyboardPlugin = createPlugin(openFile);
+
+      render(<NoteCard note={note} plugin={keyboardPlugin} />);
+      const card = screen.getByRole("button", { name: /Open note/ });
+
+      card.focus();
+      await user.keyboard("{Enter}");
+      await user.keyboard("[Space]");
+
+      expect(openFile).toHaveBeenCalledTimes(2);
+      expect(openFile).toHaveBeenLastCalledWith(note.file);
+    });
+
+    it("ignores other keys", async () => {
+      const openFile = vi.fn();
+      const keyboardPlugin = createPlugin(openFile);
+
+      render(<NoteCard note={note} plugin={keyboardPlugin} />);
+      const card = screen.getByRole("button", { name: /Open note/ });
+
+      card.focus();
+      await user.keyboard("a{Tab}{Escape}");
+
+      expect(openFile).not.toHaveBeenCalled();
+    });
+
+    it("toggles pin without opening note", async () => {
+      const openFile = vi.fn();
+      const pinPlugin = createPlugin(openFile);
+
+      render(<NoteCard note={note} plugin={pinPlugin} />);
+      await user.click(screen.getByRole("button", { name: "Pin note" }));
+
+      expect(mockTogglePin).toHaveBeenCalledWith(note.path);
+      expect(openFile).not.toHaveBeenCalled();
+    });
   });
 
-  it("should use frontmatter updated date when available", () => {
-    // mockNote already has frontmatter.updated = "2024-01-15"
-    render(<NoteCard note={mockNote} plugin={mockPlugin} />);
+  describe("Tags", () => {
+    it("shows first three tags and overflow count", () => {
+      const tagNote = createNote({ tags: ["tag1", "tag2", "tag3", "tag4", "tag5"] });
+      render(<NoteCard note={tagNote} plugin={plugin} />);
 
-    // Should show formatted date with year from frontmatter, not lastModified
-    const dateRegex = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\/\d{1,2}\/\d{1,2}/;
-    expect(screen.getByText(dateRegex)).toBeInTheDocument();
-
-    // Tooltip should show the frontmatter date
-    const expectedDate = new Date("2024-01-15");
-    const dateElement = screen.getByTitle(expectedDate.toLocaleString());
-    expect(dateElement).toBeInTheDocument();
+      expect(screen.getByText("#tag1")).toBeInTheDocument();
+      expect(screen.getByText("#tag2")).toBeInTheDocument();
+      expect(screen.getByText("#tag3")).toBeInTheDocument();
+      expect(screen.getByText("+2")).toBeInTheDocument();
+      expect(screen.queryByText("#tag4")).not.toBeInTheDocument();
+      expect(screen.queryByText("#tag5")).not.toBeInTheDocument();
+    });
   });
 
-  it("should fallback to lastModified when frontmatter updated is invalid", () => {
-    const noteWithInvalidFrontmatterDate = {
-      ...mockNote,
-      lastModified: new Date("2024-01-20T10:30:00Z"),
-      frontmatter: { updated: "invalid-date-string" },
-    };
+  describe("Dates", () => {
+    it("shows time for today's notes", () => {
+      const today = createNote({ lastModified: new Date(), frontmatter: null });
+      render(<NoteCard note={today} plugin={plugin} />);
 
-    render(<NoteCard note={noteWithInvalidFrontmatterDate} plugin={mockPlugin} />);
+      const timeRegex = /\d{1,2}:\d{2}/;
+      expect(screen.getByText(timeRegex)).toBeInTheDocument();
+    });
 
-    // Should use lastModified date since frontmatter date is invalid
-    const expectedDate = noteWithInvalidFrontmatterDate.lastModified;
-    const dateElement = screen.getByTitle(expectedDate.toLocaleString());
-    expect(dateElement).toBeInTheDocument();
+    it("uses frontmatter date with tooltip", () => {
+      render(<NoteCard note={note} plugin={plugin} />);
+      const expected = new Date("2024-01-15");
+      expect(screen.getByTitle(expected.toLocaleString())).toBeInTheDocument();
+    });
+
+    it("falls back to lastModified when frontmatter invalid", () => {
+      const invalid = createNote({
+        lastModified: new Date("2024-01-20T10:30:00Z"),
+        frontmatter: { updated: "invalid" },
+      });
+      render(<NoteCard note={invalid} plugin={plugin} />);
+
+      expect(screen.getByTitle(invalid.lastModified.toLocaleString())).toBeInTheDocument();
+    });
+
+    it("handles invalid date gracefully", () => {
+      const invalidDate = createNote({ lastModified: new Date("invalid"), frontmatter: null });
+      render(<NoteCard note={invalidDate} plugin={plugin} />);
+
+      expect(screen.getByText("Invalid date")).toBeInTheDocument();
+    });
+  });
+
+  describe("Accessibility", () => {
+    it("has expected ARIA attributes", () => {
+      render(<NoteCard note={note} plugin={plugin} />);
+
+      const card = screen.getByRole("button", { name: /Open note/ });
+      expect(card).toHaveAttribute("tabIndex", "0");
+      expect(card).toHaveAttribute("aria-label", "Open note: Test Note");
+      expect(screen.getByRole("button", { name: "Pin note" })).toHaveAttribute(
+        "aria-label",
+        "Pin note"
+      );
+    });
+  });
+
+  describe("Error handling", () => {
+    it("handles openFile errors", async () => {
+      const openFile = vi.fn(() => {
+        throw new Error("Failed to open file");
+      });
+      const errorPlugin = createPlugin(openFile);
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      render(<NoteCard note={note} plugin={errorPlugin} />);
+      await user.click(screen.getByRole("button", { name: /Open note/ }));
+
+      expect(openFile).toHaveBeenCalledWith(note.file);
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it("handles keyboard errors", async () => {
+      const openFile = vi.fn(() => {
+        throw new Error("Failed to open file via keyboard");
+      });
+      const errorPlugin = createPlugin(openFile);
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      render(<NoteCard note={note} plugin={errorPlugin} />);
+      const card = screen.getByRole("button", { name: /Open note/ });
+      card.focus();
+      await user.keyboard("{Enter}");
+
+      expect(openFile).toHaveBeenCalledWith(note.file);
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
   });
 });
