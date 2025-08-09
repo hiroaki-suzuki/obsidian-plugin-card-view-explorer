@@ -107,20 +107,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
    */
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      try {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault(); // Prevent default scrolling behavior for Space
-          handleNoteClick();
-        }
-      } catch (error) {
-        handleError(error, ErrorCategory.UI, {
-          operation: "handleKeyDown",
-          key: e.key,
-          notePath: note.path,
-        });
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault(); // Prevent default scrolling behavior for Space
+        handleNoteClick();
       }
     },
-    [handleNoteClick, note.path]
+    [handleNoteClick]
   );
 
   /**
