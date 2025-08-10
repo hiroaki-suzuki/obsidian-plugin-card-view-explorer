@@ -2,79 +2,60 @@
 inclusion: always
 ---
 
-# Card View Explorer - Product Requirements
+# Product Specifications & UI Patterns
 
-**Plugin Identity**: Obsidian Card View Explorer - Visual note browser with advanced filtering for recently edited notes.
+## User Experience Requirements
 
-## Feature Requirements
-
-### Core Display Features
-- **Card Format**: Title + 3-line preview + metadata (tags, folder, modified date)
-- **Pin System**: Pinned notes always appear at top, maintain pin state across sessions
-- **Virtual Scrolling**: REQUIRED for lists >100 notes using react-virtuoso
-- **Real-Time Updates**: Auto-refresh on vault changes (create/modify/delete/rename)
-
-### Filtering Requirements
-- **Multi-Criteria**: Tags (include/exclude), folders (include/exclude), filename patterns, date ranges
-- **Date Filtering**: "Within X days" and "After specific date" options
-- **Persistent Filters**: Save filter state between sessions
-- **Filter Validation**: Validate filter inputs, show clear error messages
-
-### Sorting Requirements
-- **Sort Options**: Modified date (default), frontmatter fields, filename
-- **Pin Priority**: Pinned notes always sort first regardless of other criteria
-- **Sort Persistence**: Remember sort configuration across sessions
-
-### Performance Requirements
-- **Debounced Updates**: File system events must be debounced (300ms minimum)
-- **Lazy Loading**: Only process visible notes in viewport
-- **Memory Management**: Limit cached note previews to prevent memory leaks
-
-## User Experience Rules
-
-### Error Handling Standards
-- **Graceful Degradation**: Show partial results if some notes fail to load
-- **User-Friendly Messages**: No technical error details in UI
-- **Retry Mechanisms**: Allow users to retry failed operations
-- **Fallback States**: Always provide fallback when data unavailable
-
-### Loading States
-- **Progressive Loading**: Show skeleton cards while loading
-- **Loading Indicators**: Clear visual feedback for all async operations
+### Loading & Error States
+- **Progressive Loading**: Show skeleton cards during initial load
+- **Loading Indicators**: Visual feedback for all async operations
 - **Empty States**: Helpful messages when no notes match filters
+- **Overlay Pattern**: Show loading overlay for refresh operations
+- **Error Recovery**: Always provide retry mechanisms, no technical details in UI
 
-### Data Integrity
-- **Validation**: Validate all user data before persistence
-- **Fallback to Defaults**: Use defaults when data is invalid or missing
+### Card Display Behavior
+- **Card Content**: Title + 3-line preview + metadata (tags, folder, modified date)
+- **Pin System**: Pinned notes ALWAYS appear first regardless of sort criteria
+- **Real-Time Updates**: Auto-refresh on vault changes (debounced 300ms)
+- **Virtual Scrolling**: MANDATORY for >100 notes using `VirtualizedNoteGrid`
 
-## Technical Constraints
+### Filter & Sort UX
+- **Multi-Criteria Filtering**: Tags (include/exclude), folders, filename patterns, date ranges
+- **Date Filtering**: "Within X days" and "After specific date" options
+- **Default Sort**: Modified date (most recent first)
+- **Sort Options**: Modified date, frontmatter fields, filename
+- **State Persistence**: Save filter and sort configuration
+
+## Technical Constraints & Boundaries
 
 ### Obsidian Integration
 - **Minimum Version**: Obsidian 0.15.0+
-- **View Integration**: Must extend ItemView, support workspace leaf management
+- **View Pattern**: Extend `ItemView`, implement workspace leaf management
 - **Settings Integration**: Use Obsidian's settings tab system
-- **Command Integration**: Register plugin commands for common actions
 
-### Feature Limitations
+### Feature Scope
+- **Read-Only**: No inline note editing capabilities
+- **Markdown Only**: Process only `.md` files from vault
 - **No Link Analysis**: Does not process note relationships or backlinks
-- **No Custom Styling**: Fixed CSS design, no user customization
 - **No Export**: Does not provide note export functionality
-- **No Editing**: Read-only view, no inline note editing
+- **Fixed Styling**: No user customization of CSS
 
-### Data Scope
-- **Markdown Only**: Only processes .md files from vault
-- **Recent Focus**: Optimized for recently modified notes (default 30 days)
-- **Metadata Only**: Extracts frontmatter and basic file properties
+### Data Processing
+- **Recent Focus**: Default to notes modified within 30 days
+- **Metadata Extraction**: Process frontmatter and basic file properties only
+- **Memory Management**: Limit cached note previews, implement cleanup
+- **Lazy Loading**: Only process notes in viewport
 
 ## Extension Guidelines
 
 ### Adding New Features
-- **Filter Types**: New filters must integrate with existing FilterState interface
-- **Sort Options**: New sort criteria must work with pin priority system
-- **UI Components**: Must follow existing error boundary and loading state patterns
-- **Data Fields**: New metadata fields with validation and defaults
+- **Filter Types**: Must integrate with existing `FilterState` interface
+- **Sort Criteria**: Must respect pin priority system
+- **UI Components**: Follow error boundary and loading state patterns
+- **Data Fields**: Require validation functions and default values
 
-### Compatibility Rules
-- **Data Validation**: All data must validate against expected schema
-- **API Stability**: Store interface changes require deprecation period
-- **Graceful Fallbacks**: Handle invalid data gracefully with defaults
+### Performance Requirements
+- **Debouncing**: File system events MUST be debounced (minimum 300ms)
+- **Virtual Scrolling**: Use `react-virtuoso` for any list >100 items
+- **Graceful Degradation**: Show partial results if some notes fail
+- **Fallback States**: Always provide defaults when data unavailable

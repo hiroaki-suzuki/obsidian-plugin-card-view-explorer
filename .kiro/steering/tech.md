@@ -1,49 +1,13 @@
 ---
-inclusion: always
+inclusion: fileMatch
+fileMatchPattern: ['**/*.ts', '**/*.tsx']
 ---
 
-# Technology Stack & Development Guidelines
+# Technical Standards & Code Patterns
 
-## Stack
-- **Platform**: Obsidian Plugin (TypeScript ≥0.15.0)
-- **UI**: React 19.1.1 (functional components + hooks only)
-- **State**: Zustand 5.0.7 (standard store pattern)
-- **Build**: Bun + ESBuild → `main.js`
-- **Testing**: Vitest + @testing-library/react + jsdom
+## Mandatory Code Patterns
 
-## Non-Negotiable Rules
-
-### State Management - IMMUTABLE ONLY
-```typescript
-// ✅ CORRECT - Always create new objects
-set({ filters: { ...state.filters, ...newFilters } });
-// ❌ FORBIDDEN - Never mutate directly
-state.filters.tags.push(newTag);
-```
-- Use `useCardExplorerStore` for ALL state access
-- All state changes through store actions only
-- Derived state recomputes automatically
-
-### Error Handling - CRITICAL
-- Wrap components with `CardViewErrorBoundary`
-- Use `handleError(error, category)` with categories: API, DATA, UI, GENERAL
-- Data operations: `validatePluginData()` → save with fallback to defaults
-- Always provide fallbacks and retry mechanisms
-
-### Type Safety - NO EXCEPTIONS
-- NO `any` types - use interfaces or `unknown`
-- Create type guards for Obsidian APIs: `isMarkdownFile(file)`
-- Runtime validation for all plugin data
-- Comprehensive TypeScript interfaces
-
-### Performance - REQUIRED
-- `react-virtuoso` for lists >100 items
-- `useMemo`/`useCallback` for expensive operations
-- `es-toolkit` debounce for file system events
-
-## Required Code Patterns
-
-### Component Structure
+### React Component Structure
 ```typescript
 interface ComponentProps { ... }
 export const Component: React.FC<ComponentProps> = ({ prop1, prop2 }) => {
@@ -66,29 +30,60 @@ const processData = (data, config) => { ... };
 export const useModuleStore = create<ModuleState & ModuleActions>()(...);
 ```
 
-### Obsidian Integration
-- Wrap ALL Obsidian APIs in store methods with error handling
-- NO direct API usage outside store
-- Handle failures gracefully with fallbacks
-
-## File Organization
-```
-src/
-├── store/          # Zustand modules (filters/, noteProcessing/, selectors/, sorting/)
-├── components/     # React components with co-located .test.tsx
-├── types/          # TypeScript definitions
-└── utils/          # errorHandling, dataPersistence, validation
+### Immutable State Updates
+```typescript
+// ✅ CORRECT - Always create new objects
+set({ filters: { ...state.filters, ...newFilters } });
+// ❌ FORBIDDEN - Never mutate directly
+state.filters.tags.push(newTag);
 ```
 
-## Testing Requirements
+## Non-Negotiable Rules
+
+### Type Safety
+- **NO `any` types** - use interfaces or `unknown`
+- Create type guards for Obsidian APIs: `isMarkdownFile(file)`
+- Runtime validation with `validatePluginData()` before saves
+- TypeScript interfaces for all data structures
+
+### Error Handling
+- Wrap ALL components with `CardViewErrorBoundary`
+- Use `handleError(error, category)` - categories: API, DATA, UI, GENERAL
+- Always validate → save with fallback to defaults
+- Provide retry mechanisms for all user-facing errors
+
+### Performance Requirements
+- **MANDATORY**: `react-virtuoso` for lists >100 items
+- `useMemo`/`useCallback` for expensive operations
+- Debounce file system events (minimum 300ms) with `es-toolkit`
+
+### Obsidian API Integration
+- **NO direct API calls** outside store methods
+- Wrap ALL Obsidian APIs with error handling
+- Graceful fallbacks for API failures
+
+## Code Organization
+
+### File Structure
+- Single responsibility per module
+- Named exports over default exports
+- Barrel exports via `index.ts`
 - Co-locate tests: `Component.test.tsx` alongside `Component.tsx`
+
+### Testing Requirements
 - Use `src/test/obsidian-mock.ts` for Obsidian APIs
 - Clear mocks: `beforeEach(() => vi.clearAllMocks())`
 - Test error conditions and recovery paths
+- Test all user interaction flows
 
-## Build Commands
-```bash
-bun run dev     # Development with watch
-bun run build   # Production build
-bun run test    # Run all tests
-```
+### Data Operations Pattern
+1. **Validate**: `validatePluginData(data)`
+2. **Load**: `loadPluginData(rawData)` with defaults
+3. **Fallback**: Use defaults on validation failure
+
+## React Standards
+- Functional components with hooks only
+- TypeScript interfaces for all props
+- Explicit dependency arrays in all hooks
+- Extract reusable logic into custom hooks
+- Use `useCardExplorerStore` for ALL state access
