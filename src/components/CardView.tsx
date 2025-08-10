@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useRetryableRefreshNotes } from "../hooks";
 import { useCardViewInitialization } from "../hooks/useCardViewInitialization";
 import { useCardViewState } from "../hooks/useCardViewState";
@@ -43,13 +44,14 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
     notes,
   } = useCardViewState();
 
-  // Extract additional state and actions from the centralized Zustand store
-  const {
-    filteredNotes, // Notes after applying filters
-    availableTags, // Available tags for filter options (computed)
-    availableFolders, // Available folders for filter options (computed)
-    setError, // Action to set/clear error state
-  } = useCardExplorerStore();
+  const { filteredNotes, availableTags, availableFolders, setError } = useCardExplorerStore(
+    useShallow((state) => ({
+      filteredNotes: state.filteredNotes,
+      availableTags: state.availableTags,
+      availableFolders: state.availableFolders,
+      setError: state.setError,
+    }))
+  );
 
   // Unified retry handler (UI-only orchestration). Data-layer backoff is handled in the store.
   const { retry } = useRetryableRefreshNotes(plugin);

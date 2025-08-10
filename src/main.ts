@@ -164,7 +164,7 @@ export default class CardExplorerPlugin extends Plugin {
     this.setupEventHandlers();
 
     // Set up automatic save for pinned notes changes
-    this.setupPinnedNotesAutoSave();
+    await this.setupPinnedNotesAutoSave();
 
     // If auto-start is enabled
     if (this.settings.autoStart) {
@@ -298,13 +298,13 @@ export default class CardExplorerPlugin extends Plugin {
       const store = useCardExplorerStore.getState();
 
       // Get serializable data from store
-      const storeData = store.getSerializableData();
+      const { pinnedNotes, lastFilters } = store.getSerializableData();
 
-      // Preserve existing plugin data while updating store state
-      const currentData = this.getData();
+      // Preserve existing plugin data while updating known store-backed fields
       this.updateData({
-        ...currentData,
-        ...storeData, // pinnedNotes and lastFilters from store
+        ...this.getData(),
+        pinnedNotes,
+        lastFilters,
       });
 
       await this.savePluginData();
@@ -478,7 +478,15 @@ export default class CardExplorerPlugin extends Plugin {
         },
         {
           // Use size comparison for efficient change detection
-          equalityFn: (a, b) => a.size === b.size && Array.from(a).every((item) => b.has(item)),
+          equalityFn: (a, b) => {
+            if (a === b) return true;
+            if (!a || !b) return false;
+            if (a.size !== b.size) return false;
+            for (const item of a) {
+              if (!b.has(item)) return false;
+            }
+            return true;
+          },
         }
       );
     } catch (error) {

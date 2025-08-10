@@ -107,6 +107,7 @@ const matchesTagCriteria = (note: NoteData, tags: string[]): boolean => {
   if (tags.length === 0) return true;
 
   // Check if note has any tag that matches the filter criteria (hierarchical)
+  if (!Array.isArray(note.tags) || note.tags.length === 0) return false;
   return note.tags.some((noteTag) =>
     tags.some((filterTag) => tagMatchesFilter(noteTag, filterTag))
   );
@@ -152,7 +153,9 @@ const matchesDateRangeCriteria = (
   if (!dateRange) return true;
 
   const noteDate = note.lastModified;
-  const filterDate = dateRange.value instanceof Date ? dateRange.value : new Date(dateRange.value);
+  const filterDate = normalizeDateInput(dateRange.value);
+  // If the provided date value cannot be parsed, treat as no-op filter (graceful fallback)
+  if (!filterDate) return true;
 
   if (dateRange.type === "within") {
     // Check if note was modified within the specified time range
@@ -185,4 +188,16 @@ const matchesDateRangeCriteria = (
  */
 const calculateDaysDifference = (fromDate: Date, toDate: Date): number => {
   return Math.floor((fromDate.getTime() - toDate.getTime()) / MILLISECONDS_PER_DAY);
+};
+
+/**
+ * Normalize date input (Date or string) to a valid Date instance.
+ * Returns null when the input cannot be parsed into a valid date.
+ */
+const normalizeDateInput = (value: Date | string): Date | null => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 };

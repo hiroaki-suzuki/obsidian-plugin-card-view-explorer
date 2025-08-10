@@ -14,20 +14,20 @@ import { loadNotesFromVault } from "./noteProcessing";
 
 const mockLoadNotesFromVault = vi.mocked(loadNotesFromVault);
 
-// Mock error handling utilities
-vi.mock("../core/errors/errorHandling", () => ({
-  withRetry: vi.fn(),
-  handleError: vi.fn(),
-  ErrorCategory: {
-    API: "API",
-    DATA: "DATA",
-    UI: "UI",
-    GENERAL: "GENERAL",
-  },
-}));
+// Mock error handling utilities (preserve real ErrorCategory enum)
+vi.mock("../core/errors/errorHandling", async () => {
+  const actual = await vi.importActual<typeof import("../core/errors/errorHandling")>(
+    "../core/errors/errorHandling"
+  );
+  return {
+    ...actual,
+    withRetry: vi.fn(),
+    handleError: vi.fn(),
+  };
+});
 
-// Import the mocked error handling utilities
-import { handleError, withRetry } from "../core/errors/errorHandling";
+// Import the mocked error handling utilities (and real ErrorCategory)
+import { ErrorCategory, handleError, withRetry } from "../core/errors/errorHandling";
 
 const mockWithRetry = vi.mocked(withRetry);
 const mockHandleError = vi.mocked(handleError);
@@ -88,7 +88,7 @@ const createMockScenarios = () => ({
     mockWithRetry.mockRejectedValueOnce(error);
     mockHandleError.mockReturnValueOnce({
       message: errorMessage,
-      category: "API" as any,
+      category: ErrorCategory.API,
       timestamp: Date.now(),
     });
   },
@@ -98,8 +98,10 @@ const createMockScenarios = () => ({
  * State expectation helpers for consistent assertion patterns.
  * Provides reusable assertion functions for common state validations.
  */
+type StoreState = ReturnType<typeof useCardExplorerStore.getState>;
+
 const expectState = {
-  initial: (state: any) => {
+  initial: (state: StoreState) => {
     expect(state.notes).toEqual([]);
     expect(state.filteredNotes).toEqual([]);
     expect(state.pinnedNotes).toEqual(new Set());
@@ -109,17 +111,21 @@ const expectState = {
     expect(state.error).toBe(null);
   },
 
-  filteredResults: (state: any, expectedCount: number, validator?: (notes: NoteData[]) => void) => {
+  filteredResults: (
+    state: StoreState,
+    expectedCount: number,
+    validator?: (notes: NoteData[]) => void
+  ) => {
     expect(state.filteredNotes).toHaveLength(expectedCount);
     if (validator) validator(state.filteredNotes);
   },
 
-  error: (state: any, errorMessage: string | null) => {
+  error: (state: StoreState, errorMessage: string | null) => {
     expect(state.error).toBe(errorMessage);
     expect(state.isLoading).toBe(false);
   },
 
-  loading: (state: any, isLoading: boolean) => {
+  loading: (state: StoreState, isLoading: boolean) => {
     expect(state.isLoading).toBe(isLoading);
   },
 };
@@ -184,6 +190,8 @@ describe("cardExplorerStore", () => {
     vi.clearAllMocks();
     // Reset the mock function
     mockLoadNotesFromVault.mockReset();
+    mockWithRetry.mockReset();
+    mockHandleError.mockReset();
   });
 
   describe("Initial State", () => {
@@ -291,7 +299,7 @@ describe("cardExplorerStore", () => {
         expectState.loading(state, false);
         expectState.error(state, "Failed to refresh notes");
 
-        expect(mockHandleError).toHaveBeenCalledWith(testError, "API", {
+        expect(mockHandleError).toHaveBeenCalledWith(testError, ErrorCategory.API, {
           operation: "refreshNotes",
           ...expectedContext,
         });

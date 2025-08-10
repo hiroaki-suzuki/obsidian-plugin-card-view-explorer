@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { useEffect, useRef } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 
@@ -29,7 +30,7 @@ import type { VirtuosoHandle } from "react-virtuoso";
  * @returns void
  */
 export const useScrollToTopOnChange = <T>(
-  virtuosoRef: React.RefObject<VirtuosoHandle | null>,
+  virtuosoRef: RefObject<VirtuosoHandle>,
   value: T,
   ready: boolean
 ): void => {

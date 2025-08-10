@@ -1,4 +1,4 @@
-import React, { type RefObject, useCallback } from "react";
+import React, { useCallback } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { GridRow } from "../../hooks/useNoteGrid";
 import type CardExplorerPlugin from "../../main";
@@ -15,7 +15,7 @@ export interface VirtualizedNoteGridProps {
   /** Plugin instance for note operations and state management */
   plugin: CardExplorerPlugin;
   /** Ref to the Virtuoso instance for programmatic control */
-  virtuosoRef: RefObject<VirtuosoHandle | null>;
+  virtuosoRef: React.Ref<VirtuosoHandle>;
   /** Ref to the container element for measuring and positioning */
   containerRef: React.Ref<HTMLDivElement>;
 }

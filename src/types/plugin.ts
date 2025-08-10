@@ -52,9 +52,17 @@ export interface PluginData {
 
   /**
    * Data format version for compatibility tracking
-   * Used to identify the data structure version for future compatibility checks
+   * Used to identify the data structure version for future compatibility checks.
+   *
+   * Version bump policy (single source of truth is DATA_VERSION below):
+   * - Increase by 1 whenever the persisted data schema changes in a way that
+   *   requires a migration (e.g., rename/remove fields, type changes, semantic changes).
+   * - Adding strictly optional fields that older code can ignore does NOT require a bump,
+   *   but prefer bumping if there is any ambiguity for consumers.
+   * - Any code that reads/writes PluginData MUST check this version and migrate when needed.
+   * - Migrations should handle forward/backward compatibility gracefully where possible.
    */
-  version?: number;
+  version: number;
 }
 
 /**
@@ -86,11 +94,27 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 };
 
 /**
+ * Single source of truth for the current persisted data schema version.
+ *
+ * Bump this number by 1 when making breaking changes to PluginData.
+ * Examples that require a bump:
+ * - Renaming/removing properties (e.g., pinnedNotes -> starredNotes)
+ * - Changing property types (e.g., string[] to Set<string>)
+ * - Repurposing semantics of existing fields
+ *
+ * When bumping:
+ * - Update migration logic to transform older data to the new shape
+ * - Update related tests and fixtures
+ */
+export const DATA_VERSION = 1 as const;
+
+/**
  * Default plugin data
  * Used when the plugin is first installed or when data is corrupted/missing
  * Provides safe initial values for all data properties
  */
 export const DEFAULT_DATA: PluginData = {
+  version: DATA_VERSION,
   pinnedNotes: [],
   lastFilters: {
     folders: [],

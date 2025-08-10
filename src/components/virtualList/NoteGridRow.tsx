@@ -37,6 +37,7 @@ export const NoteGridRow: React.FC<NoteGridRowProps> = React.memo(({ row, rowInd
           <div
             key={`empty-row-${rowIndex}-slot-${row.notes.length + emptyIndex}`}
             className="virtual-grid-item-empty"
+            aria-hidden="true"
           />
         ))}
     </div>

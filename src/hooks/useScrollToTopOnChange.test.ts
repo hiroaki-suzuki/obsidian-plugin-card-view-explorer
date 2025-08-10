@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import type { RefObject } from "react";
+import type { MutableRefObject, RefObject } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import { describe, expect, it, vi } from "vitest";
 import { useScrollToTopOnChange } from "./useScrollToTopOnChange";
@@ -10,11 +10,11 @@ const EXPECTED_REAPPLY_COUNT = 4; // 100/200/300/500ms
 
 // Helpers for DRY and clarity
 const createRefWithSpy = (): {
-  ref: RefObject<VirtuosoHandle | null>;
+  ref: RefObject<VirtuosoHandle>;
   spy: ReturnType<typeof vi.fn>;
 } => {
   const spy = vi.fn();
-  const ref: RefObject<VirtuosoHandle | null> = {
+  const ref: RefObject<VirtuosoHandle> = {
     // We only need scrollToIndex for these tests; cast to VirtuosoHandle for compatibility
     current: { scrollToIndex: spy } as unknown as VirtuosoHandle,
   };
@@ -64,9 +64,13 @@ describe("useScrollToTopOnChange", () => {
     withFakeTimers(() => {
       const { ref, spy } = createRefWithSpy();
 
-      renderHook(({ value, ready }) => useScrollToTopOnChange(ref, value, ready), {
-        initialProps: { value: newValue(), ready: true },
-      });
+      renderHook(
+        ({ value, ready }) =>
+          useScrollToTopOnChange(ref as unknown as RefObject<VirtuosoHandle>, value, ready),
+        {
+          initialProps: { value: newValue(), ready: true },
+        }
+      );
 
       // Immediate scroll on mount
       expect(spy).toHaveBeenCalledTimes(1);
@@ -123,11 +127,15 @@ describe("useScrollToTopOnChange", () => {
   it("skips when ref is null and schedules no timers", () =>
     withFakeTimers(() => {
       const spy = vi.fn();
-      const ref: RefObject<VirtuosoHandle | null> = { current: null };
+      const ref = { current: null } as unknown as RefObject<VirtuosoHandle | null>;
 
-      renderHook(({ value, ready }) => useScrollToTopOnChange(ref, value, ready), {
-        initialProps: { value: newValue(), ready: true },
-      });
+      renderHook(
+        ({ value, ready }) =>
+          useScrollToTopOnChange(ref as unknown as RefObject<VirtuosoHandle>, value, ready),
+        {
+          initialProps: { value: newValue(), ready: true },
+        }
+      );
 
       // No immediate calls because ref is null
       expect(spy).not.toHaveBeenCalled();

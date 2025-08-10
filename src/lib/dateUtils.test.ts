@@ -21,13 +21,13 @@ const TEST_DATES = {
  * Accounts for different locale formatting (US vs. international formats).
  */
 const REGEX_PATTERNS = {
-  TIME_FORMAT: /^\d{1,2}:\d{2}(\s?(AM|PM))?$/,
-  DATE_FORMAT_2024_1_13: /^2024\/1\/13$|^1\/13\/2024$/,
-  DATE_FORMAT_2024_1_14: /^2024\/1\/14$|^1\/14\/2024$/,
-  DATE_FORMAT_2023_1_8: /^2023\/1\/8$|^1\/8\/2023$/,
-  DATE_FORMAT_2024_3_9: /^2024\/3\/9$|^3\/9\/2024$/,
-  DATE_FORMAT_2024_2_28: /^2024\/2\/28$|^2\/28\/2024$/,
-  DATE_FORMAT_2023_12_31: /^2023\/12\/31$|^12\/31\/2023$/,
+  TIME_FORMAT: /^\d{1,2}:\d{2}(?::\d{2})?([\s\u00A0\u202F]?(AM|PM))?$/i,
+  DATE_FORMAT_2024_1_13: /^2024\/1\/13$|^1\/13\/2024$|^13\/1\/2024$/,
+  DATE_FORMAT_2024_1_14: /^2024\/1\/14$|^1\/14\/2024$|^14\/1\/2024$/,
+  DATE_FORMAT_2023_1_8: /^2023\/1\/8$|^1\/8\/2023$|^8\/1\/2023$/,
+  DATE_FORMAT_2024_3_9: /^2024\/3\/9$|^3\/9\/2024$|^9\/3\/2024$/,
+  DATE_FORMAT_2024_2_28: /^2024\/2\/28$|^2\/28\/2024$|^28\/2\/2024$/,
+  DATE_FORMAT_2023_12_31: /^2023\/12\/31$|^12\/31\/2023$|^31\/12\/2023$/,
 } as const;
 
 /**
@@ -84,13 +84,17 @@ describe("dateUtils", () => {
           expect(result).toBeInstanceOf(Date);
 
           if (expectedDate) {
-            expect(result).toBe(expectedDate);
-          } else if (expectedTime) {
+            expect(result.getTime()).toBe(expectedDate.getTime());
+          } else if (expectedTime !== undefined) {
             expect(result.getTime()).toBe(expectedTime);
-          } else if (expectedYear && expectedMonth !== undefined && expectedDay) {
-            expect(result.getFullYear()).toBe(expectedYear);
-            expect(result.getMonth()).toBe(expectedMonth);
-            expect(result.getDate()).toBe(expectedDay);
+          } else if (
+            expectedYear !== undefined &&
+            expectedMonth !== undefined &&
+            expectedDay !== undefined
+          ) {
+            expect(result.getUTCFullYear()).toBe(expectedYear);
+            expect(result.getUTCMonth()).toBe(expectedMonth);
+            expect(result.getUTCDate()).toBe(expectedDay);
           }
         }
       );
@@ -113,7 +117,8 @@ describe("dateUtils", () => {
         ({ value }) => {
           const note = createNoteWithFrontmatter(value);
           const result = getDisplayDate(note as any);
-          expect(result).toBe(note.lastModified);
+          // Compare timestamps to allow for cloned Date instances
+          expect(result.getTime()).toBe(note.lastModified.getTime());
         }
       );
     });
@@ -122,7 +127,8 @@ describe("dateUtils", () => {
       it("should fallback to lastModified when no frontmatter", () => {
         const note = createNoteWithoutFrontmatter();
         const result = getDisplayDate(note as any);
-        expect(result).toBe(note.lastModified);
+        // Compare timestamps to allow for cloned Date instances
+        expect(result.getTime()).toBe(note.lastModified.getTime());
       });
 
       it("should fallback to lastModified when frontmatter exists but no updated field", () => {
@@ -131,7 +137,8 @@ describe("dateUtils", () => {
           frontmatter: { title: "Test Note", tags: ["test"] },
         };
         const result = getDisplayDate(note as any);
-        expect(result).toBe(note.lastModified);
+        // Compare timestamps to allow for cloned Date instances
+        expect(result.getTime()).toBe(note.lastModified.getTime());
       });
     });
   });

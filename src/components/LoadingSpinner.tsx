@@ -24,11 +24,17 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   message = "Loading your notes...",
 }) => {
   return (
-    <div className="loading-content">
+    <div
+      className="loading-content"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-describedby="loading-message"
+    >
       {/* CSS-animated spinner - styled via .loading-spinner class */}
-      <div className="loading-spinner" />
+      <div className="loading-spinner" aria-hidden="true" />
       <h3>{title}</h3>
-      <p>{message}</p>
+      <p id="loading-message">{message}</p>
     </div>
   );
 };

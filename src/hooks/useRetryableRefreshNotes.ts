@@ -39,7 +39,8 @@ interface Options {
  * @returns An object with a single `retry` function to trigger refresh.
  */
 export const useRetryableRefreshNotes = (plugin: CardExplorerPlugin, options: Options = {}) => {
-  const { refreshNotes, setError } = useCardExplorerStore();
+  const refreshNotes = useCardExplorerStore((s) => s.refreshNotes);
+  const setError = useCardExplorerStore((s) => s.setError);
 
   const retry = useCallback(async () => {
     // Clear any existing error UI state before attempting a refresh.

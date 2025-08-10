@@ -3,12 +3,13 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
+import type { FilterState } from "../types";
 import { FilterPanel } from "./FilterPanel";
 
-// Mock functions
-const mockUpdateFilters = vi.fn();
-const mockClearFilters = vi.fn();
-const mockHasActiveFilters = vi.fn();
+// Mock functions (typed to match store API)
+const mockUpdateFilters = vi.fn<(filters: Partial<FilterState>) => void>();
+const mockClearFilters = vi.fn<() => void>();
+const mockHasActiveFilters = vi.fn<() => boolean>();
 
 vi.mock("../store/cardExplorerStore", () => ({
   useCardExplorerStore: vi.fn(),
@@ -17,36 +18,37 @@ vi.mock("../store/cardExplorerStore", () => ({
 const mockUseCardExplorerStore = vi.mocked(useCardExplorerStore);
 
 // Test data factories
-interface MockStoreData {
-  filters?: {
-    folders?: string[];
-    tags?: string[];
-    filename?: string;
-    dateRange?: { type: string; value: Date } | null;
-  };
-  updateFilters?: typeof mockUpdateFilters;
-  clearFilters?: typeof mockClearFilters;
-  hasActiveFilters?: typeof mockHasActiveFilters;
+// Minimal slice of the store consumed by FilterPanel
+type MockStoreSlice = {
+  filters: FilterState;
+  updateFilters: (filters: Partial<FilterState>) => void;
+  clearFilters: () => void;
+  hasActiveFilters: () => boolean;
+};
+
+// Allow tests to override parts of the slice
+interface MockStoreOverrides {
+  filters?: Partial<FilterState>;
+  updateFilters?: (filters: Partial<FilterState>) => void;
+  clearFilters?: () => void;
+  hasActiveFilters?: () => boolean;
 }
 
-const createMockStoreData = (overrides: MockStoreData = {}): any => {
-  const defaultFilters = {
+const createMockStoreData = (overrides: MockStoreOverrides = {}): MockStoreSlice => {
+  const defaultFilters: FilterState = {
     folders: [],
     tags: [],
     filename: "",
     dateRange: null,
   };
 
-  const defaults = {
-    filters: {
-      ...defaultFilters,
-      ...overrides.filters,
-    },
-    updateFilters: overrides.updateFilters || mockUpdateFilters,
-    clearFilters: overrides.clearFilters || mockClearFilters,
-    hasActiveFilters: overrides.hasActiveFilters || mockHasActiveFilters,
+  const slice: MockStoreSlice = {
+    filters: { ...defaultFilters, ...(overrides.filters ?? {}) },
+    updateFilters: overrides.updateFilters ?? mockUpdateFilters,
+    clearFilters: overrides.clearFilters ?? mockClearFilters,
+    hasActiveFilters: overrides.hasActiveFilters ?? mockHasActiveFilters,
   };
-  return defaults;
+  return slice;
 };
 
 // Test fixtures
@@ -69,7 +71,10 @@ const TEST_PROPS = {
 class FilterPanelTestHelper {
   public user = userEvent.setup();
 
-  async renderWithMockStore(props: typeof TEST_PROPS.default, storeOverrides: MockStoreData = {}) {
+  async renderWithMockStore(
+    props: typeof TEST_PROPS.default,
+    storeOverrides: MockStoreOverrides = {}
+  ) {
     mockUseCardExplorerStore.mockReturnValue(createMockStoreData(storeOverrides));
     render(<FilterPanel {...props} />);
   }
@@ -80,11 +85,11 @@ class FilterPanelTestHelper {
   }
 
   getFolderCheckbox(folderName: string) {
-    return screen.getByRole("checkbox", { name: new RegExp(folderName) });
+    return screen.getByRole("checkbox", { name: folderName });
   }
 
-  getTagLabel(tagName: string) {
-    return screen.getByText(tagName).closest("label")!;
+  getTagCheckbox(tagName: string) {
+    return screen.getByRole("checkbox", { name: new RegExp(tagName) });
   }
 
   getClearAllButton() {
@@ -116,8 +121,8 @@ class FilterPanelTestHelper {
   }
 
   async selectTag(tagName: string) {
-    const label = this.getTagLabel(tagName);
-    await this.user.click(label);
+    const checkbox = this.getTagCheckbox(tagName);
+    await this.user.click(checkbox);
   }
 
   async clickClearAll() {
@@ -158,9 +163,10 @@ describe("FilterPanel", () => {
   let helper: FilterPanelTestHelper;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     helper = new FilterPanelTestHelper();
-    // Set default mock return value
+    // Explicit default for "no active filters" unless a test overrides it
+    mockHasActiveFilters.mockReturnValue(false);
     mockUseCardExplorerStore.mockReturnValue(createMockStoreData());
   });
 
@@ -355,18 +361,32 @@ describe("FilterPanel", () => {
         // First, switch to "after" and input a valid date
         await helper.changeDateType("after");
         await helper.typeDateInput("2024-01-01");
-
-        // Wait a moment for the input to be processed
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Wait for the input to be processed and updateFilters to be called for 'after'
+        await waitFor(() => {
+          helper.expectUpdateFiltersCalledWith({
+            dateRange: {
+              type: "after",
+              value: expect.any(Date),
+            },
+          });
+        });
 
         // Clear the mock calls to focus on the next change
         mockUpdateFilters.mockClear();
 
         // Now change the type back to "within" - this should trigger handleDateTypeChange
         await helper.changeDateType("within");
+        await helper.typeDateInput("3");
 
-        // Wait for the handleDateTypeChange effect
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Wait for the handleDateTypeChange effect to trigger updateFilters for 'within'
+        await waitFor(() => {
+          helper.expectUpdateFiltersCalledWith({
+            dateRange: {
+              type: "within",
+              value: expect.any(Date),
+            },
+          });
+        });
 
         // Expect an update triggered by handleDateTypeChange using existing input
         helper.expectUpdateFiltersCalledWith({
@@ -386,9 +406,16 @@ describe("FilterPanel", () => {
 
         // Switch to 'within' (will trigger handleDateTypeChange once)
         await helper.changeDateType("within");
-
-        // Wait a moment for processing
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await helper.typeDateInput("10");
+        // Wait for the 'within' update to be applied
+        await waitFor(() => {
+          helper.expectUpdateFiltersCalledWith({
+            dateRange: {
+              type: "within",
+              value: expect.any(Date),
+            },
+          });
+        });
 
         // Clear mock calls to focus on the next change
         mockUpdateFilters.mockClear();
@@ -396,8 +423,15 @@ describe("FilterPanel", () => {
         // Switch back to 'after' with existing dateInput still present
         await helper.changeDateType("after");
 
-        // Wait for the handleDateTypeChange effect
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Wait for the handleDateTypeChange effect to trigger update for 'after'
+        await waitFor(() => {
+          helper.expectUpdateFiltersCalledWith({
+            dateRange: {
+              type: "after",
+              value: expect.any(Date),
+            },
+          });
+        });
 
         // Expect an update triggered by handleDateTypeChange using existing date string
         helper.expectUpdateFiltersCalledWith({

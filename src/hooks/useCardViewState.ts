@@ -1,3 +1,4 @@
+import { useShallow } from "zustand/react/shallow";
 import { useCardExplorerStore } from "../store/cardExplorerStore";
 
 /**
@@ -9,12 +10,14 @@ import { useCardExplorerStore } from "../store/cardExplorerStore";
  * @returns Object containing boolean flags for different display states
  */
 export const useCardViewState = () => {
-  const { error, isLoading, notes } = useCardExplorerStore();
-
+  const { error, isLoading, notes } = useCardExplorerStore(
+    useShallow((s) => ({ error: s.error, isLoading: s.isLoading, notes: s.notes }))
+  );
   // Determine which UI state should be displayed
   const shouldShowError = !!error && !isLoading;
-  const shouldShowFullPageLoading = isLoading && notes.length === 0;
-  const shouldShowLoadingOverlay = isLoading && notes.length > 0;
+  const noteCount = notes?.length ?? 0;
+  const shouldShowFullPageLoading = isLoading && noteCount === 0;
+  const shouldShowLoadingOverlay = isLoading && noteCount > 0;
   const canShowMainContent = !shouldShowError && !shouldShowFullPageLoading;
 
   return {

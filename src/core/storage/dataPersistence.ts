@@ -16,8 +16,7 @@ import { validatePluginData, validatePluginSettings } from "./validation";
  *
  * @template T - The type of data being stored (may include null for initial state)
  */
-interface DataStorage<T = unknown> {
-  loadData(): Promise<T>;
+interface DataStorage<T = unknown> extends ReadOnlyStorage<T> {
   saveData(data: T): Promise<void>;
 }
 
@@ -68,7 +67,9 @@ export async function savePluginData(
  * @returns Promise resolving to valid PluginSettings (never null due to defaults)
  * @throws Never throws - all errors are handled internally with fallback to defaults
  */
-export async function loadPluginSettings(plugin: ReadOnlyStorage<any>): Promise<PluginSettings> {
+export async function loadPluginSettings(
+  plugin: ReadOnlyStorage<PluginData | null>
+): Promise<PluginSettings> {
   return safeLoadData(
     plugin,
     validatePluginSettings,

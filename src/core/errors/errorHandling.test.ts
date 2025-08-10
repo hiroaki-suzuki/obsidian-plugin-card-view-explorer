@@ -277,12 +277,14 @@ describe("errorHandling", () => {
         .mockRejectedValueOnce(new Error("Temp error"))
         .mockRejectedValueOnce(new Error("Temp error"))
         .mockResolvedValue("success");
-      const startTime = Date.now();
-      const result = await withRetry(operation, TEST_CONSTANTS.EXPONENTIAL_BACKOFF_CONFIG);
-      const duration = Date.now() - startTime;
+      vi.useFakeTimers();
+      const resultPromise = withRetry(operation, TEST_CONSTANTS.EXPONENTIAL_BACKOFF_CONFIG);
+      // For baseDelay=100 and exponential backoff, expect 100 + 200 = 300ms total delay before success.
+      await vi.advanceTimersByTimeAsync(300);
+      const result = await resultPromise;
       expect(result).toBe("success");
-      expect(duration).toBeGreaterThan(100); // At least one delay
       expect(operation).toHaveBeenCalledTimes(3);
+      vi.useRealTimers();
     });
   });
 
@@ -307,12 +309,9 @@ describe("errorHandling", () => {
         throw new Error("Test error");
       };
       safeSync(operation, "fallback", ErrorCategory.DATA);
-      expect(console.error).toHaveBeenCalledWith(
-        "Card View Explorer Error:",
-        expect.objectContaining({
-          category: ErrorCategory.DATA,
-        })
-      );
+      const firstCall = vi.mocked(console.error).mock.calls[0];
+      expect(firstCall?.[0]).toBe("Card View Explorer Error:");
+      expect(firstCall?.[1]).toEqual(expect.objectContaining({ category: ErrorCategory.DATA }));
     });
 
     it("should include context in error handling", () => {
@@ -321,12 +320,9 @@ describe("errorHandling", () => {
       };
       const context = { operation: "test" };
       safeSync(operation, "fallback", ErrorCategory.API, context);
-      expect(console.error).toHaveBeenCalledWith(
-        "Card View Explorer Error:",
-        expect.objectContaining({
-          context,
-        })
-      );
+      const firstCall = vi.mocked(console.error).mock.calls[0];
+      expect(firstCall?.[0]).toBe("Card View Explorer Error:");
+      expect(firstCall?.[1]).toEqual(expect.objectContaining({ context }));
     });
   });
 });

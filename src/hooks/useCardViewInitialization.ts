@@ -12,7 +12,8 @@ import { useCardExplorerStore } from "../store/cardExplorerStore";
  * @param plugin - The CardExplorer plugin instance
  */
 export const useCardViewInitialization = (plugin: CardExplorerPlugin) => {
-  const { initializeFromPluginData, refreshNotes } = useCardExplorerStore();
+  const initializeFromPluginData = useCardExplorerStore((s) => s.initializeFromPluginData);
+  const refreshNotes = useCardExplorerStore((s) => s.refreshNotes);
 
   // Initialize store from plugin data and settings
   useEffect(() => {

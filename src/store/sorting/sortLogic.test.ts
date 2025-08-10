@@ -47,7 +47,8 @@ class MockNoteBuilder {
       title: this.note.title || "",
       path: this.note.path || "",
       preview: this.note.preview || "",
-      lastModified: this.note.lastModified || new Date(),
+      // Use a fixed timestamp to avoid time-based flakiness
+      lastModified: this.note.lastModified || new Date("2000-01-01T00:00:00.000Z"),
       frontmatter: this.note.frontmatter || null,
       tags: this.note.tags || [],
       folder: this.note.folder || "",

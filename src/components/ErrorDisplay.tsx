@@ -64,7 +64,7 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
       <div className="card-view-error">
         <div className="error-content">
           {/* Error icon using the shared ObsidianIcon component */}
-          <div className="error-icon">
+          <div className="error-icon" aria-hidden="true">
             <ObsidianIcon iconName="alert-triangle" />
           </div>
           {/* Error title */}

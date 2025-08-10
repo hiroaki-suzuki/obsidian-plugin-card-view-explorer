@@ -1,23 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useCardViewInitialization } from "../hooks/useCardViewInitialization";
-import { useCardViewState } from "../hooks/useCardViewState";
 import type CardExplorerPlugin from "../main";
-import { useCardExplorerStore } from "../store/cardExplorerStore";
 import type { NoteData } from "../types";
 import { CardView } from "./CardView";
-import { CardViewHeader } from "./CardViewHeader";
-import { ErrorDisplay } from "./ErrorDisplay";
-import { FilterPanel } from "./FilterPanel";
-import { LoadingSpinner } from "./LoadingSpinner";
-import { VirtualList } from "./virtualList";
 
-// Mock Obsidian's setIcon function
 vi.mock("obsidian", () => ({
   setIcon: vi.fn(),
 }));
 
-// Mock the hooks
 vi.mock("../hooks/useCardViewInitialization", () => ({
   useCardViewInitialization: vi.fn(),
 }));
@@ -26,12 +16,25 @@ vi.mock("../hooks/useCardViewState", () => ({
   useCardViewState: vi.fn(),
 }));
 
-// Mock the store
-vi.mock("../store/cardExplorerStore", () => ({
-  useCardExplorerStore: vi.fn(),
-}));
+// Hoisted store mock to support selector pattern and per-test overrides
+const h = vi.hoisted(() => {
+  const store = {
+    filteredNotes: [] as any[],
+    availableTags: [] as string[],
+    availableFolders: [] as string[],
+    refreshNotes: vi.fn(),
+    setError: vi.fn(),
+  };
+  return { store };
+});
 
-// Mock child components
+vi.mock("../store/cardExplorerStore", () => {
+  const useCardExplorerStore = vi.fn((selector?: (s: typeof h.store) => unknown) =>
+    typeof selector === "function" ? selector(h.store) : h.store
+  );
+  return { useCardExplorerStore };
+});
+
 vi.mock("./CardViewErrorBoundary", () => ({
   CardViewErrorBoundary: vi.fn(({ children }: any) => {
     return children;
@@ -65,11 +68,20 @@ vi.mock("./LoadingSpinner", () => ({
   }),
 }));
 
-vi.mock("./VirtualList", () => ({
+vi.mock("./virtualList", () => ({
   VirtualList: vi.fn((_props) => {
     return <div data-testid="virtual-list" />;
   }),
 }));
+
+import { useCardViewInitialization } from "../hooks/useCardViewInitialization";
+import { useCardViewState } from "../hooks/useCardViewState";
+import { useCardExplorerStore } from "../store/cardExplorerStore";
+import { CardViewHeader } from "./CardViewHeader";
+import { ErrorDisplay } from "./ErrorDisplay";
+import { FilterPanel } from "./FilterPanel";
+import { LoadingSpinner } from "./LoadingSpinner";
+import { VirtualList } from "./virtualList";
 
 // Test Data Factories and Builders
 const createMockPlugin = (): CardExplorerPlugin =>
@@ -128,7 +140,7 @@ const mockHooks = {
     vi.mocked(useCardViewState).mockReturnValue(createCardViewState(state));
   },
   setupStoreState: (state = {}) => {
-    vi.mocked(useCardExplorerStore).mockReturnValue(createStoreState(state));
+    Object.assign(h.store, createStoreState(state));
   },
 };
 

@@ -48,12 +48,24 @@ const makePlugin = (openFile: (...args: any[]) => any = vi.fn()): CardExplorerPl
     },
   }) as unknown as CardExplorerPlugin;
 
-const mockStore = (overrides?: Partial<ReturnType<typeof Store.useCardExplorerStore>>) => {
-  return vi.spyOn(Store, "useCardExplorerStore").mockReturnValue({
+// Support components that use subscribeWithSelector-style selectors
+const mockStore = (overrides?: {
+  pinnedNotes?: Set<string>;
+  togglePin?: (...args: any[]) => any;
+}) => {
+  const baseState = {
     pinnedNotes: new Set<string>(),
-    togglePin: vi.fn(),
-    ...(overrides as any),
-  } as any);
+    togglePin: mockTogglePin,
+  };
+  const state = { ...baseState, ...(overrides ?? {}) } as const;
+
+  return vi.spyOn(Store, "useCardExplorerStore").mockImplementation(((selector?: any) => {
+    if (typeof selector === "function") {
+      return selector(state);
+    }
+    // Fallback for usages that read the whole store
+    return state;
+  }) as any);
 };
 
 const setupNoteCard = (note: NoteData, plugin: CardExplorerPlugin) => {
@@ -133,7 +145,7 @@ describe("NoteCard", () => {
         trigger: async ({ user, getOpenButton }: any) => {
           const btn = getOpenButton();
           btn.focus();
-          await user.keyboard("[Space]");
+          await user.keyboard("{Space}");
         },
       },
     ])("opens file via %s", async ({ trigger }) => {
@@ -173,6 +185,43 @@ describe("NoteCard", () => {
       await user.click(getPinButton());
 
       expect(mockTogglePin).toHaveBeenCalledWith(note.path);
+      expect(openFile).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { name: "Enter", seq: "{Enter}" },
+      { name: "Space", seq: "[Space]" },
+    ])("toggles pin via keyboard %s without opening note", async ({ seq }) => {
+      const note = makeNote();
+      const openFile = vi.fn();
+      const plugin = makePlugin(openFile);
+      mockStore({ togglePin: mockTogglePin } as any);
+
+      render(<NoteCard note={note} plugin={plugin} />);
+      const pinButton = screen.getByRole("button", { name: /Pin note|Unpin note/ });
+
+      pinButton.focus();
+      const user = userEvent.setup();
+      await user.keyboard(seq);
+
+      expect(mockTogglePin).toHaveBeenCalledWith(note.path);
+      expect(openFile).not.toHaveBeenCalled();
+    });
+
+    it("ignores other keys on pin button", async () => {
+      const note = makeNote();
+      const openFile = vi.fn();
+      const plugin = makePlugin(openFile);
+      mockStore({ togglePin: mockTogglePin } as any);
+
+      render(<NoteCard note={note} plugin={plugin} />);
+      const pinButton = screen.getByRole("button", { name: /Pin note|Unpin note/ });
+
+      pinButton.focus();
+      const user = userEvent.setup();
+      await user.keyboard("a{Tab}{Escape}");
+
+      expect(mockTogglePin).not.toHaveBeenCalled();
       expect(openFile).not.toHaveBeenCalled();
     });
   });
@@ -249,7 +298,7 @@ describe("NoteCard", () => {
       render(<NoteCard note={baseNote} plugin={makePlugin()} />);
 
       const card = screen.getByRole("button", { name: /Open note/ });
-      expect(card).toHaveAttribute("tabIndex", "0");
+      expect(card).toHaveAttribute("tabindex", "0");
       expect(card).toHaveAttribute("aria-label", "Open note: Test Note");
       expect(screen.getByRole("button", { name: "Pin note" })).toHaveAttribute(
         "aria-label",
