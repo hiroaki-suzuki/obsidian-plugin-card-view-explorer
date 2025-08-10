@@ -2,93 +2,75 @@
 inclusion: always
 ---
 
-# Development Principles
+# Architectural Principles & Design Philosophy
 
-## Non-Negotiable Rules
+## Core Design Principles
 
-### Type Safety
-- NO `any` types - use interfaces or `unknown`
-- Create type guards for Obsidian APIs: `isMarkdownFile(file)`
-- Runtime validation: `validatePluginData()` before saves
-- All data structures must have TypeScript interfaces
+### Reliability First
+- **Fail Gracefully**: Every operation must have fallback behavior
+- **Data Integrity**: Validate all data before persistence, use defaults on failure
+- **Error Recovery**: Provide retry mechanisms for all user-facing errors
+- **Defensive Programming**: Assume external data is invalid until proven otherwise
 
-### Immutable State
-```typescript
-// ✅ CORRECT - Always create new objects
-set({ filters: { ...state.filters, ...newFilters } });
-// ❌ FORBIDDEN - Never mutate directly
-state.filters.tags.push(newTag);
+### Performance by Design
+- **Virtual Scrolling**: MANDATORY for any list >100 items
+- **Lazy Loading**: Only process data when needed
+- **Debounced Events**: Minimum 300ms debounce for file system events
+- **Memory Management**: Implement cleanup for cached data
+
+### Predictable State Management
+- **Immutable Updates**: Never mutate state directly, always create new objects
+- **Single Source of Truth**: All state flows through Zustand store
+- **Automatic Recomputation**: Derived state updates automatically
+- **Action-Based Changes**: All state modifications through store actions
+
+### Type-Safe Development
+- **No Any Types**: Use interfaces or `unknown` for all data
+- **Runtime Validation**: Validate external data with type guards
+- **Comprehensive Interfaces**: Define types for all data structures
+- **API Safety**: Wrap all Obsidian APIs with type-safe store methods
+
+## Architectural Patterns
+
+### Data Flow Architecture
 ```
-- All state changes through store actions only
-- Derived state recomputes automatically
-
-### Error Handling
-- Wrap components with `CardViewErrorBoundary`
-- Use `handleError(error, category)` with categories: API, DATA, UI, GENERAL
-- Always: `validatePluginData()` → save with fallback to defaults
-- Provide fallbacks and retry mechanisms
-
-### Performance
-- `react-virtuoso` for lists >100 items
-- `useMemo`/`useCallback` for expensive operations
-- Debounce file system events with `es-toolkit`
-
-## Required Patterns
-
-### Store Module Structure
-```typescript
-// Order: Types → Defaults → Logic → Store
-interface ModuleState { ... }
-const createDefaultState = () => ({ ... });
-const processData = (data, config) => { ... };
-export const useModuleStore = create<ModuleState & ModuleActions>()(...);
+Obsidian APIs → Store Actions → Validated Data → Normalized State → UI Updates
 ```
 
-### Component Structure
-```typescript
-export const Component: React.FC<Props> = ({ prop1, prop2 }) => {
-  const storeData = useStore();
-  const memoized = useMemo(() => computation, [deps]);
-  const handler = useCallback(() => action, [deps]);
+### Error Handling Strategy
+- **Categorized Errors**: API, DATA, UI, GENERAL categories
+- **Component Boundaries**: Wrap all components with error boundaries
+- **User-Friendly Messages**: No technical details in UI
+- **Graceful Degradation**: Show partial results when possible
 
-  if (error && !isLoading) return <ErrorDisplay error={error} onRetry={...} />;
-  if (isLoading && !data.length) return <LoadingSpinner />;
-  return <div>{isLoading && <LoadingOverlay />}<MainContent /></div>;
-};
-```
+### Component Architecture
+- **Container/Presenter Pattern**: Separate data logic from presentation
+- **Error Boundaries**: Isolate component failures
+- **Loading States**: Progressive loading with skeleton UI
+- **Memoization**: Optimize expensive computations
 
-### Obsidian Integration
-- Wrap ALL Obsidian APIs in store methods with error handling
-- NO direct API usage outside store
-- Handle failures gracefully
+### Store Organization
+- **Domain-Based Modules**: Organize by business domain (filters, sorting, etc.)
+- **Centralized Logic**: All business logic in store modules
+- **No Direct API Calls**: Obsidian APIs only accessed through store
+- **Automatic Recomputation**: State changes trigger UI updates
 
-## Code Organization
+## Development Philosophy
 
-### File Structure
-- `src/store/` - Zustand modules (filters/, noteProcessing/, selectors/, sorting/)
-- `src/components/` - React components with co-located .test.tsx
-- `src/types/` - TypeScript definitions
-- `src/utils/` - errorHandling, dataPersistence, validation
+### Maintainability
+- **Single Responsibility**: Each module handles one concern
+- **Co-located Tests**: Tests alongside source files
+- **Clear Interfaces**: Well-defined boundaries between modules
+- **Documentation**: Code should be self-documenting
 
-### Module Rules
-- Single responsibility per module
-- Named exports preferred over default
-- Barrel exports via index.ts files
-- Avoid circular dependencies
+### Extensibility
+- **Plugin Architecture**: Easy to add new filters, sorts, and features
+- **Consistent Patterns**: Follow established patterns for new code
+- **Backward Compatibility**: Changes should not break existing functionality
+- **Configuration**: Make behavior configurable where appropriate
 
-## Testing Requirements
-- Co-locate tests: `Component.test.tsx` alongside `Component.tsx`
-- Use `src/test/obsidian-mock.ts` for Obsidian APIs
-- Clear mocks: `beforeEach(() => vi.clearAllMocks())`
-- Test error conditions and recovery
-
-## Data Operations Checklist
-1. Validate: `validatePluginData(data)`
-2. Load: `loadPluginData(rawData)` with defaults
-3. Fallback to defaults on validation failure
-
-## React Standards
-- Functional components with hooks only
-- TypeScript interfaces for all props
-- Explicit dependency arrays in hooks
-- Extract reusable logic into custom hooks
+### User Experience
+- **Responsive UI**: Immediate feedback for all user actions
+- **Progressive Enhancement**: Core functionality works, enhancements improve experience
+- **Accessibility**: Follow web accessibility standards
+- **Performance**: Sub-second response times for all interactions

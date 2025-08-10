@@ -2,11 +2,50 @@
 inclusion: always
 ---
 
-# Project Structure & Organization
+# Obsidian Card View Explorer - Development Guide
 
-## File Organization Rules
+**Plugin Identity**: Visual note browser with advanced filtering for recently edited notes.
 
-### Core Structure
+## Technology Stack
+
+- **Platform**: Obsidian Plugin (TypeScript ≥0.15.0)
+- **UI**: React 19.1.1 (functional components + hooks only)
+- **State**: Zustand 5.0.7 with immutable updates
+- **Build**: Bun + ESBuild → `main.js`
+- **Testing**: Vitest + @testing-library/react + jsdom
+
+## Critical Rules (Non-Negotiable)
+
+### State Management - IMMUTABLE ONLY
+```typescript
+// ✅ CORRECT - Always create new objects
+set({ filters: { ...state.filters, ...newFilters } });
+// ❌ FORBIDDEN - Never mutate directly
+state.filters.tags.push(newTag);
+```
+- Use `useCardExplorerStore` for ALL state access
+- All state changes through store actions only
+- Derived state recomputes automatically
+
+### Error Handling - MANDATORY
+- Wrap ALL components with `CardViewErrorBoundary`
+- Use `handleError(error, category)` with categories: API, DATA, UI, GENERAL
+- Always: `validatePluginData()` → save with fallback to defaults
+- Provide fallbacks and retry mechanisms for all operations
+
+### Type Safety - NO EXCEPTIONS
+- NO `any` types - use interfaces or `unknown`
+- Create type guards for Obsidian APIs: `isMarkdownFile(file)`
+- Runtime validation for all plugin data
+- Comprehensive TypeScript interfaces for all data structures
+
+### Performance - REQUIRED
+- `react-virtuoso` for lists >100 items (MANDATORY)
+- `useMemo`/`useCallback` for expensive operations
+- Debounce file system events with `es-toolkit` (minimum 300ms)
+
+## File Structure & Organization
+
 ```
 src/
 ├── main.ts                    # Plugin entry point (extends Obsidian Plugin)
@@ -19,80 +58,83 @@ src/
 │   ├── noteProcessing/        # Note loading & metadata extraction
 │   ├── selectors/             # Computed state selectors
 │   ├── sorting/               # Sort logic with pin management
-│   └── utils/                 # Store constants and utilities
+│   └── constants.ts           # Store constants
 ├── types/                     # TypeScript definitions by domain
-├── utils/                     # Cross-cutting utilities
+├── core/                      # Cross-cutting utilities
+│   ├── errors/                # Error handling system
+│   └── storage/               # Data persistence & validation
+├── hooks/                     # Custom React hooks
 └── test/                      # Test utilities (obsidian-mock.ts, setup.ts)
 ```
 
-### File Naming Conventions
+### Naming Conventions
 - Components: `ComponentName.tsx` + `ComponentName.test.tsx`
 - Store modules: `moduleName.ts` + `moduleName.test.ts`
 - Types: Domain-based files (`note.ts`, `filter.ts`, `sort.ts`)
-- Utils: Function-based names (`errorHandling.ts`, `dataPersistence.ts`)
+- Utilities: Function-based names (`errorHandling.ts`, `dataPersistence.ts`)
 
-### Module Organization
-- **Single Responsibility**: Each file handles one specific concern
-- **Co-located Tests**: Place `.test.ts` files alongside source files
-- **Barrel Exports**: Use `index.ts` files for clean imports
-- **Domain Grouping**: Group related functionality in folders
-
-## Architecture Patterns
+## Required Code Patterns
 
 ### Store Module Pattern
 ```typescript
-// Required order: Types → Defaults → Logic → Store
+// Order: Types → Defaults → Logic → Store
 interface ModuleState { ... }
 const createDefaultState = () => ({ ... });
-const processLogic = (data, config) => { ... };
-export const useModuleStore = create<State & Actions>()(...);
+const processData = (data, config) => { ... };
+export const useModuleStore = create<ModuleState & ModuleActions>()(...);
 ```
 
 ### Component Structure
-- **Container Pattern**: `CardView` orchestrates child components
-- **Error Boundaries**: Wrap components with `CardViewErrorBoundary`
-- **Co-location**: Keep component and test files together
-- **Memoization**: Use `useMemo`/`useCallback` for performance
+```typescript
+interface ComponentProps { ... }
+export const Component: React.FC<ComponentProps> = ({ prop1, prop2 }) => {
+  const storeData = useStore();
+  const memoized = useMemo(() => computation, [deps]);
+  const handler = useCallback(() => action, [deps]);
 
-### Data Flow Architecture
+  if (error && !isLoading) return <ErrorDisplay error={error} onRetry={...} />;
+  if (isLoading && !data.length) return <LoadingSpinner />;
+  return <div>{isLoading && <LoadingOverlay />}<MainContent /></div>;
+};
+```
+
+### Obsidian Integration
+- Wrap ALL Obsidian APIs in store methods with error handling
+- NO direct API usage outside store
+- Handle failures gracefully with fallbacks
+
+## Core Features & Implementation
+
+### Card Display System
+- **Structure**: Title + 3-line preview + metadata (tags, folder, modified date)
+- **Pin System**: Pinned notes ALWAYS appear first, persist via `dataPersistence.ts`
+- **Virtual Scrolling**: Use `VirtualizedNoteGrid` with `react-virtuoso`
+- **Real-Time Updates**: Auto-refresh on vault changes (debounced 300ms)
+
+### Filter System
+- **Multi-Criteria**: Tags (include/exclude), folders, filename patterns, date ranges
+- **State Management**: All filters in `FilterState` interface
+- **Validation**: Use `validatePluginData()` for all inputs
+
+### Sort System
+- **Default**: Modified date (most recent first)
+- **Pin Priority**: Pinned notes ALWAYS sort first
+- **Options**: Modified date, frontmatter fields, filename
+
+## Data Flow Architecture
 1. **Obsidian APIs** → Store actions (with error handling)
 2. **Raw data** → Processing modules → Normalized state
 3. **State changes** → Automatic recomputation → UI updates
 4. **User actions** → Store actions → State updates
 
-## Key Structural Rules
-
-### Store Organization
-- Main store in `cardExplorerStore.ts` with automatic recomputation
-- Domain modules in subfolders (`filters/`, `noteProcessing/`, etc.)
-- All business logic contained within store modules
-- No direct Obsidian API calls outside store
-
-### Component Organization
-- `CardView.tsx`: Main container component
-- `CardViewErrorBoundary.tsx`: Error boundary wrapper
-- Presenter components: `FilterPanel`, `VirtualList`, `NoteCard`
-- All components must handle loading and error states
-
-### Type Organization
-- Domain-specific type files (`note.ts`, `filter.ts`, `sort.ts`)
-- Comprehensive interfaces for all data structures
-- Type guards for external data validation
-- Export types through `types/index.ts`
-
-### Utility Organization
-- `errorHandling.ts`: Categorized error handling system
-- `dataPersistence.ts`: Data loading/saving with validation
-- `validation.ts`: Runtime data validation functions
-
-## Testing Structure
-- **Unit Tests**: Co-located with source files
-- **Integration Tests**: `integration.test.ts` for data flow
-- **Mock Setup**: Use `test/obsidian-mock.ts` for Obsidian APIs
-- **Test Config**: Centralized setup in `test/setup.ts`
+## Testing Requirements
+- Co-locate tests: `Component.test.tsx` alongside `Component.tsx`
+- Use `src/test/obsidian-mock.ts` for Obsidian APIs
+- Clear mocks: `beforeEach(() => vi.clearAllMocks())`
+- Test error conditions and recovery paths
 
 ## Extension Guidelines
 - **New Components**: Add to `components/` with co-located test
 - **New Store Logic**: Create module in appropriate `store/` subfolder
 - **New Types**: Add to domain-specific file in `types/`
-- **New Utils**: Add to `utils/` with descriptive filename
+- **New Utilities**: Add to `core/` with descriptive filename
