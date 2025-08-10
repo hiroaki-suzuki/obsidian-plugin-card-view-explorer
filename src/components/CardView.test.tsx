@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type CardExplorerPlugin from "../main";
 import type { NoteData } from "../types";
@@ -99,7 +99,7 @@ const createMockNote = (id: number, overrides: Partial<NoteData> = {}): NoteData
   title: `Note ${id}`,
   path: `note${id}.md`,
   preview: `Preview ${id}`,
-  lastModified: new Date(`2024-01-0${id}`),
+  lastModified: new Date(`2024-01-${String(id).padStart(2, "0")}`),
   frontmatter: null,
   tags: [`tag${id}`, `tag${id + 1}`],
   folder: `Folder${id}`,
@@ -336,7 +336,7 @@ describe("CardView", () => {
 
   describe("FilterPanel", () => {
     it("should toggle filter panel visibility", () => {
-      render(<CardView plugin={mockPlugin} />);
+      const { rerender } = render(<CardView plugin={mockPlugin} />);
 
       // Initially closed
       expect(screen.queryByTestId("filter-panel")).not.toBeInTheDocument();
@@ -348,8 +348,10 @@ describe("CardView", () => {
       });
 
       // Toggle to open
-      toggleFilterPanel();
-      render(<CardView plugin={mockPlugin} />);
+      act(() => {
+        toggleFilterPanel();
+      });
+      rerender(<CardView plugin={mockPlugin} />);
       expect(screen.getByTestId("filter-panel")).toBeInTheDocument();
     });
 
@@ -358,11 +360,13 @@ describe("CardView", () => {
       const availableFolders = ["Folder1"];
 
       mockHooks.setupStoreState({ availableTags, availableFolders });
-      render(<CardView plugin={mockPlugin} />);
+      mockHooks.setupStoreState({ availableTags, availableFolders });
+      const { rerender } = render(<CardView plugin={mockPlugin} />);
 
-      toggleFilterPanel();
-      render(<CardView plugin={mockPlugin} />);
-
+      act(() => {
+        toggleFilterPanel();
+      });
+      rerender(<CardView plugin={mockPlugin} />);
       const filterProps = getLastComponentCall(FilterPanel);
       expect(filterProps).toEqual({
         availableTags,
@@ -371,10 +375,12 @@ describe("CardView", () => {
     });
 
     it("should maintain filter panel state across re-renders", () => {
-      render(<CardView plugin={mockPlugin} />);
+      const { rerender } = render(<CardView plugin={mockPlugin} />);
 
       // Toggle to open
-      toggleFilterPanel();
+      act(() => {
+        toggleFilterPanel();
+      });
 
       // Re-render with different data
       mockHooks.setupStoreState({
@@ -382,7 +388,7 @@ describe("CardView", () => {
         availableTags: ["tag1"],
         availableFolders: ["Folder1"],
       });
-      render(<CardView plugin={mockPlugin} />);
+      rerender(<CardView plugin={mockPlugin} />);
 
       // Filter panel should still be open
       expect(screen.getByTestId("filter-panel")).toBeInTheDocument();
