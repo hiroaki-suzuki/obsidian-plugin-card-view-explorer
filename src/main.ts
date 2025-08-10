@@ -160,8 +160,10 @@ export default class CardExplorerPlugin extends Plugin {
     // Register settings tab
     this.addSettingTab(new CardExplorerSettingTab(this.app, this));
 
-    // Set up real-time event processing
-    this.setupEventHandlers();
+    // Set up real-time event processing after workspace is ready
+    this.app.workspace.onLayoutReady(() => {
+      this.setupEventHandlers();
+    });
 
     // Set up automatic save for pinned notes changes
     await this.setupPinnedNotesAutoSave();
