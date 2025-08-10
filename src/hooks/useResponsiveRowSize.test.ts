@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useResponsiveRowSize } from "./useResponsiveRowSize";
 
 describe("useResponsiveRowSize", () => {
-  const originalResizeObserver = globalThis.ResizeObserver;
+  // Typed handle to access/override ResizeObserver safely in tests
+  type GlobalWithResizeObserver = typeof globalThis & {
+    ResizeObserver?: typeof ResizeObserver;
+  };
+  const g = globalThis as GlobalWithResizeObserver;
+  let originalResizeObserver: typeof ResizeObserver | undefined;
 
   // Domain constants mirrored from implementation for clarity of expectations
   const CARD_MIN_WIDTH = 292;
@@ -11,11 +16,17 @@ describe("useResponsiveRowSize", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    // Snapshot the current ResizeObserver before each test
+    originalResizeObserver = g.ResizeObserver;
   });
 
   afterEach(() => {
-    // Restore any mocked ResizeObserver after each test
-    globalThis.ResizeObserver = originalResizeObserver as any;
+    // Restore the original ResizeObserver (or remove if originally undefined)
+    if (originalResizeObserver) {
+      g.ResizeObserver = originalResizeObserver;
+    } else {
+      Reflect.deleteProperty(g, "ResizeObserver");
+    }
   });
 
   const createElWithWidth = (width: number) => {
@@ -59,7 +70,8 @@ describe("useResponsiveRowSize", () => {
         );
       }
     }
-    globalThis.ResizeObserver = MockResizeObserver;
+    // Install mock in a typed-safe manner
+    g.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
     return { instances, MockResizeObserver };
   };
 
@@ -103,8 +115,7 @@ describe("useResponsiveRowSize", () => {
 
   it("computes rowSize from initial element width without ResizeObserver", () => {
     // Simulate environment without ResizeObserver
-    // @ts-expect-error force undefined for this test
-    globalThis.ResizeObserver = undefined;
+    Reflect.deleteProperty(g, "ResizeObserver");
 
     const { result } = renderHook(() => useResponsiveRowSize());
     expect(result.current.rowSize).toBe(1); // default before ref attachment
@@ -204,8 +215,7 @@ describe("useResponsiveRowSize", () => {
       { width: 0, expected: 1, case: "zero width returns 1" },
       { width: -100, expected: 1, case: "negative width returns 1" },
     ])("$case (width=$width)", ({ width, expected }) => {
-      // @ts-expect-error force undefined ResizeObserver
-      globalThis.ResizeObserver = undefined;
+      Reflect.deleteProperty(g, "ResizeObserver");
 
       const { result } = renderHook(() => useResponsiveRowSize());
       const el = createElWithWidth(width as number);

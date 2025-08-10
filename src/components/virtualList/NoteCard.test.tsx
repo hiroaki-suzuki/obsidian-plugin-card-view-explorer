@@ -190,7 +190,7 @@ describe("NoteCard", () => {
 
     it.each([
       { name: "Enter", seq: "{Enter}" },
-      { name: "Space", seq: "[Space]" },
+      { name: "Space", seq: "{Space}" },
     ])("toggles pin via keyboard %s without opening note", async ({ seq }) => {
       const note = makeNote();
       const openFile = vi.fn();

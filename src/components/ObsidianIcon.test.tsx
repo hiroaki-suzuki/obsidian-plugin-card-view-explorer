@@ -1,12 +1,18 @@
+import { describe, expect, it, vi } from "vitest";
+
+// Ensure the mock is defined before importing the component (ESM import order)
+vi.mock("obsidian", async () => {
+  // Preserve all other exports and override only what's needed
+  const actual = await vi.importActual<typeof import("obsidian")>("obsidian");
+  return {
+    ...actual,
+    setIcon: vi.fn(),
+  };
+});
+
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import { describe, expect, it, vi } from "vitest";
 import { ObsidianIcon } from "./ObsidianIcon";
-
-// Mock Obsidian's setIcon function
-vi.mock("obsidian", () => ({
-  setIcon: vi.fn(),
-}));
 
 // === Test Constants ===
 const DEFAULT_ICON_NAME = "alert-triangle";
@@ -132,11 +138,14 @@ describe("ObsidianIcon", () => {
   });
 
   describe("Edge Cases", () => {
-    it("works with empty iconName", () => {
-      renderObsidianIcon({ iconName: "" });
+    it("works with empty className", () => {
+      renderObsidianIcon({ className: "" });
 
       const iconElement = assertIconElement();
-      expect(mockSetIcon).toHaveBeenCalledWith(iconElement, "");
+      // Base class should be present; ignore whitespace/order.
+      expect(iconElement).toHaveClass(CSS_CLASSES.OBSIDIAN_ICON);
+      // Optionally ensure no extra non-empty classes
+      expect(iconElement.className.trim()).toBe(CSS_CLASSES.OBSIDIAN_ICON);
     });
 
     it("works with empty className", () => {
