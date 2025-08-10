@@ -264,12 +264,16 @@ describe("CardExplorerPlugin (unit)", () => {
         );
         expect(registrationMocks.addSettingTab).toHaveBeenCalled();
 
-        // Verify: Event handlers are set up
+        // Verify: onLayoutReady callback is registered for setupEventHandlers
+        expect((app as any).workspace.onLayoutReady).toHaveBeenCalledTimes(1);
+
+        // Execute the layout ready callback to set up event handlers
+        const setupEventHandlersCallback = (app as any).workspace.onLayoutReady.mock.calls[0][0];
+        setupEventHandlersCallback();
+
+        // Verify: Event handlers are set up after layout ready
         expect((app as any).vault.on).toHaveBeenCalledTimes(4); // create, delete, modify, rename
         expect((app as any).metadataCache.on).toHaveBeenCalledTimes(2); // changed, resolved
-
-        // Verify: AutoStart is disabled, so no layout ready callback
-        expect((app as any).workspace.onLayoutReady).not.toHaveBeenCalled();
 
         // Verify: Store auto-save is configured
         expect((plugin as any).setupPinnedNotesAutoSave).toHaveBeenCalled();
@@ -286,12 +290,13 @@ describe("CardExplorerPlugin (unit)", () => {
         // Execute
         await plugin.onload();
 
-        // Verify: Layout ready callback is registered
-        expect((app as any).workspace.onLayoutReady).toHaveBeenCalled();
+        // Verify: Layout ready callback is registered twice (setupEventHandlers + autoStart)
+        expect((app as any).workspace.onLayoutReady).toHaveBeenCalledTimes(2);
 
         // Execute: Simulate layout ready
-        const layoutReadyCallback = (app as any).workspace.onLayoutReady.mock.calls[0][0];
-        layoutReadyCallback();
+        // Note: onLayoutReady is called twice - once for setupEventHandlers and once for autoStart
+        const autoStartCallback = (app as any).workspace.onLayoutReady.mock.calls[1][0];
+        autoStartCallback();
 
         // Verify: View is activated
         expect(mockActivateView).toHaveBeenCalled();

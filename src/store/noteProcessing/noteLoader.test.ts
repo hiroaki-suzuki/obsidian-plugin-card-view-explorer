@@ -525,10 +525,13 @@ describe("noteLoader", () => {
       ];
 
       errorTestCases.forEach(({ name, error }) => {
-        it(`should handle ${name}`, async () => {
-          const mockApp = new MockAppBuilder().withFailingVault(error).build();
-          await expect(loadNotesFromVault(mockApp)).rejects.toThrow();
-        });
+        it(
+          `should handle ${name}`,
+          withSuppressedConsoleErrors(async () => {
+            const mockApp = new MockAppBuilder().withFailingVault(error).build();
+            await expect(loadNotesFromVault(mockApp)).rejects.toThrow();
+          })
+        );
       });
     });
 
