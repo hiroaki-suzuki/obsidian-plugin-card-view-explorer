@@ -37,8 +37,8 @@ const mockHandleError = vi.mocked(handleError);
  * Using fixed timestamps ensures deterministic test behavior.
  */
 const TEST_TIMESTAMPS = {
-  RECENT: Date.now() - 24 * 60 * 60 * 1000, // 1日前
-  OLD: Date.now() - 10 * 24 * 60 * 60 * 1000, // 10日前
+  RECENT: Date.now() - 24 * 60 * 60 * 1000, // 1 day ago
+  OLD: Date.now() - 10 * 24 * 60 * 60 * 1000, // 10 days ago
   BASE_DATE: new Date("2024-01-01").getTime(),
 } as const;
 

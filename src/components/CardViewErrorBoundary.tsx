@@ -136,7 +136,7 @@ export class CardViewErrorBoundary extends React.Component<
                 <button
                   type="button"
                   className="error-reload-button"
-                  onClick={reloadPage} // Force page reload when max retries exceeded
+                  onClick={() => reloadPage(window.location)} // Force page reload when max retries exceeded
                   aria-label="Restart plugin"
                 >
                   Restart Plugin

@@ -329,6 +329,30 @@ describe("FilterPanel", () => {
       });
     });
 
+    it("prefills within-days input from store value (numeric/stringable)", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default, {
+        // value provided as a number via any-cast to exercise String(value ?? "") path
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        filters: { dateRange: { type: "within", value: 7 } as any },
+      });
+
+      const input = helper.getDateInputByType();
+      expect(input.getAttribute("type")).toBe("number");
+      expect(input.value).toBe("7");
+    });
+
+    it("shows empty within-days input when store value is undefined/empty", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default, {
+        // Explicit undefined to validate nullish coalescing to ""
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        filters: { dateRange: { type: "within", value: undefined } as any },
+      });
+
+      const input = helper.getDateInputByType();
+      expect(input.getAttribute("type")).toBe("number");
+      expect(input.value).toBe("");
+    });
+
     it("handles date filter - after date", async () => {
       await helper.renderWithMockStore(TEST_PROPS.default);
 
@@ -455,6 +479,26 @@ describe("FilterPanel", () => {
         // updateFilters should not have been called for type changes without input
         expect(mockUpdateFilters).not.toHaveBeenCalled();
       });
+    });
+
+    it("prefills after-date input from store when value is ISO string", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default, {
+        filters: { dateRange: { type: "after", value: "2024-01-11" } },
+      });
+
+      const input = helper.getDateInputByType();
+      expect(input.getAttribute("type")).toBe("date");
+      expect(input.value).toBe("2024-01-11");
+    });
+
+    it("prefills after-date input from store when value is Date object", async () => {
+      await helper.renderWithMockStore(TEST_PROPS.default, {
+        filters: { dateRange: { type: "after", value: new Date("2024-01-12T00:00:00Z") } },
+      });
+
+      const input = helper.getDateInputByType();
+      expect(input.getAttribute("type")).toBe("date");
+      expect(input.value).toBe("2024-01-12");
     });
 
     it("clears date filter when input is empty", async () => {

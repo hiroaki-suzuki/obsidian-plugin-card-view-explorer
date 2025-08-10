@@ -143,6 +143,32 @@ describe("errorHandling", () => {
       expect(result.category).toBe(ErrorCategory.GENERAL);
     });
 
+    it("should append cause info when Error has cause (TS 4.6+)", () => {
+      const inner = new Error("Inner cause");
+      const outer: any = new Error("Outer error");
+      outer.stack =
+        "Error: Outer error\n    at outerFn (file.js:1:1)\n    at Object.<anonymous> (file.js:2:2)";
+      outer.cause = inner;
+
+      const result = handleError(outer, ErrorCategory.GENERAL);
+
+      expect(result.message).toBe("Outer error");
+      expect(result.details).toBe(`${outer.stack}\nCaused by: ${String(inner)}`);
+      expect(result.category).toBe(ErrorCategory.GENERAL);
+    });
+
+    it("should include cause even when stack is missing", () => {
+      const outer: any = new Error("No stack error");
+      delete outer.stack; // simulate runtime without stack
+      outer.cause = "string cause";
+
+      const result = handleError(outer, ErrorCategory.GENERAL);
+
+      expect(result.message).toBe("No stack error");
+      expect(result.details).toBe(`${outer.toString()}\nCaused by: string cause`);
+      expect(result.category).toBe(ErrorCategory.GENERAL);
+    });
+
     describe.each([
       [
         "String error message",

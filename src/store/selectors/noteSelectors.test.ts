@@ -105,6 +105,24 @@ describe("noteSelectors", () => {
           expect(result).toEqual(expected);
         });
       });
+
+      it("should ignore empty folder and not add parents for root-like folders", () => {
+        const notes = [
+          // empty string folder is ignored entirely
+          createNote("Empty Folder", "/empty.md")
+            .inFolder("")
+            .build(),
+          // root-like paths are kept as-is; no parent expansion should occur
+          createNote("Root Slash", "/root-slash.md")
+            .inFolder("/")
+            .build(),
+          createNote("Root Backslash", "/root-backslash.md").inFolder("\\").build(),
+        ];
+
+        const result = cardExplorerSelectors.getAvailableFolders(notes);
+        // Expect only the raw root-like entries, sorted lexicographically
+        expect(result).toEqual(["/", "\\"]);
+      });
     });
 
     describe("getAvailableTags", () => {
@@ -134,6 +152,22 @@ describe("noteSelectors", () => {
           const result = cardExplorerSelectors.getAvailableTags(notes);
           expect(result).toEqual(expected);
         });
+      });
+
+      it("should return empty array when a note has undefined/null tags (defensive guard)", () => {
+        const base = createNote("No Tags", "/no-tags.md").build();
+        // Simulate unexpected undefined/null tags to exercise `n.tags ?? []` path
+        const noteWithUndefined = {
+          ...base,
+          tags: undefined as unknown as string[],
+        } as unknown as NoteData;
+        const noteWithNull = {
+          ...base,
+          path: "/no-tags-2.md",
+          tags: null as unknown as string[],
+        } as unknown as NoteData;
+        const result = cardExplorerSelectors.getAvailableTags([noteWithUndefined, noteWithNull]);
+        expect(result).toEqual([]);
       });
     });
   });

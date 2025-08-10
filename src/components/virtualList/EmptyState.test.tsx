@@ -18,7 +18,7 @@ describe("EmptyState", () => {
   beforeEach(() => {
     mockClearFilters = vi.fn();
     mockGetState = vi.fn(() => ({ clearFilters: mockClearFilters }));
-    // 型安全なmock: selector有無両方対応
+    // Type-safe mock: supports both with/without selector
     (mockUseCardExplorerStore as any).mockImplementation((selector?: any) => {
       const state = mockGetState();
       return selector ? selector(state) : state;
