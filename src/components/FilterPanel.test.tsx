@@ -353,6 +353,80 @@ describe("FilterPanel", () => {
       expect(input.value).toBe("");
     });
 
+    it("converts Date object back to day count for within-days input", async () => {
+      // Create a Date object representing "3 days ago" from a fixed current time
+      const mockNow = new Date("2024-01-10T12:00:00Z");
+      const threeDaysAgo = new Date("2024-01-07T12:00:00Z");
+
+      // Mock Date constructor more carefully
+      const OriginalDate = global.Date;
+      const mockDateConstructor = vi.fn().mockImplementation((...args: any[]) => {
+        if (args.length === 0) {
+          return mockNow;
+        }
+        return new OriginalDate(...(args as ConstructorParameters<typeof Date>));
+      });
+
+      // Override global Date
+      global.Date = mockDateConstructor as any;
+      // Preserve static methods
+      Object.setPrototypeOf(global.Date, OriginalDate);
+      Object.defineProperty(global.Date, "prototype", { value: OriginalDate.prototype });
+
+      await helper.renderWithMockStore(TEST_PROPS.default, {
+        filters: {
+          dateRange: {
+            type: "within",
+            value: threeDaysAgo, // Date object representing cutoff point
+          },
+        },
+      });
+
+      const input = helper.getDateInputByType();
+      expect(input.getAttribute("type")).toBe("number");
+      expect(input.value).toBe("3"); // Should convert back to day count
+
+      // Restore Date
+      global.Date = OriginalDate;
+    });
+
+    it("handles Date object edge case with zero/negative day difference", async () => {
+      // Create a Date object representing "future date" (should show empty)
+      const mockNow = new Date("2024-01-10T12:00:00Z");
+      const futureDate = new Date("2024-01-12T12:00:00Z"); // 2 days in future
+
+      // Mock Date constructor more carefully
+      const OriginalDate = global.Date;
+      const mockDateConstructor = vi.fn().mockImplementation((...args: any[]) => {
+        if (args.length === 0) {
+          return mockNow;
+        }
+        return new OriginalDate(...(args as ConstructorParameters<typeof Date>));
+      });
+
+      // Override global Date
+      global.Date = mockDateConstructor as any;
+      // Preserve static methods
+      Object.setPrototypeOf(global.Date, OriginalDate);
+      Object.defineProperty(global.Date, "prototype", { value: OriginalDate.prototype });
+
+      await helper.renderWithMockStore(TEST_PROPS.default, {
+        filters: {
+          dateRange: {
+            type: "within",
+            value: futureDate, // Date object in future
+          },
+        },
+      });
+
+      const input = helper.getDateInputByType();
+      expect(input.getAttribute("type")).toBe("number");
+      expect(input.value).toBe(""); // Should be empty for future dates (daysDiff <= 0)
+
+      // Restore Date
+      global.Date = OriginalDate;
+    });
+
     it("handles date filter - after date", async () => {
       await helper.renderWithMockStore(TEST_PROPS.default);
 
