@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type CardExplorerPlugin from "../../main";
 import { useCardExplorerStore } from "../../store/cardExplorerStore";
 import type { NoteData } from "../../types";
+import { ErrorFallback } from "./ErrorFallback";
 import { VirtualList } from "./VirtualList";
 
 // TEST UTILITIES AND FACTORIES
@@ -13,7 +14,7 @@ import { VirtualList } from "./VirtualList";
 interface TestState {
   filteredNotes: NoteData[];
   isLoading: boolean;
-  error: string | null;
+  error: unknown | null;
   filters: {
     tags: string[];
     folders: string[];
@@ -122,23 +123,25 @@ vi.mock("./LoadingState", () => ({
 }));
 
 vi.mock("./ErrorFallback", () => ({
-  ErrorFallback: ({
-    onRetry,
-    retryText,
-    showRetry,
-  }: {
-    onRetry: () => void;
-    retryText: string;
-    showRetry: boolean;
-  }) => (
-    <div data-testid="error-fallback">
-      <div>Error occurred</div>
-      {showRetry && (
-        <button type="button" onClick={onRetry}>
-          {retryText}
-        </button>
-      )}
-    </div>
+  ErrorFallback: vi.fn(
+    ({
+      onRetry,
+      retryText,
+      showRetry,
+    }: {
+      onRetry: () => void;
+      retryText: string;
+      showRetry: boolean;
+    }) => (
+      <div data-testid="error-fallback">
+        <div>Error occurred</div>
+        {showRetry && (
+          <button type="button" onClick={onRetry}>
+            {retryText}
+          </button>
+        )}
+      </div>
+    )
   ),
 }));
 
@@ -294,6 +297,27 @@ describe("VirtualList", () => {
       // Assert
       expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Error instance passthrough", () => {
+    const getLastComponentCall = <T extends (...args: any[]) => any>(component: T) => {
+      const mockCalls = (component as unknown as { mock: { calls: any[][] } }).mock.calls;
+      return mockCalls[mockCalls.length - 1]?.[0];
+    };
+
+    it("passes Error object without wrapping", () => {
+      // Arrange
+      const err = new Error("Boom");
+      mockUseCardExplorerStore.mockReturnValue(createTestState({ error: err, isLoading: false }));
+
+      // Act
+      renderVirtualList();
+
+      // Assert
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
+      const props = getLastComponentCall(ErrorFallback as any);
+      expect(props.error).toBe(err);
     });
   });
 
@@ -466,6 +490,52 @@ describe("VirtualList", () => {
         state.filters,
         false // hasInitiallyRendered should remain false when no notes
       );
+    });
+  });
+
+  describe("Store selector mapping", () => {
+    it("selects filteredNotes, isLoading, error, and filters from state", () => {
+      // Arrange
+      const mockState = createTestState({
+        filteredNotes: createMockNotes(2),
+        isLoading: false,
+        error: "boom",
+        filters: {
+          tags: ["tag1"],
+          folders: ["folder1"],
+          filename: "abc",
+          dateRange: null,
+          excludeTags: [],
+          excludeFolders: [],
+          excludeFilenames: [],
+        },
+      }) as any;
+
+      // Render once to capture how useCardExplorerStore is called
+      renderVirtualList();
+
+      // The component calls useCardExplorerStore with a selector produced by useShallow
+      expect(mockUseCardExplorerStore).toHaveBeenCalled();
+      const [selector] = mockUseCardExplorerStore.mock.calls[0];
+      expect(typeof selector).toBe("function");
+
+      // Act: run the selector against a synthetic state
+      const selected = selector(mockState) as any;
+
+      // Assert: only the mapped fields are present and correctly extracted
+      expect(selected).toEqual({
+        filteredNotes: mockState.filteredNotes,
+        isLoading: mockState.isLoading,
+        error: mockState.error,
+        filters: mockState.filters,
+      });
+      // Ensure no unrelated keys slipped in
+      expect(Object.keys(selected as Record<string, unknown>).sort()).toEqual([
+        "error",
+        "filteredNotes",
+        "filters",
+        "isLoading",
+      ]);
     });
   });
 });

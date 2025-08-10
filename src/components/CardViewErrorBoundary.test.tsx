@@ -156,6 +156,70 @@ describe("CardViewErrorBoundary", () => {
         })
       );
     });
+
+    it("routes thrown onError through handleError in componentDidCatch", () => {
+      const onErrorThatThrows = vi.fn(() => {
+        throw new Error("onError callback failure");
+      });
+
+      renderErrorBoundary(
+        <ThrowError shouldThrow={true} errorMessage="Trigger boundary for onError" />,
+        onErrorThatThrows
+      );
+
+      // First call: original render error
+      expect(handleError).toHaveBeenNthCalledWith(
+        1,
+        expect.any(Error),
+        "ui",
+        expect.objectContaining({
+          errorBoundary: "CardViewErrorBoundary",
+          retryCount: 0,
+        })
+      );
+
+      // Second call: error thrown inside onError callback
+      expect(handleError).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ message: "onError callback failure" }),
+        "ui",
+        expect.objectContaining({
+          context: "Error in CardViewErrorBoundary onError callback",
+          errorBoundary: "CardViewErrorBoundary",
+          retryCount: 0,
+          originalError: expect.any(Error),
+          errorInfo: expect.objectContaining({ componentStack: expect.any(String) }),
+        })
+      );
+    });
+
+    it("wraps non-Error thrown by onError using new Error(String(callbackError))", () => {
+      const thrownValue = "non-error thrown";
+      const onErrorThatThrowsString = vi.fn(() => {
+        // Throw a non-Error value intentionally
+        // eslint-disable-next-line no-throw-literal
+        throw thrownValue;
+      });
+
+      renderErrorBoundary(
+        <ThrowError shouldThrow={true} errorMessage="Trigger non-Error in onError" />,
+        onErrorThatThrowsString
+      );
+
+      // First call for original error, second for onError failure wrapping
+      expect(handleError).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ message: String(thrownValue) }),
+        "ui",
+        expect.objectContaining({
+          context: "Error in CardViewErrorBoundary onError callback",
+          errorBoundary: "CardViewErrorBoundary",
+          retryCount: 0,
+          originalError: expect.any(Error),
+          errorInfo: expect.objectContaining({ componentStack: expect.any(String) }),
+        })
+      );
+    });
   });
 
   describe("Retry functionality", () => {

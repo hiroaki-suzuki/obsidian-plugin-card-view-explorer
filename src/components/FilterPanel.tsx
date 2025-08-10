@@ -28,7 +28,7 @@ interface FilterPanelProps {
  * - Single source of truth: Reads and writes filter state via `useCardExplorerStore` so other
  *   components react to changes consistently.
  * - Input hygiene: Filename updates are debounced to avoid frequent store updates and expensive
- *   downstream recomputations while the user is typing.
+ *   downstream recomputation while the user is typing.
  * - Date validation: Date inputs are parsed through `parseDateFilter` and only committed when valid
  *   to keep the store free from invalid or partial values.
  * - Stable options: Available tags/folders are memoized and sorted to produce predictable rendering

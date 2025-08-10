@@ -231,6 +231,20 @@ describe("filterLogic", () => {
           expectNoteTitles(result, expectedTitles);
         });
       });
+
+      it("should exclude notes with empty or non-array tags when tag filter is active", () => {
+        const noTagsEmpty = createMockNote("NoTagsEmpty", "/no-tags-empty.md", "", []);
+        const noTagsUndefined = {
+          ...createMockNote("NoTagsUndefined", "/no-tags-undefined.md", "", []),
+          // force undefined to hit `!Array.isArray(note.tags)` branch
+          tags: undefined as unknown as string[],
+        } as unknown as NoteData;
+
+        const filters = createFiltersWith({ tags: ["work"] });
+        const result = applyFilters([noTagsEmpty, noTagsUndefined], filters, TEST_DATES.NOW);
+
+        expect(result).toHaveLength(0);
+      });
     });
 
     describe("filename filtering", () => {
@@ -330,6 +344,16 @@ describe("filterLogic", () => {
           shouldNotThrow: true,
         },
         {
+          description: "invalid Date object in 'after'",
+          dateRange: createDateRangeFilter("after", new Date("invalid-date-string")),
+          expectedCount: 2,
+        },
+        {
+          description: "invalid Date object in 'within'",
+          dateRange: createDateRangeFilter("within", new Date("invalid-date-string")),
+          expectedCount: 2,
+        },
+        {
           description: "unknown date range types",
           dateRange: { type: "before" as any, value: new Date("2024-01-07T12:00:00Z") },
           expectedCount: 2,
@@ -357,7 +381,7 @@ describe("filterLogic", () => {
             threw = true;
           }
           expect(threw).toBe(false);
-          // invalid-date-string の場合はフィルタが適用されず全件返る（fallback）ことを期待
+          // For invalid-date-string, expect no filter applied and all notes returned (fallback)
           if (description === "invalid string date values") {
             expectNoteCount(result!, dateTestNotes.length);
           } else if (typeof expectedCount === "number") {

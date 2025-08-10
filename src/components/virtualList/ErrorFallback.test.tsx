@@ -184,4 +184,17 @@ describe("ErrorFallback", () => {
       );
     });
   });
+
+  describe("Fallback behavior", () => {
+    it("falls back to GENERAL config for unknown category values", () => {
+      // Intentionally pass an invalid category to exercise the runtime fallback path
+      renderErrorFallback({ category: "unknown" as unknown as ErrorCategory });
+
+      // Should display GENERAL category messages
+      expect(screen.getByText("An unexpected error occurred.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Try refreshing the view or restart the plugin.")
+      ).toBeInTheDocument();
+    });
+  });
 });

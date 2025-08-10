@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useResponsiveRowSize } from "./useResponsiveRowSize";
 
@@ -163,6 +164,37 @@ describe("useResponsiveRowSize", () => {
       ro.trigger(50);
     });
     expect(result.current.rowSize).toBe(1);
+  });
+
+  it("does not rerender when next rowSize equals previous (returns prev)", () => {
+    const { instances, MockResizeObserver } = withMockResizeObserver();
+
+    // Wrap the hook to track render count
+    const useWithRenderCount = () => {
+      const state = useResponsiveRowSize();
+      const rendersRef = useRef(0);
+      rendersRef.current += 1;
+      return { ...state, renderCount: rendersRef.current } as const;
+    };
+
+    const { result } = renderHook(() => useWithRenderCount());
+    const el = createElWithWidth(900); // -> 3
+
+    act(() => {
+      result.current.ref(el);
+    });
+
+    expect(result.current.rowSize).toBe(3);
+    const ro = instances[0] as InstanceType<typeof MockResizeObserver>;
+    const rendersBefore = result.current.renderCount; // after setting to 3
+
+    // Notify with a width that still maps to 3; should not trigger rerender
+    act(() => {
+      ro.trigger(880); // floor(880/292) = 3
+    });
+
+    expect(result.current.rowSize).toBe(3);
+    expect(result.current.renderCount).toBe(rendersBefore);
   });
 
   it("disconnects previous observer when ref changes", () => {

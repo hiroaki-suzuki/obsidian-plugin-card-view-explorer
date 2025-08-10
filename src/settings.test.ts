@@ -199,5 +199,23 @@ describe("CardExplorerSettingTab", () => {
       expect(mockPlugin.updateSetting).toHaveBeenCalledWith("sortKey", "updated");
       expect(mockPlugin.saveSettings).toHaveBeenCalled();
     });
+
+    it("should call plugin.updateSetting and plugin.saveSettings when sidebar display changes", async () => {
+      // Mock updateSetting method
+      mockPlugin.updateSetting = vi.fn();
+
+      settingTab.display();
+
+      // Find the sidebar display setting (third setting created)
+      const sidebarSetting = mockSettings[2];
+      expect(sidebarSetting).toBeDefined();
+
+      // Simulate user toggling sidebar display on
+      await sidebarSetting.triggerToggleChange(true);
+
+      // Verify that updateSetting and saveSettings were called
+      expect(mockPlugin.updateSetting).toHaveBeenCalledWith("showInSidebar", true);
+      expect(mockPlugin.saveSettings).toHaveBeenCalled();
+    });
   });
 });

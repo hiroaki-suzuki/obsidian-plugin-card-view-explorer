@@ -412,6 +412,81 @@ describe("sortLogic", () => {
           expect(note.lastModified.getTime()).toBe(TEST_DATES.SPECIFIC.getTime());
         });
       });
+
+      it.each([
+        {
+          order: "asc" as const,
+          expected: ["/n1.md", "/n4.md", "/n2.md", "/n3.md"],
+        },
+        {
+          order: "desc" as const,
+          expected: ["/n3.md", "/n2.md", "/n4.md", "/n1.md"],
+        },
+      ])(
+        "should sort deterministically when value types differ ($order)",
+        ({ order, expected }) => {
+          const mixedTypeNotes: NoteData[] = [
+            // number
+            MockNoteBuilder.create("N1", "/n1.md")
+              .withFrontmatter({ mixed: 2 })
+              .build(),
+            // string
+            MockNoteBuilder.create("N2", "/n2.md")
+              .withFrontmatter({ mixed: "alpha" })
+              .build(),
+            // boolean
+            MockNoteBuilder.create("N3", "/n3.md")
+              .withFrontmatter({ mixed: true })
+              .build(),
+            // Date (normalized to number)
+            MockNoteBuilder.create("N4", "/n4.md")
+              .withFrontmatter({ mixed: new Date("2024-01-01T00:00:00Z") })
+              .build(),
+          ];
+
+          const sortConfig: SortConfig = { key: "mixed", order };
+          const result = sortNotes(mixedTypeNotes, sortConfig, new Set());
+          expectPathOrder(result, expected);
+        }
+      );
+
+      it.each([
+        {
+          order: "asc" as const,
+          expected: ["/u2.md", "/u3.md", "/u4.md", "/u5.md", "/u1.md"],
+        },
+        {
+          order: "desc" as const,
+          expected: ["/u1.md", "/u5.md", "/u4.md", "/u3.md", "/u2.md"],
+        },
+      ])("should handle unknown types with 99-rank ordering ($order)", ({ order, expected }) => {
+        const notes: NoteData[] = [
+          // unknown type (object)
+          MockNoteBuilder.create("U1", "/u1.md")
+            .withFrontmatter({ mixed: { a: 1 } })
+            .build(),
+          // number
+          MockNoteBuilder.create("U2", "/u2.md")
+            .withFrontmatter({ mixed: 5 })
+            .build(),
+          // string
+          MockNoteBuilder.create("U3", "/u3.md")
+            .withFrontmatter({ mixed: "abc" })
+            .build(),
+          // boolean
+          MockNoteBuilder.create("U4", "/u4.md")
+            .withFrontmatter({ mixed: false })
+            .build(),
+          // unknown type (array)
+          MockNoteBuilder.create("U5", "/u5.md")
+            .withFrontmatter({ mixed: [1, 2, 3] })
+            .build(),
+        ];
+
+        const sortConfig: SortConfig = { key: "mixed", order };
+        const result = sortNotes(notes, sortConfig, new Set());
+        expectPathOrder(result, expected);
+      });
     });
   });
 });

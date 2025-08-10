@@ -293,4 +293,34 @@ describe("useCardViewState", () => {
       });
     });
   });
+
+  describe("noteCount fallback (.length ?? 0)", () => {
+    it("treats undefined notes as 0 length", () => {
+      mockUseCardExplorerStore.mockReturnValue({
+        error: null,
+        isLoading: true,
+        notes: undefined,
+      });
+
+      const { result } = renderHook(() => useCardViewState());
+
+      expect(result.current.shouldShowFullPageLoading).toBe(true);
+      expect(result.current.shouldShowLoadingOverlay).toBe(false);
+      expect(result.current.canShowMainContent).toBe(false);
+    });
+
+    it("treats null notes as 0 length", () => {
+      mockUseCardExplorerStore.mockReturnValue({
+        error: null,
+        isLoading: true,
+        notes: null,
+      });
+
+      const { result } = renderHook(() => useCardViewState());
+
+      expect(result.current.shouldShowFullPageLoading).toBe(true);
+      expect(result.current.shouldShowLoadingOverlay).toBe(false);
+      expect(result.current.canShowMainContent).toBe(false);
+    });
+  });
 });

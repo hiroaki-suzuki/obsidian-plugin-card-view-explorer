@@ -1,452 +1,799 @@
-import type { App, EventRef, TAbstractFile, TFile } from "obsidian";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { App, WorkspaceLeaf } from "obsidian";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import CardExplorerPlugin from "./main";
-import type { FilterState, PluginData, SortConfig } from "./types";
+import { VIEW_TYPE_CARD_EXPLORER } from "./view";
 
-vi.mock("./view", () => ({
-  CardExplorerView: vi.fn(),
-  VIEW_TYPE_CARD_EXPLORER: "card-view-explorer-view",
-}));
-
-vi.mock("./settings", () => ({
-  CardExplorerSettingTab: vi.fn(),
-  DEFAULT_SETTINGS: { autoStart: false, showInSidebar: false, sortKey: "updated" },
-}));
-
-vi.mock("./types/plugin", () => ({
-  DEFAULT_DATA: { pinnedNotes: [], lastFilters: null, sortConfig: null },
-}));
-
-vi.mock("./core/storage/dataPersistence", () => ({
-  loadPluginData: vi.fn().mockResolvedValue({
+// Test data constants for better maintainability
+const TEST_DATA = {
+  MOCK_SETTINGS: { autoStart: false, showInSidebar: false, sortKey: "updated" },
+  MOCK_SETTINGS_WITH_AUTOSTART: { autoStart: true, showInSidebar: false, sortKey: "updated" },
+  MOCK_PLUGIN_DATA: {
     pinnedNotes: [],
-    lastFilters: null,
-    sortConfig: null,
-  }),
-  loadPluginSettings: vi
-    .fn()
-    .mockResolvedValue({ autoStart: false, showInSidebar: false, sortKey: "updated" }),
-  savePluginData: vi.fn().mockResolvedValue(true),
-  savePluginSettings: vi.fn().mockResolvedValue(true),
-}));
+    lastFilters: { folders: [], tags: [], filename: "", dateRange: null },
+    sortConfig: { key: "updated", order: "desc" },
+    version: 1,
+  },
+  MOCK_STORE_DATA: {
+    pinnedNotes: ["a.md", "b.md"],
+    lastFilters: { folders: [], tags: ["tag"], filename: "", dateRange: null },
+  },
+  MD_FILE: { extension: "md", path: "note.md" },
+  OTHER_FILE: { extension: "txt", path: "note.txt" },
+} as const;
 
-describe("CardExplorerPlugin", () => {
+// Helper function to create mock app with workspace, vault, and metadata cache
+const createMockApp = () => {
+  const mockWorkspace = {
+    getLeavesOfType: vi.fn().mockReturnValue([]),
+    revealLeaf: vi.fn(),
+    getLeaf: vi.fn(),
+    getRightLeaf: vi.fn(),
+    detachLeavesOfType: vi.fn(),
+    onLayoutReady: vi.fn(),
+  };
+  const mockVault = {
+    on: vi.fn(),
+    offref: vi.fn(),
+  };
+  const mockMetadataCache = {
+    on: vi.fn(),
+    offref: vi.fn(),
+  };
+
+  return {
+    workspace: mockWorkspace,
+    vault: mockVault,
+    metadataCache: mockMetadataCache,
+  } as unknown as App;
+};
+
+// Test helper utilities for common patterns
+const TestHelpers = {
+  async withFakeTimers<T>(fn: () => T | Promise<T>): Promise<T> {
+    vi.useFakeTimers();
+    try {
+      const result = fn();
+      if (result instanceof Promise) {
+        return result.finally(() => vi.useRealTimers());
+      }
+      vi.useRealTimers();
+      return Promise.resolve(result);
+    } catch (error) {
+      vi.useRealTimers();
+      throw error;
+    }
+  },
+
+  async mockDataPersistenceModule(
+    settings: any = TEST_DATA.MOCK_SETTINGS,
+    data: any = TEST_DATA.MOCK_PLUGIN_DATA
+  ) {
+    const dp = await import("./core/storage/dataPersistence");
+    vi.spyOn(dp, "loadPluginSettings").mockResolvedValue(settings as any);
+    vi.spyOn(dp, "loadPluginData").mockResolvedValue(data as any);
+    return dp;
+  },
+
+  async mockErrorHandlingModule() {
+    const eh = await import("./core/errors/errorHandling");
+    const errorSpy = vi.spyOn(eh, "handleError").mockImplementation(() => undefined as any);
+    return { module: eh, spy: errorSpy };
+  },
+
+  getEventHandler(calls: Array<[string, (...args: unknown[]) => unknown]>, eventName: string) {
+    const found = calls.find(([evt]: [string, unknown]) => evt === eventName);
+    expect(found, `${eventName} handler not registered`).toBeTruthy();
+    return found![1];
+  },
+
+  createMockLeaf(overrides: Partial<WorkspaceLeaf> = {}) {
+    return {
+      setViewState: vi.fn(),
+      view: {},
+      ...overrides,
+    } as unknown as WorkspaceLeaf;
+  },
+};
+
+describe("CardExplorerPlugin (unit)", () => {
+  let app: App;
   let plugin: CardExplorerPlugin;
-  let mockApp: Partial<App>;
-  let mockVault: any;
-  let mockMetadataCache: any;
-  let mockWorkspace: any;
 
   beforeEach(() => {
-    // Create mock event references
-    const mockEventRef = { id: "mock-event" } as EventRef;
-
-    // Mock vault with event handling
-    mockVault = {
-      on: vi.fn().mockReturnValue(mockEventRef),
-      offref: vi.fn(),
-      getMarkdownFiles: vi.fn().mockReturnValue([]),
-    };
-
-    // Mock metadata cache with event handling
-    mockMetadataCache = {
-      on: vi.fn().mockReturnValue(mockEventRef),
-      offref: vi.fn(),
-    };
-
-    // Mock workspace
-    mockWorkspace = {
-      getLeavesOfType: vi.fn().mockReturnValue([]),
-      detachLeavesOfType: vi.fn(),
-      onLayoutReady: vi.fn(),
-      revealLeaf: vi.fn(),
-      getLeaf: vi.fn(),
-      getRightLeaf: vi.fn(),
-    };
-
-    // Mock app
-    mockApp = {
-      vault: mockVault,
-      metadataCache: mockMetadataCache,
-      workspace: mockWorkspace,
-    };
-
-    // Create plugin instance
-    plugin = new CardExplorerPlugin(mockApp, { id: "test", name: "Test" });
-  });
-
-  afterEach(() => {
     vi.clearAllMocks();
+    app = createMockApp();
+    plugin = new CardExplorerPlugin(app, { id: "card-view-explorer", name: "Card View Explorer" });
   });
 
-  describe("event handling setup", () => {
-    it("should set up event handlers on load", async () => {
-      await plugin.onload();
+  describe("Debounced Functions", () => {
+    describe("debouncedRefreshNotes", () => {
+      it("invokes refreshNotes after debounce delay", async () => {
+        await TestHelpers.withFakeTimers(async () => {
+          const spy = vi.spyOn(plugin, "refreshNotes").mockResolvedValue(undefined);
 
-      // Verify vault event subscriptions
-      expect(mockVault.on).toHaveBeenCalledWith("create", expect.any(Function));
-      expect(mockVault.on).toHaveBeenCalledWith("delete", expect.any(Function));
-      expect(mockVault.on).toHaveBeenCalledWith("modify", expect.any(Function));
-      expect(mockVault.on).toHaveBeenCalledWith("rename", expect.any(Function));
+          // Call the debounced function directly
+          (plugin as any).debouncedRefreshNotes();
 
-      // Verify metadata cache event subscriptions
-      expect(mockMetadataCache.on).toHaveBeenCalledWith("changed", expect.any(Function));
-      expect(mockMetadataCache.on).toHaveBeenCalledWith("resolved", expect.any(Function));
+          // Should not execute immediately
+          expect(spy).not.toHaveBeenCalled();
 
-      // Should have 6 event handlers registered
-      expect((plugin as any).eventRefs).toHaveLength(6);
-    });
-
-    it("should clean up event handlers on unload", async () => {
-      await plugin.onload();
-      const eventRefs = [...(plugin as any).eventRefs];
-
-      await plugin.onunload();
-
-      // Verify all event handlers were cleaned up
-      expect(mockVault.offref).toHaveBeenCalledTimes(eventRefs.length);
-      eventRefs.forEach((ref) => {
-        expect(mockVault.offref).toHaveBeenCalledWith(ref);
-      });
-
-      // Event refs array should be cleared
-      expect((plugin as any).eventRefs).toHaveLength(0);
-    });
-  });
-
-  describe("file type checking", () => {
-    it("should identify markdown files correctly", () => {
-      const markdownFile = { extension: "md" } as TFile;
-      const textFile = { extension: "txt" } as TFile;
-
-      expect((plugin as any).isMarkdownFile(markdownFile)).toBe(true);
-      expect((plugin as any).isMarkdownFile(textFile)).toBe(false);
-    });
-  });
-
-  describe("event handlers", () => {
-    let createHandler: (...args: any[]) => void;
-    let deleteHandler: (...args: any[]) => void;
-    let modifyHandler: (...args: any[]) => void;
-    let renameHandler: (...args: any[]) => void;
-    let metadataHandler: (...args: any[]) => void;
-    let resolvedHandler: (...args: any[]) => void;
-
-    beforeEach(async () => {
-      // Mock the debounced refresh function
-      (plugin as any).debouncedRefreshNotes = vi.fn();
-
-      await plugin.onload();
-
-      // Extract the event handlers from the mock calls
-      const vaultCalls = mockVault.on.mock.calls;
-      const metadataCalls = mockMetadataCache.on.mock.calls;
-
-      createHandler = vaultCalls.find((call: any) => call[0] === "create")[1];
-      deleteHandler = vaultCalls.find((call: any) => call[0] === "delete")[1];
-      modifyHandler = vaultCalls.find((call: any) => call[0] === "modify")[1];
-      renameHandler = vaultCalls.find((call: any) => call[0] === "rename")[1];
-      metadataHandler = metadataCalls.find((call: any) => call[0] === "changed")[1];
-      resolvedHandler = metadataCalls.find((call: any) => call[0] === "resolved")[1];
-    });
-
-    it("should trigger refresh on markdown file creation", () => {
-      const markdownFile = { extension: "md", path: "test.md" } as TFile;
-
-      createHandler(markdownFile);
-
-      expect((plugin as any).debouncedRefreshNotes).toHaveBeenCalled();
-    });
-
-    it("should not trigger refresh on non-markdown file creation", () => {
-      const textFile = { extension: "txt", path: "test.txt" } as TFile;
-
-      createHandler(textFile);
-
-      expect((plugin as any).debouncedRefreshNotes).not.toHaveBeenCalled();
-    });
-
-    it("should trigger refresh on markdown file deletion", () => {
-      const markdownFile = { extension: "md", path: "test.md" } as TFile;
-
-      deleteHandler(markdownFile);
-
-      expect((plugin as any).debouncedRefreshNotes).toHaveBeenCalled();
-    });
-
-    it("should trigger refresh on markdown file modification", () => {
-      const markdownFile = { extension: "md", path: "test.md" } as TFile;
-
-      modifyHandler(markdownFile as TAbstractFile);
-
-      expect((plugin as any).debouncedRefreshNotes).toHaveBeenCalled();
-    });
-
-    it("should trigger refresh on markdown file rename", () => {
-      const markdownFile = {
-        extension: "md",
-        path: "test.md",
-        name: "test.md",
-      } as unknown as TAbstractFile;
-
-      renameHandler(markdownFile);
-
-      expect((plugin as any).debouncedRefreshNotes).toHaveBeenCalled();
-    });
-
-    it("should not trigger refresh on rename for non-markdown files", () => {
-      const textFile = {
-        extension: "txt",
-        path: "test.txt",
-        name: "test.txt",
-      } as unknown as TAbstractFile;
-
-      renameHandler(textFile);
-
-      expect((plugin as any).debouncedRefreshNotes).not.toHaveBeenCalled();
-    });
-
-    it("should trigger refresh on metadata changes", () => {
-      const markdownFile = { extension: "md", path: "test.md" } as TFile;
-
-      metadataHandler(markdownFile);
-
-      expect((plugin as any).debouncedRefreshNotes).toHaveBeenCalled();
-    });
-
-    it("should trigger refresh on metadata cache resolution", () => {
-      resolvedHandler();
-
-      expect((plugin as any).debouncedRefreshNotes).toHaveBeenCalled();
-    });
-  });
-
-  describe("settings and data management", () => {
-    it("should load settings on initialization", async () => {
-      await plugin.onload();
-
-      expect(plugin.getSettings()).toEqual({
-        autoStart: false,
-        showInSidebar: false,
-        sortKey: "updated",
+          // Should execute after timer advancement
+          await vi.runAllTimersAsync();
+          expect(spy).toHaveBeenCalledTimes(1);
+        });
       });
     });
 
-    it("should save settings successfully", async () => {
-      await plugin.saveSettings();
+    describe("debouncedSaveStoreState", () => {
+      it("invokes saveStoreState after debounce delay", async () => {
+        await TestHelpers.withFakeTimers(async () => {
+          const spy = vi.spyOn(plugin as any, "saveStoreState").mockResolvedValue(undefined);
 
-      const { savePluginSettings } = await import("./core/storage/dataPersistence");
-      expect(savePluginSettings).toHaveBeenCalledWith(plugin, plugin.getSettings());
-    });
+          // Call the debounced function directly
+          (plugin as any).debouncedSaveStoreState();
 
-    it("should handle settings save failures", async () => {
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+          // Should not execute immediately
+          expect(spy).not.toHaveBeenCalled();
 
-      // Mock savePluginSettings to fail
-      const { savePluginSettings } = await import("./core/storage/dataPersistence");
-      vi.mocked(savePluginSettings).mockResolvedValueOnce(false);
-
-      await plugin.saveSettings();
-
-      expect(consoleSpy).toHaveBeenCalledWith("Card View Explorer: Failed to save settings");
-      consoleSpy.mockRestore();
-    });
-
-    it("should update specific settings", () => {
-      plugin.updateSetting("autoStart", true);
-      plugin.updateSetting("sortKey", "created");
-
-      expect(plugin.getSettings().autoStart).toBe(true);
-      expect(plugin.getSettings().sortKey).toBe("created");
-    });
-
-    it("should get and update plugin data", () => {
-      const testData = {
-        pinnedNotes: ["note1.md", "note2.md"],
-        lastFilters: undefined,
-        sortConfig: undefined,
-        version: 1,
-      } as unknown as PluginData;
-
-      plugin.updateData(testData);
-
-      expect(plugin.getData()).toEqual(testData);
-    });
-
-    it("should save plugin data successfully", async () => {
-      await plugin.savePluginData();
-
-      const { savePluginData } = await import("./core/storage/dataPersistence");
-      expect(savePluginData).toHaveBeenCalledWith(plugin, plugin.getData());
-    });
-
-    it("should handle plugin data save failures", async () => {
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
-      // Mock savePluginData to fail
-      const { savePluginData } = await import("./core/storage/dataPersistence");
-      vi.mocked(savePluginData).mockResolvedValueOnce(false);
-
-      await plugin.savePluginData();
-
-      expect(consoleSpy).toHaveBeenCalledWith("Card View Explorer: Failed to save plugin data");
-      consoleSpy.mockRestore();
+          // Should execute after timer advancement
+          await vi.runAllTimersAsync();
+          expect(spy).toHaveBeenCalledTimes(1);
+        });
+      });
     });
   });
 
-  describe("view management", () => {
-    it("should activate existing view if available", async () => {
-      const mockLeaf = { view: {} };
-      mockWorkspace.getLeavesOfType.mockReturnValue([mockLeaf]);
-      mockWorkspace.revealLeaf = vi.fn();
+  describe("Event Handlers Setup", () => {
+    const VAULT_EVENTS = ["create", "delete", "modify", "rename"] as const;
+    const METADATA_EVENTS = ["changed", "resolved"] as const;
 
-      await plugin.activateView();
+    describe("file system event registration", () => {
+      it("registers all required event handlers", () => {
+        (plugin as any).setupEventHandlers();
 
-      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-view-explorer-view");
-      expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
-    });
+        const vaultCalls = (app as any).vault.on.mock.calls;
+        const metaCalls = (app as any).metadataCache.on.mock.calls;
 
-    it("should create new view in main workspace when showInSidebar is false", async () => {
-      plugin.updateSetting("showInSidebar", false);
+        // Verify all vault events are registered
+        VAULT_EVENTS.forEach((eventName) => {
+          expect(vaultCalls.some(([evt]: [string, unknown]) => evt === eventName)).toBe(true);
+        });
 
-      const mockLeaf = { setViewState: vi.fn() };
-      mockWorkspace.getLeavesOfType.mockReturnValue([]);
-      mockWorkspace.getLeaf = vi.fn().mockReturnValue(mockLeaf);
-      mockWorkspace.revealLeaf = vi.fn();
-
-      await plugin.activateView();
-
-      expect(mockWorkspace.getLeaf).toHaveBeenCalledWith(true);
-      expect(mockLeaf.setViewState).toHaveBeenCalledWith({
-        type: "card-view-explorer-view",
-        active: true,
+        // Verify all metadata events are registered
+        METADATA_EVENTS.forEach((eventName) => {
+          expect(metaCalls.some(([evt]: [string, unknown]) => evt === eventName)).toBe(true);
+        });
       });
-      expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
     });
 
-    it("should create new view in right sidebar when showInSidebar is true", async () => {
-      plugin.updateSetting("showInSidebar", true);
+    describe("markdown file event handling", () => {
+      it("triggers refreshNotes for markdown file events", async () => {
+        await TestHelpers.withFakeTimers(async () => {
+          const refreshSpy = vi.spyOn(plugin, "refreshNotes").mockResolvedValue(undefined);
 
-      const mockLeaf = { setViewState: vi.fn() };
-      mockWorkspace.getLeavesOfType.mockReturnValue([]);
-      mockWorkspace.getRightLeaf = vi.fn().mockReturnValue(mockLeaf);
-      mockWorkspace.revealLeaf = vi.fn();
+          (plugin as any).setupEventHandlers();
 
-      await plugin.activateView();
+          const vaultCalls = (app as any).vault.on.mock.calls;
+          const metaCalls = (app as any).metadataCache.on.mock.calls;
 
-      expect(mockWorkspace.getRightLeaf).toHaveBeenCalledWith(false);
-      expect(mockLeaf.setViewState).toHaveBeenCalledWith({
-        type: "card-view-explorer-view",
-        active: true,
+          // Trigger all vault events with markdown file
+          VAULT_EVENTS.forEach((eventName) => {
+            const handler = TestHelpers.getEventHandler(vaultCalls, eventName);
+            handler(TEST_DATA.MD_FILE);
+          });
+
+          // Trigger metadata events
+          TestHelpers.getEventHandler(metaCalls, "changed")(TEST_DATA.MD_FILE);
+          TestHelpers.getEventHandler(metaCalls, "resolved")();
+
+          // All debounced calls should coalesce into a single refresh
+          await vi.runAllTimersAsync();
+          expect(refreshSpy).toHaveBeenCalledTimes(1);
+        });
       });
-      expect(mockWorkspace.revealLeaf).toHaveBeenCalledWith(mockLeaf);
     });
 
-    it("should handle null leaf gracefully", async () => {
-      mockWorkspace.getLeavesOfType.mockReturnValue([]);
-      mockWorkspace.getLeaf = vi.fn().mockReturnValue(null);
+    describe("non-markdown file filtering", () => {
+      it("ignores non-markdown files except for resolved events", async () => {
+        await TestHelpers.withFakeTimers(async () => {
+          const refreshSpy = vi.spyOn(plugin, "refreshNotes").mockResolvedValue(undefined);
 
-      // Should not throw an error
-      await expect(plugin.activateView()).resolves.toBeUndefined();
+          (plugin as any).setupEventHandlers();
+
+          const vaultCalls = (app as any).vault.on.mock.calls;
+          const metaCalls = (app as any).metadataCache.on.mock.calls;
+
+          // Trigger vault events with non-markdown file (should be ignored)
+          VAULT_EVENTS.forEach((eventName) => {
+            const handler = TestHelpers.getEventHandler(vaultCalls, eventName);
+            handler(TEST_DATA.OTHER_FILE);
+          });
+
+          // Trigger metadata changed with non-markdown file (should be ignored)
+          TestHelpers.getEventHandler(metaCalls, "changed")(TEST_DATA.OTHER_FILE);
+
+          // Trigger resolved event (should always trigger regardless of file type)
+          TestHelpers.getEventHandler(metaCalls, "resolved")();
+
+          await vi.runAllTimersAsync();
+
+          // Only one refresh from the resolved event
+          expect(refreshSpy).toHaveBeenCalledTimes(1);
+        });
+      });
     });
   });
 
-  describe("plugin lifecycle", () => {
-    it("should register view, commands, and settings on load", async () => {
-      // Mock plugin methods
-      plugin.registerView = vi.fn();
-      plugin.addCommand = vi.fn();
-      plugin.addRibbonIcon = vi.fn();
-      plugin.addSettingTab = vi.fn();
+  describe("Plugin Lifecycle", () => {
+    describe("onload", () => {
+      it("initializes plugin with default settings (autoStart disabled)", async () => {
+        // Setup: Mock persistence layer
+        await TestHelpers.mockDataPersistenceModule();
 
-      await plugin.onload();
+        // Setup: Mock plugin registration methods
+        const registrationMocks = {
+          registerView: vi.fn(),
+          addCommand: vi.fn(),
+          addRibbonIcon: vi.fn(),
+          addSettingTab: vi.fn(),
+        };
+        Object.assign(plugin, registrationMocks);
 
-      expect(plugin.registerView).toHaveBeenCalledWith(
-        "card-view-explorer-view",
-        expect.any(Function)
+        vi.spyOn(plugin as any, "setupPinnedNotesAutoSave").mockResolvedValue(undefined);
+
+        // Execute
+        await plugin.onload();
+
+        // Verify: Settings and data are loaded
+        expect(plugin.getSettings()).toEqual(TEST_DATA.MOCK_SETTINGS);
+
+        // Verify: Plugin components are registered
+        expect(registrationMocks.registerView).toHaveBeenCalledWith(
+          VIEW_TYPE_CARD_EXPLORER,
+          expect.any(Function)
+        );
+        expect(registrationMocks.addCommand).toHaveBeenCalledWith({
+          id: "open-card-view-explorer",
+          name: "Open Card View Explorer",
+          callback: expect.any(Function),
+        });
+        expect(registrationMocks.addRibbonIcon).toHaveBeenCalledWith(
+          "layout-grid",
+          "Card View Explorer",
+          expect.any(Function)
+        );
+        expect(registrationMocks.addSettingTab).toHaveBeenCalled();
+
+        // Verify: Event handlers are set up
+        expect((app as any).vault.on).toHaveBeenCalledTimes(4); // create, delete, modify, rename
+        expect((app as any).metadataCache.on).toHaveBeenCalledTimes(2); // changed, resolved
+
+        // Verify: AutoStart is disabled, so no layout ready callback
+        expect((app as any).workspace.onLayoutReady).not.toHaveBeenCalled();
+
+        // Verify: Store auto-save is configured
+        expect((plugin as any).setupPinnedNotesAutoSave).toHaveBeenCalled();
+      });
+
+      it("activates view on layout ready when autoStart is enabled", async () => {
+        // Setup: Mock with autoStart enabled
+        await TestHelpers.mockDataPersistenceModule(TEST_DATA.MOCK_SETTINGS_WITH_AUTOSTART);
+
+        const mockActivateView = vi.fn();
+        plugin.activateView = mockActivateView;
+        vi.spyOn(plugin as any, "setupPinnedNotesAutoSave").mockResolvedValue(undefined);
+
+        // Execute
+        await plugin.onload();
+
+        // Verify: Layout ready callback is registered
+        expect((app as any).workspace.onLayoutReady).toHaveBeenCalled();
+
+        // Execute: Simulate layout ready
+        const layoutReadyCallback = (app as any).workspace.onLayoutReady.mock.calls[0][0];
+        layoutReadyCallback();
+
+        // Verify: View is activated
+        expect(mockActivateView).toHaveBeenCalled();
+      });
+    });
+
+    describe("onunload", () => {
+      it("cleans up all subscriptions and detaches view", async () => {
+        // Setup: Add event references and auto-save subscription
+        const mockEventRefs = [{ id: "r1" } as any, { id: "r2" } as any];
+        const mockUnsubscribe = vi.fn();
+
+        (plugin as any).eventRefs = mockEventRefs;
+        (plugin as any).unsubscribePinnedNotesAutoSave = mockUnsubscribe;
+
+        // Execute
+        await plugin.onunload();
+
+        // Verify: Event references are cleaned up
+        expect((app as any).vault.offref).toHaveBeenCalledTimes(2);
+        expect((plugin as any).eventRefs).toHaveLength(0);
+
+        // Verify: Auto-save subscription is cleaned up
+        expect(mockUnsubscribe).toHaveBeenCalled();
+        expect((plugin as any).unsubscribePinnedNotesAutoSave).toBeUndefined();
+
+        // Verify: View is detached
+        expect((app as any).workspace.detachLeavesOfType).toHaveBeenCalledWith(
+          VIEW_TYPE_CARD_EXPLORER
+        );
+      });
+
+      it("handles cleanup gracefully when no subscriptions exist", async () => {
+        // Setup: No event references or auto-save subscription
+        (plugin as any).eventRefs = [];
+        (plugin as any).unsubscribePinnedNotesAutoSave = undefined;
+
+        // Execute and verify no errors
+        await expect(plugin.onunload()).resolves.toBeUndefined();
+
+        // Verify: No event cleanup calls made
+        expect((app as any).vault.offref).not.toHaveBeenCalled();
+
+        // Verify: View is still detached
+        expect((app as any).workspace.detachLeavesOfType).toHaveBeenCalledWith(
+          VIEW_TYPE_CARD_EXPLORER
+        );
+      });
+    });
+  });
+
+  describe("User Interface Integration", () => {
+    describe("command registration", () => {
+      it("registers command that activates the view", async () => {
+        // Setup: Mock command registration and view activation
+        const mockAddCommand = vi.fn();
+        const mockActivateView = vi.fn();
+
+        plugin.addCommand = mockAddCommand;
+        plugin.activateView = mockActivateView;
+
+        await plugin.onload();
+
+        // Verify: Command is registered with correct properties
+        const commandCalls = mockAddCommand.mock.calls;
+        expect(commandCalls.length).toBeGreaterThan(0);
+
+        const [commandConfig] = commandCalls[0];
+        expect(commandConfig).toEqual({
+          id: "open-card-view-explorer",
+          name: "Open Card View Explorer",
+          callback: expect.any(Function),
+        });
+
+        // Execute: Trigger command callback
+        commandConfig.callback?.();
+
+        // Verify: View is activated
+        expect(mockActivateView).toHaveBeenCalled();
+      });
+    });
+
+    describe("ribbon icon", () => {
+      it("creates ribbon icon that activates the view", async () => {
+        // Setup: Mock ribbon registration and view activation
+        const mockAddRibbonIcon = vi.fn();
+        const mockActivateView = vi.fn();
+
+        plugin.addRibbonIcon = mockAddRibbonIcon;
+        plugin.activateView = mockActivateView;
+
+        await plugin.onload();
+
+        // Verify: Ribbon icon is registered with correct properties
+        const ribbonCalls = mockAddRibbonIcon.mock.calls;
+        expect(ribbonCalls.length).toBeGreaterThan(0);
+
+        const [icon, title, callback] = ribbonCalls[0];
+        expect(icon).toBe("layout-grid");
+        expect(title).toBe("Card View Explorer");
+        expect(callback).toBeTypeOf("function");
+
+        // Execute: Simulate click event
+        callback(new MouseEvent("click"));
+
+        // Verify: View is activated
+        expect(mockActivateView).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("Data Persistence", () => {
+    describe("settings management", () => {
+      it("saves modified settings successfully", async () => {
+        const dp = await import("./core/storage/dataPersistence");
+        const saveSpy = vi.spyOn(dp, "savePluginSettings").mockResolvedValue(true);
+
+        // Setup: Modify settings
+        plugin.updateSetting("autoStart", true);
+        plugin.updateSetting("sortKey", "created");
+
+        // Execute
+        await plugin.saveSettings();
+
+        // Verify: Correct settings are saved
+        expect(saveSpy).toHaveBeenCalledWith(plugin, {
+          autoStart: true,
+          showInSidebar: false,
+          sortKey: "created",
+        });
+      });
+
+      it("handles settings save failure with error handling", async () => {
+        const dp = await import("./core/storage/dataPersistence");
+        const { module: eh, spy: errorSpy } = await TestHelpers.mockErrorHandlingModule();
+
+        vi.spyOn(dp, "savePluginSettings").mockResolvedValue(false);
+
+        // Execute
+        await plugin.saveSettings();
+
+        // Verify: Error is handled correctly
+        expect(errorSpy).toHaveBeenCalled();
+        const [message, category, context] = errorSpy.mock.calls[0];
+        expect(String(message)).toContain("Failed to save settings");
+        expect(category).toBe(eh.ErrorCategory.DATA);
+        expect(context).toMatchObject({ operation: "saveSettings" });
+      });
+    });
+
+    describe("plugin data management", () => {
+      it("saves plugin data successfully", async () => {
+        const dp = await import("./core/storage/dataPersistence");
+        const saveSpy = vi.spyOn(dp, "savePluginData").mockResolvedValue(true);
+
+        const testData = {
+          pinnedNotes: ["test.md"],
+          lastFilters: { folders: [], tags: ["test"], filename: "", dateRange: null },
+          sortConfig: { key: "updated", order: "desc" },
+          version: 1,
+        } as any;
+
+        // Setup: Update plugin data
+        plugin.updateData(testData);
+
+        // Execute
+        await plugin.savePluginData();
+
+        // Verify: Correct data is saved
+        expect(saveSpy).toHaveBeenCalledWith(plugin, testData);
+      });
+
+      it("handles plugin data save failure with error handling", async () => {
+        const dp = await import("./core/storage/dataPersistence");
+        const { module: eh, spy: errorSpy } = await TestHelpers.mockErrorHandlingModule();
+
+        vi.spyOn(dp, "savePluginData").mockResolvedValue(false);
+
+        // Execute
+        await plugin.savePluginData();
+
+        // Verify: Error is handled correctly
+        expect(errorSpy).toHaveBeenCalled();
+        const [message, category, context] = errorSpy.mock.calls[0];
+        expect(String(message)).toContain("Failed to save plugin data");
+        expect(category).toBe(eh.ErrorCategory.DATA);
+        expect(context).toMatchObject({ operation: "savePluginData" });
+      });
+    });
+  });
+
+  describe("Store State Management", () => {
+    describe("saveStoreState", () => {
+      it("merges and saves serialized store data", async () => {
+        // Setup: Mock store with serializable data
+        vi.doMock("./store/cardExplorerStore", () => ({
+          useCardExplorerStore: {
+            getState: () => ({
+              getSerializableData: () => TEST_DATA.MOCK_STORE_DATA,
+            }),
+          },
+        }));
+
+        // Setup: Existing plugin data to merge with
+        (plugin as any).data = {
+          version: 1,
+          pinnedNotes: [],
+          lastFilters: { folders: [], tags: [], filename: "", dateRange: null },
+          sortConfig: { key: "updated", order: "desc" },
+        };
+
+        // Setup: Mock save method
+        const saveMethodSpy = vi
+          .spyOn(plugin as any, "savePluginData")
+          .mockResolvedValue(undefined);
+
+        // Execute
+        await (plugin as any).saveStoreState();
+
+        // Verify: Save method is called and data is merged correctly
+        expect(saveMethodSpy).toHaveBeenCalled();
+        expect((plugin as any).data).toEqual({
+          version: 1,
+          pinnedNotes: ["a.md", "b.md"],
+          lastFilters: { folders: [], tags: ["tag"], filename: "", dateRange: null },
+          sortConfig: { key: "updated", order: "desc" },
+        });
+      });
+
+      it("handles store import errors gracefully", async () => {
+        const { module: eh, spy: errorSpy } = await TestHelpers.mockErrorHandlingModule();
+
+        // Setup: Mock failing store import
+        vi.doMock("./store/cardExplorerStore", () => {
+          throw new Error("store import failed");
+        });
+
+        // Execute
+        await (plugin as any).saveStoreState();
+
+        // Verify: Error is handled correctly
+        expect(errorSpy).toHaveBeenCalled();
+        const [, category, context] = errorSpy.mock.calls[0];
+        expect(category).toBe(eh.ErrorCategory.DATA);
+        expect(context).toMatchObject({ operation: "saveStoreState" });
+      });
+    });
+
+    describe("refreshNotes", () => {
+      it("refreshes all active views successfully", async () => {
+        const mockView = {
+          refreshNotes: vi.fn().mockResolvedValue(undefined),
+        } as any;
+        const mockLeaf = TestHelpers.createMockLeaf({ view: mockView });
+
+        (app.workspace.getLeavesOfType as any).mockReturnValue([mockLeaf]);
+
+        // Execute
+        await plugin.refreshNotes();
+
+        // Verify: View refresh is called
+        expect(mockView.refreshNotes).toHaveBeenCalled();
+      });
+
+      it("handles workspace errors gracefully", async () => {
+        const { module: eh, spy: errorSpy } = await TestHelpers.mockErrorHandlingModule();
+
+        // Setup: Mock failing workspace call
+        let callCount = 0;
+        (app as any).workspace.getLeavesOfType.mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) throw new Error("workspace failed");
+          return [];
+        });
+
+        // Execute (should not throw)
+        await expect(plugin.refreshNotes()).resolves.toBeUndefined();
+
+        // Verify: Error is handled correctly
+        expect(errorSpy).toHaveBeenCalled();
+        const [, category, context] = errorSpy.mock.calls[0];
+        expect(category).toBe(eh.ErrorCategory.API);
+        expect(context).toMatchObject({ operation: "refreshNotes", viewCount: 0 });
+      });
+    });
+  });
+
+  describe("Settings Integration", () => {
+    describe("updateSetting", () => {
+      it("triggers sort key update when sortKey setting changes", () => {
+        const updateSortSpy = vi
+          .spyOn(plugin as any, "updateSortKeyInViews")
+          .mockResolvedValue(undefined);
+
+        // Execute: Change sortKey setting
+        (plugin as any).updateSetting("sortKey", "created");
+
+        // Verify: Sort key update is triggered
+        expect(updateSortSpy).toHaveBeenCalledWith("created");
+
+        // Verify: Other setting changes don't trigger sort update
+        updateSortSpy.mockClear();
+        (plugin as any).updateSetting("autoStart", true);
+        expect(updateSortSpy).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("Auto-Save Subscription Management", () => {
+    describe("setupPinnedNotesAutoSave", () => {
+      it("establishes store subscription with proper equality checking", async () => {
+        const debouncedSpy = vi.fn();
+        (plugin as any).debouncedSaveStoreState = debouncedSpy;
+
+        const unsubscribeMock = vi.fn();
+        const subscribeMock = vi.fn((_selector, listener, options) => {
+          // Test the equality function with different Set combinations
+          const equalityFn = options?.equalityFn as (a: Set<string>, b: Set<string>) => boolean;
+
+          // Equal sets
+          expect(equalityFn(new Set(["a"]), new Set(["a"]))).toBe(true);
+          expect(equalityFn(new Set(["a", "b"]), new Set(["b", "a"]))).toBe(true);
+
+          // Different sets
+          expect(equalityFn(new Set(["a"]), new Set(["b"]))).toBe(false);
+
+          // Trigger listener to test debounced save
+          listener();
+          return unsubscribeMock;
+        });
+
+        vi.doMock("./store/cardExplorerStore", () => ({
+          useCardExplorerStore: { subscribe: subscribeMock },
+        }));
+
+        // Execute
+        await (plugin as any).setupPinnedNotesAutoSave();
+
+        // Verify: Subscription is established and listener triggers save
+        expect(subscribeMock).toHaveBeenCalled();
+        expect(debouncedSpy).toHaveBeenCalled();
+
+        // Verify: Cleanup works properly
+        (plugin as any).cleanupPinnedNotesAutoSave();
+        expect(unsubscribeMock).toHaveBeenCalled();
+      });
+
+      it("handles edge cases in set equality comparison", async () => {
+        const subscribeMock = vi.fn((_selector, _listener, options) => {
+          const equalityFn = options?.equalityFn as (a?: Set<string>, b?: Set<string>) => boolean;
+
+          // Test undefined cases
+          expect(equalityFn(undefined as any, new Set())).toBe(false);
+          expect(equalityFn(new Set(), undefined as any)).toBe(false);
+
+          // Test size mismatch
+          expect(equalityFn(new Set(["a"]), new Set(["a", "b"]))).toBe(false);
+
+          return vi.fn();
+        });
+
+        vi.doMock("./store/cardExplorerStore", () => ({
+          useCardExplorerStore: { subscribe: subscribeMock },
+        }));
+
+        await (plugin as any).setupPinnedNotesAutoSave();
+        expect(subscribeMock).toHaveBeenCalled();
+      });
+
+      it("handles store import failures with error handling", async () => {
+        const { module: eh, spy: errorSpy } = await TestHelpers.mockErrorHandlingModule();
+
+        vi.doMock("./store/cardExplorerStore", () => {
+          throw new Error("subscribe import failed");
+        });
+
+        // Execute
+        await (plugin as any).setupPinnedNotesAutoSave();
+
+        // Verify: Error is handled correctly
+        expect(errorSpy).toHaveBeenCalled();
+        const [, category, context] = errorSpy.mock.calls[0];
+        expect(category).toBe(eh.ErrorCategory.DATA);
+        expect(context).toMatchObject({ operation: "setupPinnedNotesAutoSave" });
+      });
+    });
+  });
+
+  describe("Utility Functions", () => {
+    describe("isMarkdownFile", () => {
+      const testCases = [
+        {
+          file: { extension: "md", path: "note.md" },
+          expected: true,
+          description: "markdown file",
+        },
+        { file: { extension: "txt", path: "note.txt" }, expected: false, description: "text file" },
+        { file: { path: "note" }, expected: false, description: "file without extension" },
+        {
+          file: { extension: "MD", path: "note.MD" },
+          expected: false,
+          description: "uppercase extension",
+        },
+      ];
+
+      testCases.forEach(({ file, expected, description }) => {
+        it(`returns ${expected} for ${description}`, () => {
+          expect((plugin as any).isMarkdownFile(file as any)).toBe(expected);
+        });
+      });
+    });
+
+    describe("updateSortKeyInViews", () => {
+      it("updates sort key in store successfully", async () => {
+        const updateSortFromSettingsMock = vi.fn();
+        vi.doMock("./store/cardExplorerStore", () => ({
+          useCardExplorerStore: {
+            getState: () => ({ updateSortFromSettings: updateSortFromSettingsMock }),
+          },
+        }));
+
+        // Execute
+        await (plugin as any).updateSortKeyInViews("created");
+
+        // Verify
+        expect(updateSortFromSettingsMock).toHaveBeenCalledWith("created");
+      });
+
+      it("handles store import errors", async () => {
+        const { module: eh, spy: errorSpy } = await TestHelpers.mockErrorHandlingModule();
+
+        vi.doMock("./store/cardExplorerStore", () => {
+          throw new Error("store import failed");
+        });
+
+        // Execute
+        await (plugin as any).updateSortKeyInViews("created");
+
+        // Verify: Error is handled correctly
+        expect(errorSpy).toHaveBeenCalled();
+        const [, category, context] = errorSpy.mock.calls[0];
+        expect(category).toBe(eh.ErrorCategory.GENERAL);
+        expect(context).toMatchObject({ operation: "updateSortKeyInViews", sortKey: "created" });
+      });
+    });
+  });
+
+  describe("View Management", () => {
+    const VIEW_PLACEMENT_TEST_CASES = [
+      {
+        setting: "showInSidebar",
+        value: false,
+        expectedMethod: "getLeaf",
+        expectedArgs: [true],
+        description: "main workspace when showInSidebar is false",
+      },
+      {
+        setting: "showInSidebar",
+        value: true,
+        expectedMethod: "getRightLeaf",
+        expectedArgs: [false],
+        description: "right sidebar when showInSidebar is true",
+      },
+    ];
+
+    describe("activateView", () => {
+      VIEW_PLACEMENT_TEST_CASES.forEach(
+        ({ setting, value, expectedMethod, expectedArgs, description }) => {
+          it(`creates view in ${description}`, async () => {
+            // Setup: Configure setting and mock leaf
+            (plugin as any).updateSetting(setting, value);
+            const mockLeaf = TestHelpers.createMockLeaf();
+
+            (app.workspace.getLeavesOfType as any).mockReturnValue([]);
+            (app.workspace as any)[expectedMethod].mockReturnValue(mockLeaf);
+
+            // Execute
+            await plugin.activateView();
+
+            // Verify: Correct placement method is called
+            expect((app.workspace as any)[expectedMethod]).toHaveBeenCalledWith(...expectedArgs);
+            expect(mockLeaf.setViewState).toHaveBeenCalledWith({
+              type: VIEW_TYPE_CARD_EXPLORER,
+              active: true,
+            });
+          });
+        }
       );
-      expect(plugin.addCommand).toHaveBeenCalledWith({
-        id: "open-card-view-explorer",
-        name: "Open Card View Explorer",
-        callback: expect.any(Function),
+
+      it("reveals existing view instead of creating new one", async () => {
+        const existingLeaf = TestHelpers.createMockLeaf();
+        (app.workspace.getLeavesOfType as any).mockReturnValue([existingLeaf]);
+
+        // Execute
+        await plugin.activateView();
+
+        // Verify: Existing view is revealed, not recreated
+        expect(app.workspace.getLeaf).not.toHaveBeenCalled();
+        expect(app.workspace.getRightLeaf).not.toHaveBeenCalled();
+        expect(app.workspace.revealLeaf).toHaveBeenCalledWith(existingLeaf);
+        expect((existingLeaf as any).setViewState).not.toHaveBeenCalled();
       });
-      expect(plugin.addRibbonIcon).toHaveBeenCalledWith(
-        "layout-grid",
-        "Card View Explorer",
-        expect.any(Function)
-      );
-      expect(plugin.addSettingTab).toHaveBeenCalledWith(expect.any(Object));
-    });
-
-    it("should update autoStart setting correctly", () => {
-      plugin.updateSetting("autoStart", true);
-
-      expect(plugin.getSettings().autoStart).toBe(true);
-    });
-
-    it("should not activate view on auto-start when disabled", async () => {
-      plugin.updateSetting("autoStart", false);
-      plugin.activateView = vi.fn();
-
-      await plugin.onload();
-
-      expect(plugin.activateView).not.toHaveBeenCalled();
-    });
-
-    it("should detach views on unload", async () => {
-      await plugin.onunload();
-
-      expect(mockWorkspace.detachLeavesOfType).toHaveBeenCalledWith("card-view-explorer-view");
-    });
-  });
-
-  describe("refreshNotes", () => {
-    it("should refresh notes in all active views", async () => {
-      const mockView = {
-        refreshNotes: vi.fn(),
-      };
-      const mockLeaf = {
-        view: mockView,
-      };
-
-      mockWorkspace.getLeavesOfType.mockReturnValue([mockLeaf]);
-
-      await plugin.refreshNotes();
-
-      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-view-explorer-view");
-      expect(mockView.refreshNotes).toHaveBeenCalled();
-    });
-
-    it("should handle views without refreshNotes method", async () => {
-      const mockView = {}; // No refreshNotes method
-      const mockLeaf = {
-        view: mockView,
-      };
-
-      mockWorkspace.getLeavesOfType.mockReturnValue([mockLeaf]);
-
-      // Should not throw an error
-      await expect(plugin.refreshNotes()).resolves.toBeUndefined();
-    });
-
-    it("should handle refresh errors gracefully", async () => {
-      const mockView = {
-        refreshNotes: vi.fn().mockRejectedValue(new Error("Refresh failed")),
-      };
-      const mockLeaf = {
-        view: mockView,
-      };
-
-      mockWorkspace.getLeavesOfType.mockReturnValue([mockLeaf]);
-
-      // Should not throw an error despite view refresh failure
-      await expect(plugin.refreshNotes()).resolves.toBeUndefined();
-    });
-
-    it("should query workspace for Card View Explorer views during refresh", async () => {
-      await plugin.refreshNotes();
-
-      expect(mockWorkspace.getLeavesOfType).toHaveBeenCalledWith("card-view-explorer-view");
     });
   });
 });

@@ -125,7 +125,7 @@ describe("ObsidianIcon", () => {
       expect(mockSetIcon).toHaveBeenCalledTimes(1);
 
       rerender(<ObsidianIcon iconName="alert-triangle" className="new-class" />);
-      expect(mockSetIcon).toHaveBeenCalledTimes(1); // 変更されない
+      expect(mockSetIcon).toHaveBeenCalledTimes(1); // unchanged
     });
 
     it("does not re-call setIcon on same iconName rerender", () => {
@@ -133,7 +133,7 @@ describe("ObsidianIcon", () => {
       expect(mockSetIcon).toHaveBeenCalledTimes(1);
 
       rerender(<ObsidianIcon iconName="monitor" />);
-      expect(mockSetIcon).toHaveBeenCalledTimes(1); // 変更されない
+      expect(mockSetIcon).toHaveBeenCalledTimes(1); // unchanged
     });
   });
 
@@ -188,6 +188,16 @@ describe("ObsidianIcon", () => {
       expect(iconElement).toHaveClass(CSS_CLASSES.OBSIDIAN_ICON);
       expect(iconElement).toHaveClass(CSS_CLASSES.ERROR_ICON);
     });
+
+    it("uses aria-label and role when ariaLabel is provided", () => {
+      const ariaLabel = "Obsidian icon for test";
+      render(<ObsidianIcon iconName={DEFAULT_ICON_NAME} ariaLabel={ariaLabel} />);
+
+      const iconElement = screen.getByTestId("obsidian-icon");
+      expect(iconElement).toHaveAttribute("aria-label", ariaLabel);
+      expect(iconElement).toHaveAttribute("role", "img");
+      expect(iconElement).not.toHaveAttribute("aria-hidden");
+    });
   });
 
   describe("Performance", () => {
@@ -202,6 +212,46 @@ describe("ObsidianIcon", () => {
 
       // Should be optimized by useEffect dependency array
       expect(mockSetIcon).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Ref Safety", () => {
+    it("returns early when ref is not yet assigned", async () => {
+      // Recreate module graph with a mocked React.useEffect that runs immediately
+      vi.resetModules();
+
+      vi.doMock("react", async () => {
+        const actual = await vi.importActual<typeof import("react")>("react");
+        return {
+          ...actual,
+          useEffect: ((fn: () => void) => {
+            // Invoke effect during render phase where ref isn't attached yet
+            fn();
+          }) as unknown as typeof actual.useEffect,
+        };
+      });
+
+      // Fresh mock for obsidian.setIcon in this isolated module graph
+      vi.doMock("obsidian", async () => {
+        const actual = await vi.importActual<typeof import("obsidian")>("obsidian");
+        return {
+          ...actual,
+          setIcon: vi.fn(),
+        };
+      });
+
+      const { ObsidianIcon: IsolatedObsidianIcon } = await import("./ObsidianIcon");
+      const { setIcon: isolatedSetIcon } = await import("obsidian");
+      const isolatedMockSetIcon = vi.mocked(isolatedSetIcon);
+
+      render(<IsolatedObsidianIcon iconName="bolt" />);
+
+      // Since ref was null when effect ran, setIcon should not be called
+      expect(isolatedMockSetIcon).not.toHaveBeenCalled();
+
+      // Cleanup mocks for subsequent tests (though this test runs last here)
+      vi.doUnmock("react");
+      vi.doUnmock("obsidian");
     });
   });
 });

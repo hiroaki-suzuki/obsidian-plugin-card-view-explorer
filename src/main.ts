@@ -214,7 +214,9 @@ export default class CardExplorerPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     const success = await savePluginSettings(this, this.settings);
     if (!success) {
-      console.error("Card View Explorer: Failed to save settings");
+      handleError("Failed to save settings", ErrorCategory.DATA, {
+        operation: "saveSettings",
+      });
     }
   }
 
@@ -279,7 +281,9 @@ export default class CardExplorerPlugin extends Plugin {
   async savePluginData(): Promise<void> {
     const success = await savePluginData(this, this.data);
     if (!success) {
-      console.error("Card View Explorer: Failed to save plugin data");
+      handleError("Failed to save plugin data", ErrorCategory.DATA, {
+        operation: "savePluginData",
+      });
     }
   }
 
@@ -370,14 +374,7 @@ export default class CardExplorerPlugin extends Plugin {
         }
       });
 
-      const results = await Promise.allSettled(refreshPromises);
-
-      // Log failures but don't throw exceptions
-      results.forEach((result, index) => {
-        if (result.status === "rejected") {
-          console.warn(`Failed to refresh Card View Explorer view ${index}:`, result.reason);
-        }
-      });
+      await Promise.allSettled(refreshPromises);
     } catch (error) {
       handleError(error, ErrorCategory.API, {
         operation: "refreshNotes",
@@ -490,7 +487,9 @@ export default class CardExplorerPlugin extends Plugin {
         }
       );
     } catch (error) {
-      console.error("Card View Explorer: Failed to setup pinned notes auto-save:", error);
+      handleError(error, ErrorCategory.DATA, {
+        operation: "setupPinnedNotesAutoSave",
+      });
     }
   }
 

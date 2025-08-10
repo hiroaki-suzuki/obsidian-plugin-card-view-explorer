@@ -75,4 +75,36 @@ describe("useDebouncedValue", () => {
       vi.useRealTimers();
     }
   });
+
+  it("uses 0ms when delay is non-positive or non-finite (immediate debounce)", () => {
+    vi.useFakeTimers();
+    try {
+      const invalidDelays = [-10, 0, Number.NaN, Number.POSITIVE_INFINITY];
+
+      for (const delay of invalidDelays) {
+        const { result, rerender, unmount } = renderHook(
+          ({ value, delay }) => useDebouncedValue<string>(value, delay),
+          { initialProps: { value: "a", delay } }
+        );
+
+        // initial echo
+        expect(result.current).toBe("a");
+
+        // change value; since ms resolves to 0, it should flush on next tick
+        rerender({ value: "b", delay });
+
+        // before timers flush, still old value
+        expect(result.current).toBe("a");
+
+        act(() => {
+          vi.runAllTimers();
+        });
+        expect(result.current).toBe("b");
+
+        unmount();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
