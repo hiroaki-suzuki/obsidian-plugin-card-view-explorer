@@ -57,8 +57,8 @@ describe("ObsidianIcon", () => {
     mockSetIcon = vi.mocked(setIcon);
   });
 
-  describe("基本的なレンダリング", () => {
-    it("デフォルトのアイコンが正しくレンダリングされる", () => {
+  describe("Basic Rendering", () => {
+    it("renders default icon correctly", () => {
       renderObsidianIcon();
 
       const iconElement = assertIconElement();
@@ -67,7 +67,7 @@ describe("ObsidianIcon", () => {
       expect(mockSetIcon).toHaveBeenCalledTimes(1);
     });
 
-    it("カスタムアイコン名で正しくレンダリングされる", () => {
+    it("renders with custom icon name", () => {
       const customIconName = "database";
       renderObsidianIcon({ iconName: customIconName });
 
@@ -75,14 +75,14 @@ describe("ObsidianIcon", () => {
       expect(mockSetIcon).toHaveBeenCalledWith(iconElement, customIconName);
     });
 
-    it("カスタムクラス名が適用される", () => {
+    it("applies custom class name", () => {
       const customClassName = CSS_CLASSES.CUSTOM_CLASS;
       renderObsidianIcon({ className: customClassName });
 
       assertIconElement([CSS_CLASSES.OBSIDIAN_ICON, customClassName]);
     });
 
-    it("複数のクラス名が適用される", () => {
+    it("applies multiple class names", () => {
       const multipleClasses = "class1 class2 class3";
       renderObsidianIcon({ className: multipleClasses });
 
@@ -91,8 +91,8 @@ describe("ObsidianIcon", () => {
     });
   });
 
-  describe("setIcon API呼び出し", () => {
-    it("コンポーネントマウント時にsetIconが呼び出される", () => {
+  describe("setIcon API calls", () => {
+    it("calls setIcon on mount", () => {
       renderObsidianIcon({ iconName: "plug" });
 
       expect(mockSetIcon).toHaveBeenCalledTimes(1);
@@ -100,7 +100,7 @@ describe("ObsidianIcon", () => {
       expect(mockSetIcon).toHaveBeenCalledWith(iconElement, "plug");
     });
 
-    it("iconName変更時にsetIconが再呼び出しされる", () => {
+    it("re-calls setIcon when iconName changes", () => {
       const { rerender } = renderObsidianIcon({ iconName: "alert-triangle" });
       expect(mockSetIcon).toHaveBeenCalledTimes(1);
 
@@ -111,7 +111,7 @@ describe("ObsidianIcon", () => {
       expect(mockSetIcon).toHaveBeenLastCalledWith(iconElement, "database");
     });
 
-    it("className変更時はsetIconが再呼び出しされない", () => {
+    it("does not re-call setIcon on className change", () => {
       const { rerender } = renderObsidianIcon({
         iconName: "alert-triangle",
         className: "original-class",
@@ -122,7 +122,7 @@ describe("ObsidianIcon", () => {
       expect(mockSetIcon).toHaveBeenCalledTimes(1); // 変更されない
     });
 
-    it("同じiconNameで再レンダリング時はsetIconが再呼び出しされない", () => {
+    it("does not re-call setIcon on same iconName rerender", () => {
       const { rerender } = renderObsidianIcon({ iconName: "monitor" });
       expect(mockSetIcon).toHaveBeenCalledTimes(1);
 
@@ -131,22 +131,22 @@ describe("ObsidianIcon", () => {
     });
   });
 
-  describe("エッジケース", () => {
-    it("空文字のiconNameでも正常に動作する", () => {
+  describe("Edge Cases", () => {
+    it("works with empty iconName", () => {
       renderObsidianIcon({ iconName: "" });
 
       const iconElement = assertIconElement();
       expect(mockSetIcon).toHaveBeenCalledWith(iconElement, "");
     });
 
-    it("空文字のclassNameでも正常に動作する", () => {
+    it("works with empty className", () => {
       renderObsidianIcon({ className: "" });
 
       const iconElement = assertIconElement();
       expect(iconElement.className).toBe(`${CSS_CLASSES.OBSIDIAN_ICON} `);
     });
 
-    it("特殊文字を含むiconNameでも正常に動作する", () => {
+    it("works with special-character iconName", () => {
       const specialIconName = "icon-with-123_special-chars";
       renderObsidianIcon({ iconName: specialIconName });
 

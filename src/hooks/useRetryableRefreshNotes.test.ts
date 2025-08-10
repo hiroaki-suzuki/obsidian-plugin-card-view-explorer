@@ -14,11 +14,14 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("../store/cardExplorerStore", () => {
+  const store = {
+    refreshNotes: h.refreshNotesSpy,
+    setError: h.setErrorSpy,
+  };
   return {
-    useCardExplorerStore: () => ({
-      refreshNotes: h.refreshNotesSpy,
-      setError: h.setErrorSpy,
-    }),
+    // Support both direct usage and selector usage
+    useCardExplorerStore: (selector?: (s: typeof store) => unknown) =>
+      typeof selector === "function" ? selector(store) : store,
   };
 });
 
@@ -48,8 +51,7 @@ describe("useRetryableRefreshNotes", () => {
 
   it("clears local UI error before store error and refresh", async () => {
     const plugin = { app: { id: "app-1" } } as any;
-    const localOrder: string[] = [];
-    const resetError = vi.fn(() => localOrder.push("resetError"));
+    const resetError = vi.fn(() => h.order.push("resetError"));
 
     const { result } = renderHook(() => useRetryableRefreshNotes(plugin, { resetError }));
 
@@ -64,17 +66,14 @@ describe("useRetryableRefreshNotes", () => {
 
     // Verify overall call order across hook/store
     // Expected: resetError -> setError -> refreshNotes
-    expect(["resetError", ...h.order]).toEqual(["resetError", "setError", "refreshNotes"]);
+    expect(h.order).toEqual(["resetError", "setError", "refreshNotes"]);
   });
 
   it("does not fail when options are omitted", async () => {
     const plugin = { app: { key: "app-2" } } as any;
     const { result } = renderHook(() => useRetryableRefreshNotes(plugin));
 
-    await expect(
-      act(async () => {
-        await result.current.retry();
-      })
-    ).resolves.not.toThrow();
+    // retry returns a Promise<void>; ensure it resolves without rejection
+    await expect(result.current.retry()).resolves.toBeUndefined();
   });
 });

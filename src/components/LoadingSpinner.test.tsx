@@ -1,5 +1,4 @@
 import { render, screen, within } from "@testing-library/react";
-import "@testing-library/jest-dom";
 import { describe, expect, it } from "vitest";
 import { FullPageLoading, LoadingSpinner } from "./LoadingSpinner";
 
@@ -38,17 +37,26 @@ const assertLoadingSpinnerStructure = (title: string, message: string) => {
   // Structure assertions using semantic queries
   const titleElement = screen.getByRole("heading", { level: 3 });
   expect(titleElement).toBeInTheDocument();
-  expect(titleElement).toHaveTextContent(title);
+  if (title === "") {
+    expect(titleElement).toHaveTextContent(/^$/);
+  } else {
+    expect(titleElement).toHaveTextContent(title);
+  }
 
   // Message element (next sibling of title)
-  const messageElement = titleElement.nextElementSibling;
+  const messageElement = titleElement.nextElementSibling as Element | null;
   expect(messageElement).toBeInTheDocument();
-  expect(messageElement).toHaveTextContent(message);
+  if (message === "") {
+    expect(messageElement).toHaveTextContent(/^$/);
+  } else {
+    expect(messageElement).toHaveTextContent(message);
+  }
 
   // Container structure
   const container = document.querySelector(`.${CSS_CLASSES.LOADING_CONTENT}`) as HTMLElement;
   expect(container).toBeInTheDocument();
-  expect(within(container).getByRole("heading", { level: 3 })).toBeTruthy();
+  expect(within(container).getByRole("heading", { level: 3 })).toBeInTheDocument();
+  expect(container).toContainElement(messageElement as HTMLElement);
 
   // Spinner presence
   const spinner = document.querySelector(`.${CSS_CLASSES.LOADING_SPINNER}`) as HTMLElement;
@@ -136,10 +144,18 @@ describe("LoadingSpinner Components", () => {
           renderLoadingSpinner(props);
 
           const titleElement = screen.getByRole("heading", { level: 3 });
-          expect(titleElement).toHaveTextContent(expectedTitle);
+          if (expectedTitle === "") {
+            expect(titleElement).toHaveTextContent(/^$/);
+          } else {
+            expect(titleElement).toHaveTextContent(expectedTitle);
+          }
 
-          const messageElement = titleElement.nextElementSibling;
-          expect(messageElement).toHaveTextContent(expectedMessage);
+          const messageElement = titleElement.nextElementSibling as Element | null;
+          if (expectedMessage === "") {
+            expect(messageElement).toHaveTextContent(/^$/);
+          } else {
+            expect(messageElement).toHaveTextContent(expectedMessage);
+          }
 
           assertLoadingSpinnerStructure(expectedTitle, expectedMessage);
         }

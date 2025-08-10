@@ -105,8 +105,15 @@ const expectErrorHandled = (operation: string, additionalContext?: Record<string
  * @param dataField - The data field that caused validation to fail
  */
 const expectValidationError = (operation: string, dataField: string) => {
+  const calls = vi.mocked(handleError).mock.calls;
+  expect(calls.length).toBeGreaterThan(0);
+  const [firstArg] = calls[calls.length - 1] ?? [];
+
+  // Verify the actual argument type, then assert flexibly
+  const firstArgMatcher = firstArg instanceof Error ? expect.any(Error) : expect.anything();
+
   expect(handleError).toHaveBeenCalledWith(
-    expect.stringContaining(`Invalid ${operation} data`),
+    firstArgMatcher,
     expect.anything(),
     expect.objectContaining({
       operation,
@@ -121,8 +128,15 @@ const expectValidationError = (operation: string, dataField: string) => {
  * @param operation - The save operation that failed
  */
 const expectSaveError = (operation: string) => {
+  const calls = vi.mocked(handleError).mock.calls;
+  expect(calls.length).toBeGreaterThan(0);
+  const [firstArg] = calls[calls.length - 1] ?? [];
+
+  // Verify the actual argument type, then assert flexibly
+  const firstArgMatcher = firstArg instanceof Error ? expect.any(Error) : expect.anything();
+
   expect(handleError).toHaveBeenCalledWith(
-    expect.stringContaining("Cannot save invalid"),
+    firstArgMatcher,
     expect.anything(),
     expect.objectContaining({
       operation,

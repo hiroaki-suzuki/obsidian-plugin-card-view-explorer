@@ -133,5 +133,18 @@ describe("useNoteGrid", () => {
 
       expect(first).not.toBe(second);
     });
+
+    it("returns new reference when rowSize changes", () => {
+      const notes = makeNotes(["1", "2", "3"]);
+      const { result, rerender } = renderHook(({ n, r }) => useNoteGrid(n, r), {
+        initialProps: { n: notes, r: DEFAULT_ROW_SIZE },
+      });
+
+      const first = result.current.noteRows;
+      rerender({ n: notes, r: DEFAULT_ROW_SIZE - 1 });
+      const second = result.current.noteRows;
+
+      expect(first).not.toBe(second);
+    });
   });
 });

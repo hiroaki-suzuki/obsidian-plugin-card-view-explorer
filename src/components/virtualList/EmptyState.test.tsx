@@ -12,6 +12,24 @@ vi.mock("../../store/cardExplorerStore", () => ({
 const mockUseCardExplorerStore = vi.mocked(useCardExplorerStore);
 
 describe("EmptyState", () => {
+  let mockClearFilters: ReturnType<typeof vi.fn>;
+  let mockGetState: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockClearFilters = vi.fn();
+    mockGetState = vi.fn(() => ({ clearFilters: mockClearFilters }));
+    // 型安全なmock: selector有無両方対応
+    (mockUseCardExplorerStore as any).mockImplementation((selector?: any) => {
+      const state = mockGetState();
+      return selector ? selector(state) : state;
+    });
+    (mockUseCardExplorerStore as any).getState = mockGetState;
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders layout, icon, default copy and button", () => {
     render(<EmptyState />);
 
@@ -34,10 +52,6 @@ describe("EmptyState", () => {
 
   it("invokes store.clearFilters when clicking the button", async () => {
     const user = userEvent.setup();
-    const mockClearFilters = vi.fn();
-    const mockGetState = vi.fn(() => ({ clearFilters: mockClearFilters }));
-    (mockUseCardExplorerStore as any).getState = mockGetState;
-
     render(<EmptyState />);
 
     const button = screen.getByRole("button", { name: "Clear Filters" });

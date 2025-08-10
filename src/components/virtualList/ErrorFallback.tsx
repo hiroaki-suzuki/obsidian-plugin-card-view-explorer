@@ -27,7 +27,7 @@ const ERROR_CONFIG = {
     message: "An unexpected error occurred.",
     suggestion: "Try refreshing the view or restart the plugin.",
   },
-} as const;
+} as const satisfies Record<ErrorCategory, { message: string; suggestion: string }>;
 
 /**
  * Props for {@link ErrorFallback}.
@@ -58,7 +58,7 @@ interface ErrorFallbackProps {
    * Additional structured context included in error reporting (non-sensitive metadata only).
    * Example: { view: 'card', operation: 'loadNotes' }
    */
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 }
 
 /**
@@ -96,9 +96,9 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
     });
   }, [error, category, context]);
 
-  const displayMessage = message || ERROR_CONFIG[category].message;
-  const suggestionText = ERROR_CONFIG[category].suggestion;
-
+  const cfg = ERROR_CONFIG[category] ?? ERROR_CONFIG[ErrorCategory.GENERAL];
+  const displayMessage = message ?? cfg.message;
+  const suggestionText = cfg.suggestion;
   const handleRetry = useCallback(() => {
     if (onRetry) {
       onRetry();
@@ -108,7 +108,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
   return (
     <div className="virtual-list-container">
       <div className={`error-fallback error-${category}`}>
-        <div className="error-content">
+        <div className="error-content" role="status" aria-live="polite" aria-atomic="true">
           <div className="error-header">
             <h3 className="error-title">Something went wrong</h3>
           </div>

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Compute a responsive "row size" (columns per row) from a container's width.
@@ -42,20 +42,37 @@ export const useResponsiveRowSize = (): {
     elementRef.current = node;
 
     // Initial synchronous measurement to minimize visual flicker from a default value.
-    const width = node.getBoundingClientRect().width;
-    setRowSize(getRowSize(width));
+    const width = node.getBoundingClientRect().width; // border-box
+    setRowSize((prev) => {
+      const next = getRowSize(width);
+      return next === prev ? prev : next;
+    });
 
     // Attach ResizeObserver if available. Throttling is intentionally omitted here:
     // `getRowSize` is cheap and ResizeObserver batches notifications.
     if (typeof ResizeObserver !== "undefined") {
       const ro = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          setRowSize(getRowSize(entry.contentRect.width));
+          setRowSize((prev) => {
+            const next = getRowSize(entry.contentRect.width);
+            return next === prev ? prev : next;
+          });
         }
       });
       observerRef.current = ro;
       ro.observe(node);
     }
+  }, []);
+
+  // Ensure observer is disconnected when the component using this hook unmounts.
+  useEffect(() => {
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+      elementRef.current = null;
+    };
   }, []);
 
   return { rowSize, ref };

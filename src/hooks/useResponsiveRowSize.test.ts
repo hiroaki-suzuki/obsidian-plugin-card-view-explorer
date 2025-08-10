@@ -23,6 +23,7 @@ describe("useResponsiveRowSize", () => {
     // jsdom returns 0 for getBoundingClientRect by default; mock it per element
     Object.defineProperty(el, "getBoundingClientRect", {
       value: () => ({ width }) as DOMRect,
+      configurable: true,
     });
     return el as HTMLElement;
   };
@@ -34,17 +35,30 @@ describe("useResponsiveRowSize", () => {
     const instances: any[] = [];
     class MockResizeObserver {
       cb: ResizeObserverCallback;
-      observe = vi.fn((_el: Element) => {});
+      // capture last observed element (helps when generating realistic entries)
+      private _target?: Element;
+      observe = vi.fn((el: Element) => {
+        this._target = el;
+      });
+      unobserve = vi.fn((_el: Element) => {});
       disconnect = vi.fn(() => {});
       constructor(cb: ResizeObserverCallback) {
         this.cb = cb;
         instances.push(this);
       }
       trigger(width: number) {
-        this.cb([{ contentRect: { width } } as ResizeObserverEntry] as any, this as any);
+        this.cb(
+          [
+            {
+              target: this._target,
+              // minimal shape used by the hook; include width explicitly
+              contentRect: { width },
+            } as unknown as ResizeObserverEntry,
+          ],
+          this as unknown as ResizeObserver
+        );
       }
     }
-    // @ts-expect-error test mock
     globalThis.ResizeObserver = MockResizeObserver;
     return { instances, MockResizeObserver };
   };
@@ -161,6 +175,19 @@ describe("useResponsiveRowSize", () => {
 
     expect(firstRO.disconnect).toHaveBeenCalledTimes(1);
     expect(result.current.rowSize).toBe(4);
+  });
+
+  it("disconnects observer on unmount", () => {
+    const { instances } = withMockResizeObserver();
+    const { result, unmount } = renderHook(() => useResponsiveRowSize());
+    const el = createElWithWidth(600);
+    act(() => {
+      result.current.ref(el);
+    });
+    const ro = instances[0] as InstanceType<typeof ResizeObserver>;
+    expect(ro).toBeDefined();
+    unmount();
+    expect((ro as any).disconnect).toHaveBeenCalledTimes(1);
   });
 
   describe("width to rowSize mapping (no ResizeObserver)", () => {

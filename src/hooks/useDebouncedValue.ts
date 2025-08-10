@@ -30,7 +30,10 @@ export const useDebouncedValue = <T>(value: T, delay: number): T => {
   useEffect(() => {
     // Schedule an update to the debounced value; if `value` or `delay` changes
     // before the timer fires, cleanup will cancel this timer to avoid stale updates.
-    const timer = setTimeout(() => setDebounced(value), delay);
+    const ms = Number.isFinite(delay) && delay > 0 ? delay : 0;
+    const timer: ReturnType<typeof setTimeout> = setTimeout(() => {
+      setDebounced(() => value);
+    }, ms);
     return () => clearTimeout(timer);
   }, [value, delay]);
 

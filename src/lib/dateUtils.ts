@@ -123,8 +123,8 @@ export const parseDateFilter = (
   if (!raw) return null;
 
   if (type === "within") {
-    const days = parseInt(raw, 10);
-    if (!Number.isNaN(days) && days > 0) {
+    const days = Number(raw);
+    if (Number.isInteger(days) && days > 0) {
       const date = new Date(now);
       date.setDate(date.getDate() - days);
       return date;

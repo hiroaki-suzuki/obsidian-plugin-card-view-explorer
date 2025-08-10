@@ -23,9 +23,10 @@ import { PREVIEW_MAX_LINES } from "../constants";
  * @throws Error if the entire loading operation fails (e.g., vault access issues)
  */
 export const loadNotesFromVault = async (app: App): Promise<NoteData[]> => {
+  let markdownFiles: MarkdownFile[] = [];
   try {
     const allFiles = app.vault.getMarkdownFiles();
-    const markdownFiles = filterMarkdownFiles(allFiles);
+    markdownFiles = filterMarkdownFiles(allFiles);
 
     const noteDataResults = await processFilesWithErrorHandling(app, markdownFiles);
 
@@ -33,11 +34,10 @@ export const loadNotesFromVault = async (app: App): Promise<NoteData[]> => {
   } catch (error) {
     handleError(error, ErrorCategory.API, {
       operation: "loadNotesFromVault",
-      fileCount: 0,
+      fileCount: markdownFiles.length,
     });
-
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    throw new Error(`Failed to load notes: ${errorMessage}`);
+    // Re-throw the original error to preserve the stack trace and context
+    throw error;
   }
 };
 
@@ -114,7 +114,7 @@ const transformFileToNoteData = async (app: App, file: TFile): Promise<NoteData>
  */
 const extractNoteMetadata = (cached: CachedMetadata | null): NoteMetadata => {
   const frontmatter = cached?.frontmatter || null;
-  const frontmatterTags = extractFrontmatterTags(frontmatter);
+  const frontmatterTags = extractFrontmatterTags(frontmatter).map(normalizeTagName);
 
   const inlineTags = cached?.tags || null;
   const inlineTagsArray = extractInlineTags(inlineTags);

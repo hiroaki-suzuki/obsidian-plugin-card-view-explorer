@@ -133,6 +133,18 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
       return;
     }
     setDateType(filters.dateRange.type);
+    // Keep input in sync with store
+    if (filters.dateRange.type === "within") {
+      // Expecting a numeric day count
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setDateInput(String((filters.dateRange as any).value ?? ""));
+    } else {
+      // Expecting a date; allow string or Date
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const v: any = (filters.dateRange as any).value;
+      const iso = typeof v === "string" ? v : new Date(v).toISOString().slice(0, 10);
+      setDateInput(iso);
+    }
   }, [filters.dateRange]);
 
   useEffect(() => {

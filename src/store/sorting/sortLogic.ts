@@ -174,6 +174,13 @@ const normalizeForComparison = (value: SortableValue): ComparableValue => {
  * -1 if a < b, 1 if a > b, 0 if equal
  */
 const compareValues = (a: ComparableValue, b: ComparableValue): number => {
+  const typeA = typeof a;
+  const typeB = typeof b;
+  if (typeA !== typeB) {
+    // Deterministic order across mixed types: numbers < strings < booleans
+    const rank: Record<string, number> = { number: 0, string: 1, boolean: 2 };
+    return (rank[typeA] ?? 99) - (rank[typeB] ?? 99);
+  }
   if (a < b) return -1;
   if (a > b) return 1;
   return 0;

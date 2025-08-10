@@ -14,6 +14,13 @@ interface NoteCardProps {
   plugin: CardExplorerPlugin;
 }
 
+// Normalize activation keys (Enter/Space) across environments
+const isActivationKey = (e: { key: string } & { code?: string }): boolean => {
+  const isEnter = e.key === "Enter";
+  const isSpace = e.key === " " || e.key === "Space" || e.code === "Space";
+  return isEnter || isSpace;
+};
+
 /**
  * Renders a single note as an interactive card.
  *
@@ -21,14 +28,16 @@ interface NoteCardProps {
  * pinned state across sessions.
  */
 export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
-  const { pinnedNotes, togglePin } = useCardExplorerStore();
+  // Subscribe only to what's needed to avoid unnecessary re-renders
+  const isPinned = useCardExplorerStore(
+    useCallback((state) => state.pinnedNotes.has(note.path), [note.path])
+  );
+  const togglePin = useCardExplorerStore((state) => state.togglePin);
 
-  const isPinned = pinnedNotes.has(note.path);
-
-  const handleNoteClick = useCallback(() => {
+  const handleNoteClick = useCallback(async () => {
     try {
       // Open in the active pane to respect the user's workspace layout.
-      plugin.app.workspace.getLeaf().openFile(note.file);
+      await plugin.app.workspace.getLeaf().openFile(note.file);
     } catch (error) {
       handleError(error, ErrorCategory.API, {
         operation: "openFile",
@@ -36,7 +45,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
         noteTitle: note.title,
       });
     }
-  }, [plugin.app.workspace, note.file, note.path, note.title]);
+  }, [plugin, note.file, note.path, note.title]);
 
   const handlePinToggle = useCallback(
     (event: React.MouseEvent) => {
@@ -53,13 +62,27 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
   }, []);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault(); // space scrolls the page by default
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      // Only handle keys when focus is on the card itself, not nested controls.
+      if (e.currentTarget !== e.target) return;
+
+      if (isActivationKey(e)) {
+        e.preventDefault(); // avoid page scroll for space
         handleNoteClick();
       }
     },
     [handleNoteClick]
+  );
+
+  const handlePinKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (isActivationKey(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        togglePin(note.path);
+      }
+    },
+    [note.path, togglePin]
   );
 
   return (
@@ -80,10 +103,12 @@ export const NoteCard: React.FC<NoteCardProps> = ({ note, plugin }) => {
           type="button"
           className={`pin-button ${isPinned ? "pinned" : ""}`}
           onClick={handlePinToggle}
+          onKeyDown={handlePinKeyDown}
           title={isPinned ? "Unpin note" : "Pin note"}
           aria-label={isPinned ? "Unpin note" : "Pin note"}
+          aria-pressed={isPinned}
         >
-          <span className="pin-icon" />
+          <span className="pin-icon" aria-hidden="true" />
         </button>
       </div>
 

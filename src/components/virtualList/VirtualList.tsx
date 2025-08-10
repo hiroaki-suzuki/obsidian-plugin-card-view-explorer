@@ -1,5 +1,7 @@
+import type { FC, RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
+import { useShallow } from "zustand/react/shallow";
 import { ErrorCategory } from "../../core/errors/errorHandling";
 import {
   useNoteGrid,
@@ -38,8 +40,15 @@ interface VirtualListProps {
  * - Error handling with retry functionality
  * - Initial render tracking for UX optimizations
  */
-export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
-  const { filteredNotes, isLoading, error, filters } = useCardExplorerStore();
+export const VirtualList: FC<VirtualListProps> = ({ plugin }) => {
+  const { filteredNotes, isLoading, error, filters } = useCardExplorerStore(
+    useShallow((state) => ({
+      filteredNotes: state.filteredNotes,
+      isLoading: state.isLoading,
+      error: state.error,
+      filters: state.filters,
+    }))
+  );
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   // Track initial render to prevent unwanted scroll-to-top on component mount
@@ -55,7 +64,11 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
   }, [filteredNotes.length, hasInitiallyRendered]);
 
   // Auto-scroll to top when filters change, but only after initial render
-  useScrollToTopOnChange(virtuosoRef, filters, hasInitiallyRendered);
+  useScrollToTopOnChange(
+    virtuosoRef as unknown as RefObject<VirtuosoHandle>,
+    filters,
+    hasInitiallyRendered
+  );
 
   const { retry } = useRetryableRefreshNotes(plugin);
   const handleRetry = useCallback(async () => {
@@ -64,9 +77,14 @@ export const VirtualList: React.FC<VirtualListProps> = ({ plugin }) => {
 
   // Render error state with retry functionality
   if (error) {
+    // Preserve original Error stack/context if already an Error; otherwise wrap
+    const errorObj: Error = (() => {
+      const maybeError = error as unknown;
+      return maybeError instanceof Error ? maybeError : new Error(String(error));
+    })();
     return (
       <ErrorFallback
-        error={new Error(error)}
+        error={errorObj}
         onRetry={handleRetry}
         category={ErrorCategory.API}
         context={{

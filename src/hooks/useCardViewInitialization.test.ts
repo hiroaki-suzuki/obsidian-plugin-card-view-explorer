@@ -1,18 +1,25 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type CardExplorerPlugin from "../main";
-import { useCardExplorerStore } from "../store/cardExplorerStore";
 import { useCardViewInitialization } from "./useCardViewInitialization";
 
-// Mock the store
-const mockInitializeFromPluginData = vi.fn();
-const mockRefreshNotes = vi.fn();
-
-vi.mock("../store/cardExplorerStore", () => ({
-  useCardExplorerStore: vi.fn(),
+// Hoisted spies to match selector-based store usage
+const h = vi.hoisted(() => ({
+  initializeFromPluginDataSpy: vi.fn(),
+  refreshNotesSpy: vi.fn(),
 }));
 
-const mockUseCardExplorerStore = vi.mocked(useCardExplorerStore);
+vi.mock("../store/cardExplorerStore", () => {
+  const store = {
+    initializeFromPluginData: h.initializeFromPluginDataSpy,
+    refreshNotes: h.refreshNotesSpy,
+  };
+  return {
+    // Support both direct usage and selector usage
+    useCardExplorerStore: (selector?: (s: typeof store) => unknown) =>
+      typeof selector === "function" ? selector(store) : store,
+  };
+});
 
 describe("useCardViewInitialization", () => {
   const mockPluginData = {
@@ -37,11 +44,6 @@ describe("useCardViewInitialization", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mockUseCardExplorerStore.mockReturnValue({
-      initializeFromPluginData: mockInitializeFromPluginData,
-      refreshNotes: mockRefreshNotes,
-    });
   });
 
   afterEach(() => {
@@ -53,13 +55,13 @@ describe("useCardViewInitialization", () => {
 
     expect(mockPlugin.getData).toHaveBeenCalledTimes(1);
     expect(mockPlugin.getSettings).toHaveBeenCalledTimes(1);
-    expect(mockInitializeFromPluginData).toHaveBeenCalledWith(mockPluginData, mockSettings);
+    expect(h.initializeFromPluginDataSpy).toHaveBeenCalledWith(mockPluginData, mockSettings);
   });
 
   it("should call refreshNotes with plugin.app on mount", () => {
     renderHook(() => useCardViewInitialization(mockPlugin));
 
-    expect(mockRefreshNotes).toHaveBeenCalledWith(mockPlugin.app);
+    expect(h.refreshNotesSpy).toHaveBeenCalledWith(mockPlugin.app);
   });
 
   it("should re-initialize when plugin instance changes", () => {
@@ -68,8 +70,8 @@ describe("useCardViewInitialization", () => {
     });
 
     // Initial calls
-    expect(mockInitializeFromPluginData).toHaveBeenCalledTimes(1);
-    expect(mockRefreshNotes).toHaveBeenCalledTimes(1);
+    expect(h.initializeFromPluginDataSpy).toHaveBeenCalledTimes(1);
+    expect(h.refreshNotesSpy).toHaveBeenCalledTimes(1);
 
     // Create a new plugin instance
     const newApp = { vault: {}, metadataCache: {}, fileManager: {} };
@@ -84,9 +86,9 @@ describe("useCardViewInitialization", () => {
     rerender({ plugin: newMockPlugin });
 
     // Should be called again with new plugin
-    expect(mockInitializeFromPluginData).toHaveBeenCalledTimes(2);
-    expect(mockRefreshNotes).toHaveBeenCalledTimes(2);
-    expect(mockInitializeFromPluginData).toHaveBeenLastCalledWith(
+    expect(h.initializeFromPluginDataSpy).toHaveBeenCalledTimes(2);
+    expect(h.refreshNotesSpy).toHaveBeenCalledTimes(2);
+    expect(h.initializeFromPluginDataSpy).toHaveBeenLastCalledWith(
       { ...mockPluginData, version: "2.0.0" },
       { ...mockSettings, sortKey: "title" }
     );

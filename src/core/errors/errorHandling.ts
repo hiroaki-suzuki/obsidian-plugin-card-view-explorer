@@ -114,12 +114,18 @@ export function handleError(
   };
 
   if (finalConfig.logToConsole) {
-    console.error(`Card View Explorer Error:`, {
-      message: errorInfo.message,
-      details: errorInfo.details,
-      category: errorInfo.category,
-      context: errorInfo.context,
-    });
+    console.error(
+      `Card View Explorer Error:`,
+      {
+        message: errorInfo.message,
+        details: errorInfo.details,
+        category: errorInfo.category,
+        timestamp: errorInfo.timestamp,
+        context: errorInfo.context,
+      },
+      // Provide the raw error for native stack rendering/click-through
+      error
+    );
   }
 
   // UI errors are handled by React error boundaries, no need for notifications
@@ -209,15 +215,21 @@ export function safeSync<T>(
  * and plain objects, providing consistent error information structure.
  */
 function extractErrorInfo(error: unknown): { message: string; details?: string } {
+  const MAX_DETAILS_LEN = 10_000; // ~10KB cap
+
   if (error instanceof Error) {
+    const cause =
+      // TS 4.6+ Error has optional cause; guard for runtime
+      (error as any).cause ? `\nCaused by: ${(error as any).cause}` : "";
+    const details = (error.stack || error.toString()) + cause;
     return {
       message: error.message,
-      details: error.stack || error.toString(),
+      details: details.slice(0, MAX_DETAILS_LEN),
     };
   }
 
   if (typeof error === "string") {
-    return { message: error };
+    return { message: error.slice(0, MAX_DETAILS_LEN) };
   }
 
   if (error && typeof error === "object") {
@@ -229,7 +241,7 @@ function extractErrorInfo(error: unknown): { message: string; details?: string }
       // Handle circular references in error objects
       details = "[Object with circular reference]";
     }
-    return { message, details };
+    return { message, details: details.slice(0, MAX_DETAILS_LEN) };
   }
 
   return { message: "An unexpected error occurred" };

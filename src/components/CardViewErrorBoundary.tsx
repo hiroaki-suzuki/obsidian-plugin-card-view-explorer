@@ -1,5 +1,6 @@
 import React from "react";
 import { ErrorCategory, handleError } from "../core/errors/errorHandling";
+import { reloadPage } from "../lib/windowUtils";
 
 /** Maximum number of render retry attempts before suggesting a restart */
 const MAX_RETRIES = 3;
@@ -63,7 +64,7 @@ export class CardViewErrorBoundary extends React.Component<
    * @param error - The error that was thrown
    * @returns Partial state update to trigger error display
    */
-  static getDerivedStateFromError(error: Error) {
+  static getDerivedStateFromError(error: Error): Partial<CardViewErrorBoundaryState> {
     return { hasError: true, error };
   }
 
@@ -81,7 +82,23 @@ export class CardViewErrorBoundary extends React.Component<
       retryCount: this.state.retryCount,
     });
 
-    this.props.onError?.(error, errorInfo);
+    if (this.props.onError) {
+      try {
+        this.props.onError(error, errorInfo);
+      } catch (callbackError) {
+        handleError(
+          callbackError instanceof Error ? callbackError : new Error(String(callbackError)),
+          ErrorCategory.UI,
+          {
+            context: "Error in CardViewErrorBoundary onError callback",
+            originalError: error,
+            errorInfo,
+            errorBoundary: "CardViewErrorBoundary",
+            retryCount: this.state.retryCount,
+          }
+        );
+      }
+    }
   }
 
   /**
@@ -119,7 +136,7 @@ export class CardViewErrorBoundary extends React.Component<
                 <button
                   type="button"
                   className="error-reload-button"
-                  onClick={() => window.location.reload()} // Force page reload when max retries exceeded
+                  onClick={reloadPage} // Force page reload when max retries exceeded
                   aria-label="Restart plugin"
                 >
                   Restart Plugin

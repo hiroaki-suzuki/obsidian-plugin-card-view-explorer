@@ -52,14 +52,12 @@ export const cardExplorerSelectors = {
    * @returns Sorted array of unique tag paths including hierarchical expansion
    */
   getAvailableTags: (notes: NoteData[]): string[] => {
-    const allNoteTags: string[] = [];
-
-    for (const note of notes) {
-      allNoteTags.push(...note.tags);
-    }
-
-    // Extract all possible tag paths including parent tags
-    return extractAllTagPaths(allNoteTags);
+    // Flatten tags defensively (handles notes with no tags)
+    const allNoteTags = notes.flatMap((n) => n.tags ?? []);
+    // Expand hierarchical paths
+    const expanded = extractAllTagPaths(allNoteTags);
+    // Ensure uniqueness and deterministic ordering for stable UI
+    return Array.from(new Set(expanded)).sort((a, b) => a.localeCompare(b));
   },
 };
 
@@ -94,7 +92,11 @@ const collectFoldersFromNotes = (notes: NoteData[]): Set<string> => {
  * @returns Array of parent folder paths from root to immediate parent
  */
 const extractParentFolders = (folderPath: string): string[] => {
-  const parts = folderPath.split("/");
+  // Trim leading/trailing separators and collapse multiple separators; support both / and \
+  const normalized = folderPath.replace(/^[\\/]+|[\\/]+$/g, "").replace(/[\\/]+/g, "/");
+  if (!normalized) return [];
+
+  const parts = normalized.split("/");
   const parentFolders: string[] = [];
 
   // Build parent paths incrementally: projects -> projects/web -> projects/web/frontend

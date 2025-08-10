@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleError } from "../core/errors/errorHandling";
+import * as windowUtils from "../lib/windowUtils";
 import { CardViewErrorBoundary } from "./CardViewErrorBoundary";
 
 // Constants
@@ -60,10 +61,7 @@ describe("CardViewErrorBoundary", () => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(console, "log").mockImplementation(() => {});
-    Object.defineProperty(window, "location", {
-      value: { reload: vi.fn() },
-      writable: true,
-    });
+    vi.spyOn(windowUtils, "reloadPage").mockImplementation(() => {});
   });
 
   describe("Normal rendering", () => {
@@ -98,6 +96,14 @@ describe("CardViewErrorBoundary", () => {
   });
 
   describe("Error handling", () => {
+    // Ensure any spy on componentDidCatch is restored after each test
+    let componentDidCatchSpy: any | undefined;
+
+    afterEach(() => {
+      componentDidCatchSpy?.mockRestore?.();
+      componentDidCatchSpy = undefined;
+    });
+
     it("calls onError callback when error occurs and callback is provided", () => {
       const onError = vi.fn();
       renderErrorBoundary(<ThrowError shouldThrow={true} errorMessage="Callback test" />, onError);
@@ -114,17 +120,19 @@ describe("CardViewErrorBoundary", () => {
       const onError = vi.fn();
       const originalComponentDidCatch = CardViewErrorBoundary.prototype.componentDidCatch;
 
-      vi.spyOn(CardViewErrorBoundary.prototype, "componentDidCatch").mockImplementation(function (
-        this: CardViewErrorBoundary,
-        error: Error,
-        errorInfo: React.ErrorInfo
-      ) {
-        const errorInfoWithoutStack = {
-          ...errorInfo,
-          componentStack: undefined,
-        } as React.ErrorInfo;
-        originalComponentDidCatch.call(this, error, errorInfoWithoutStack);
-      });
+      componentDidCatchSpy = vi
+        .spyOn(CardViewErrorBoundary.prototype, "componentDidCatch")
+        .mockImplementation(function (
+          this: CardViewErrorBoundary,
+          error: Error,
+          errorInfo: React.ErrorInfo
+        ) {
+          const errorInfoWithoutStack = {
+            ...errorInfo,
+            componentStack: undefined,
+          } as React.ErrorInfo;
+          originalComponentDidCatch.call(this, error, errorInfoWithoutStack);
+        });
 
       renderErrorBoundary(
         <ThrowError shouldThrow={true} errorMessage="Missing componentStack test" />,
@@ -246,13 +254,13 @@ describe("CardViewErrorBoundary", () => {
   });
 
   describe("Restart plugin functionality", () => {
-    it("calls window.location.reload when restart plugin button is clicked", () => {
+    it("calls reload helper when restart plugin button is clicked", () => {
       exhaustRetries("Restart plugin click test");
 
       const restartButton = screen.getByRole("button", { name: /Restart plugin/ });
       fireEvent.click(restartButton);
 
-      expect(window.location.reload).toHaveBeenCalledTimes(1);
+      expect(windowUtils.reloadPage).toHaveBeenCalledTimes(1);
     });
   });
 

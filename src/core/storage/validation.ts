@@ -80,15 +80,16 @@ function validateFilterState(data: any): data is FilterState {
     return false;
   }
 
-  // Date range is optional, but if present must be valid
-  if (data.dateRange !== null) {
+  // Date range is optional; validate only when not null/undefined
+  if (data.dateRange != null) {
     if (!isPlainObject(data.dateRange)) {
       return false;
     }
-    if (!["within", "after"].includes(data.dateRange.type)) {
+    const { type, value } = data.dateRange as { type?: unknown; value?: unknown };
+    if (typeof type !== "string" || !["within", "after"].includes(type)) {
       return false;
     }
-    if (!isValidDateValue(data.dateRange.value)) {
+    if (!isValidDateValue(value)) {
       return false;
     }
   }

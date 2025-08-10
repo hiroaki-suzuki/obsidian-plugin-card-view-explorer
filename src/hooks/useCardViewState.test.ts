@@ -1,12 +1,13 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useCardExplorerStore } from "../store/cardExplorerStore";
 import { useCardViewState } from "./useCardViewState";
 
 // Mock the store
 vi.mock("../store/cardExplorerStore", () => ({
   useCardExplorerStore: vi.fn(),
 }));
+
+import { useCardExplorerStore } from "../store/cardExplorerStore";
 
 const mockUseCardExplorerStore = vi.mocked(useCardExplorerStore);
 

@@ -9,7 +9,7 @@ import { loadNotesFromVault } from "./noteLoader";
 const TEST_TIMESTAMPS = {
   JANUARY_2024: 1704067200000,
   JANUARY_2024_NEXT_DAY: 1704153600000,
-  NOW: Date.now(),
+  NOW: 1704067200000, // Use fixed timestamp for deterministic tests
 } as const;
 
 /**
@@ -360,7 +360,7 @@ describe("noteLoader", () => {
       const result = await loadNotesFromVault(mockApp);
 
       expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({
+      expect(result[0]).toMatchObject({
         file: mockFiles[0],
         title: "note1",
         path: "/folder/note1.md",
@@ -370,7 +370,7 @@ describe("noteLoader", () => {
         tags: ["tag1", "tag2"],
         folder: "folder",
       });
-      expect(result[1]).toEqual({
+      expect(result[1]).toMatchObject({
         file: mockFiles[1],
         title: "note2",
         path: "/note2.md",

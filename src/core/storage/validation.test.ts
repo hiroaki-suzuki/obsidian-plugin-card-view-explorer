@@ -301,11 +301,20 @@ describe("validation", () => {
           ["invalid type", { type: "invalid", value: new Date() }],
           ["invalid date string value", { type: "within", value: "invalid-date" }],
           ["non-Date, non-string value", { type: "within", value: 123 }],
+          ["missing type", { value: new Date() } as any],
+          ["missing value", { type: "within" } as any],
         ])("should reject dateRange with %s", (_description, dateRange) => {
           const filterState = createValidFilterState();
           (filterState as any).dateRange = dateRange;
           const data = createDataWithFilterState(filterState);
           expect(validatePluginData(data)).toBe(false);
+        });
+
+        it("should accept ISO timestamp with timezone in dateRange", () => {
+          const filterState = createValidFilterState();
+          (filterState as any).dateRange = { type: "within", value: "2023-01-01T00:00:00Z" };
+          const data = createDataWithFilterState(filterState);
+          expect(validatePluginData(data)).toBe(true);
         });
       });
     });
@@ -352,6 +361,11 @@ describe("validation", () => {
         const sortConfig = { key: "", order: "desc" };
         const data = createDataWithSortConfig(sortConfig);
         expect(validatePluginData(data)).toBe(true);
+      });
+
+      it("should reject uppercase order values", () => {
+        const data = createDataWithSortConfig({ key: "updated", order: "ASC" as any });
+        expect(validatePluginData(data)).toBe(false);
       });
 
       test.each([

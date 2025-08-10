@@ -33,9 +33,9 @@ export interface UseNoteGridReturn {
  * @returns Object containing grid rows and metadata
  */
 export const useNoteGrid = (filteredNotes: NoteData[], rowSize: number): UseNoteGridReturn => {
-  const noteRows = useMemo(() => {
+  const noteRows = useMemo<GridRow[]>(() => {
     // Early return for invalid inputs to avoid unnecessary computation
-    if (!filteredNotes.length || rowSize <= 0) {
+    if (!filteredNotes.length || !Number.isInteger(rowSize) || rowSize <= 0) {
       return [];
     }
 
