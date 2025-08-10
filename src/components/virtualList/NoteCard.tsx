@@ -1,10 +1,10 @@
 import type React from "react";
 import { useCallback } from "react";
-import { ErrorCategory, handleError } from "../core/errors/errorHandling";
-import { formatRelativeDate, getDisplayDate } from "../lib/dateUtils";
-import type CardExplorerPlugin from "../main";
-import { useCardExplorerStore } from "../store/cardExplorerStore";
-import type { NoteData } from "../types";
+import { ErrorCategory, handleError } from "../../core/errors/errorHandling";
+import { formatRelativeDate, getDisplayDate } from "../../lib/dateUtils";
+import type CardExplorerPlugin from "../../main";
+import { useCardExplorerStore } from "../../store/cardExplorerStore";
+import type { NoteData } from "../../types";
 
 /** Props for {@link NoteCard}. */
 interface NoteCardProps {

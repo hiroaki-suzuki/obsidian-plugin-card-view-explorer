@@ -10,7 +10,7 @@ import { CardViewHeader } from "./CardViewHeader";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { FilterPanel } from "./FilterPanel";
 import { LoadingSpinner } from "./LoadingSpinner";
-import { VirtualList } from "./VirtualList";
+import { VirtualList } from "./virtualList";
 
 // Mock Obsidian's setIcon function
 vi.mock("obsidian", () => ({

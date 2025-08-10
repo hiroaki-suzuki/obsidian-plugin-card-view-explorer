@@ -7,8 +7,8 @@ import { CardViewErrorBoundary } from "./CardViewErrorBoundary";
 // Constants
 const MAX_RETRIES = 3;
 const ERROR_MESSAGES = {
-  LOADING: "Loading Error",
-  DESCRIPTION: "An error occurred while loading Card View Explorer.",
+  LOADING: "Render Error",
+  DESCRIPTION: "An error occurred while rendering Card View Explorer.",
   HELP_TEXT: "If the problem persists, please report it on GitHub.",
   NO_ERROR: "No error",
   COMPONENT_STACK_FALLBACK: "No component stack available",
@@ -151,6 +151,20 @@ describe("CardViewErrorBoundary", () => {
   });
 
   describe("Retry functionality", () => {
+    it("calls external onRetry when provided", () => {
+      const onRetry = vi.fn();
+      render(
+        <CardViewErrorBoundary onRetry={onRetry}>
+          <ThrowError shouldThrow={true} errorMessage="External retry test" />
+        </CardViewErrorBoundary>
+      );
+
+      const retryButton = screen.getByRole("button", { name: /Retry/ });
+      fireEvent.click(retryButton);
+
+      expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
     it("resets error state when retry button is clicked", async () => {
       let shouldThrow = true;
       const TestComponent = () => (
@@ -182,9 +196,9 @@ describe("CardViewErrorBoundary", () => {
     });
 
     it.each([
-      { retryAttempt: 1, expectedText: "Retrying... (1/3)" },
-      { retryAttempt: 2, expectedText: "Retrying... (2/3)" },
-      { retryAttempt: 3, expectedText: "Retrying... (3/3)" },
+      { retryAttempt: 1, expectedText: "Render retry (1/3)" },
+      { retryAttempt: 2, expectedText: "Render retry (2/3)" },
+      { retryAttempt: 3, expectedText: "Render retry (3/3)" },
     ])(
       "displays retry count correctly: attempt $retryAttempt",
       ({ retryAttempt, expectedText }) => {
@@ -225,8 +239,7 @@ describe("CardViewErrorBoundary", () => {
 
     it("does not increment retry count beyond max retries", () => {
       exhaustRetries("Retry count limit test");
-
-      expect(screen.getByText(`Retrying... (${MAX_RETRIES}/${MAX_RETRIES})`)).toBeInTheDocument();
+      expect(screen.getByText(`Render retry (${MAX_RETRIES}/${MAX_RETRIES})`)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Restart plugin/ })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Retry/ })).not.toBeInTheDocument();
     });
