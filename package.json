@@ -1,6 +1,6 @@
 {
   "name": "obsidian-card-view-explorer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A card-based interface for browsing recently edited notes in Obsidian",
   "main": "main.js",
   "scripts": {
