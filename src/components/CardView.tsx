@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useState } from "react";
+import { useRetryableRefreshNotes } from "../hooks";
 import { useCardViewInitialization } from "../hooks/useCardViewInitialization";
 import { useCardViewState } from "../hooks/useCardViewState";
 import type CardExplorerPlugin from "../main";
@@ -9,7 +10,7 @@ import { CardViewHeader } from "./CardViewHeader";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { FilterPanel } from "./FilterPanel";
 import { FullPageLoading, LoadingSpinner } from "./LoadingSpinner";
-import { VirtualList } from "./VirtualList";
+import { VirtualList } from "./virtualList";
 
 /**
  * Props for the CardView component
@@ -47,17 +48,18 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
     filteredNotes, // Notes after applying filters
     availableTags, // Available tags for filter options (computed)
     availableFolders, // Available folders for filter options (computed)
-    refreshNotes, // Action to reload notes from vault
     setError, // Action to set/clear error state
   } = useCardExplorerStore();
+
+  // Unified retry handler (UI-only orchestration). Data-layer backoff is handled in the store.
+  const { retry } = useRetryableRefreshNotes(plugin);
 
   // Local state for filter panel visibility toggle
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
 
   const handleRetry = useCallback(async () => {
-    setError(null);
-    await refreshNotes(plugin.app);
-  }, [plugin.app, refreshNotes, setError]);
+    await retry();
+  }, [retry]);
 
   if (shouldShowError) {
     return (
@@ -75,7 +77,7 @@ export const CardView: React.FC<CardViewProps> = ({ plugin }) => {
   }
 
   return (
-    <CardViewErrorBoundary>
+    <CardViewErrorBoundary onRetry={handleRetry}>
       <div className="card-view-container">
         {/* Header with title, stats, filter toggle, and refresh button */}
         <CardViewHeader

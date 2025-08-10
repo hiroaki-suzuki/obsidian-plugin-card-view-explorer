@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect } from "react";
-import { ErrorCategory, handleError } from "../core/errors/errorHandling";
+import { ErrorCategory, handleError } from "../../core/errors/errorHandling";
 
 // Configuration for error messages and suggestions by category
 /**
@@ -106,30 +106,32 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
   }, [onRetry]);
 
   return (
-    <div className={`error-fallback error-${category}`}>
-      <div className="error-content">
-        <div className="error-header">
-          <h3 className="error-title">Something went wrong</h3>
-        </div>
-
-        <div className="error-message">
-          <p>{displayMessage}</p>
-        </div>
-
-        {showRetry && onRetry && (
-          <div className="error-actions">
-            <button
-              type="button"
-              className="error-action-button error-retry-button"
-              onClick={handleRetry}
-            >
-              {retryText}
-            </button>
+    <div className="virtual-list-container">
+      <div className={`error-fallback error-${category}`}>
+        <div className="error-content">
+          <div className="error-header">
+            <h3 className="error-title">Something went wrong</h3>
           </div>
-        )}
 
-        <div className="error-suggestions">
-          <p className="suggestion-text">{suggestionText}</p>
+          <div className="error-message">
+            <p>{displayMessage}</p>
+          </div>
+
+          {showRetry && onRetry && (
+            <div className="error-actions">
+              <button
+                type="button"
+                className="error-action-button error-retry-button"
+                onClick={handleRetry}
+              >
+                {retryText}
+              </button>
+            </div>
+          )}
+
+          <div className="error-suggestions">
+            <p className="suggestion-text">{suggestionText}</p>
+          </div>
         </div>
       </div>
     </div>

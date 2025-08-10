@@ -2,13 +2,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ErrorCategory, handleError } from "../core/errors/errorHandling";
+import { ErrorCategory, handleError } from "../../core/errors/errorHandling";
 import { ErrorFallback } from "./ErrorFallback";
 
 // Mock only handleError while preserving actual ErrorCategory and other exports
-vi.mock("../core/errors/errorHandling", async () => {
-  const actual = await vi.importActual<typeof import("../core/errors/errorHandling")>(
-    "../core/errors/errorHandling"
+vi.mock("../../core/errors/errorHandling", async () => {
+  const actual = await vi.importActual<typeof import("../../core/errors/errorHandling")>(
+    "../../core/errors/errorHandling"
   );
   return {
     ...actual,
@@ -85,11 +85,19 @@ describe("ErrorFallback", () => {
     ];
 
     describe.each(cases)("category: %s", ({ category, main, sub, className }) => {
-      it("displays expected messages and classes", () => {
+      it("displays expected messages and classes with container wrapper", () => {
         const { container } = renderErrorFallback({ category });
+        // Outer container for VirtualList integration
+        const wrapper = container.querySelector(".virtual-list-container");
+        expect(wrapper).toBeInTheDocument();
+
+        // Inner error container retains category classes
+        const errorRoot = container.querySelector(".error-fallback");
+        expect(errorRoot).toBeInTheDocument();
+        expect(errorRoot).toHaveClass(className);
+
         expect(screen.getByText(main)).toBeInTheDocument();
         expect(screen.getByText(sub)).toBeInTheDocument();
-        expect(container.firstChild).toHaveClass("error-fallback", className);
       });
     });
   });
