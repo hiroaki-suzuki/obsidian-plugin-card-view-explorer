@@ -135,9 +135,22 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ availableTags, availab
     setDateType(filters.dateRange.type);
     // Keep input in sync with store
     if (filters.dateRange.type === "within") {
-      // Expecting a numeric day count
+      // For 'within' type, value can be either a number (legacy/test) or Date (normal operation)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setDateInput(String((filters.dateRange as any).value ?? ""));
+      const value = (filters.dateRange as any).value;
+
+      if (typeof value === "number") {
+        // Direct numeric value (likely from test or legacy data)
+        setDateInput(String(value));
+      } else if (value instanceof Date) {
+        // Date object representing cutoff point - convert back to day count
+        const now = new Date();
+        const timeDiff = now.getTime() - value.getTime();
+        const daysDiff = Math.round(timeDiff / (1000 * 60 * 60 * 24));
+        setDateInput(String(daysDiff > 0 ? daysDiff : ""));
+      } else {
+        setDateInput(String(value ?? ""));
+      }
     } else {
       // Expecting a date; allow string or Date
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -47,8 +47,13 @@ export const hasAnyActiveFilter = (filters: FilterState): boolean => {
  * @param {Date} now - Current date for relative date calculations
  * @returns {NoteData[]} New array containing only notes that pass filters
  */
-export const applyFilters = (notes: NoteData[], filters: FilterState, now: Date): NoteData[] => {
-  return notes.filter((note) => notePassesFilters(note, filters, now));
+export const applyFilters = (
+  notes: NoteData[],
+  filters: FilterState,
+  now: Date,
+  sortKey: string = "updated"
+): NoteData[] => {
+  return notes.filter((note) => notePassesFilters(note, filters, now, sortKey));
 };
 
 /**
@@ -63,12 +68,17 @@ export const applyFilters = (notes: NoteData[], filters: FilterState, now: Date)
  * @param {Date} now - Current date for relative date calculations
  * @returns {boolean} True if note passes all active filters
  */
-const notePassesFilters = (note: NoteData, filters: FilterState, now: Date): boolean => {
+const notePassesFilters = (
+  note: NoteData,
+  filters: FilterState,
+  now: Date,
+  sortKey: string = "updated"
+): boolean => {
   return (
     matchesFolderCriteria(note, filters.folders) && // Must be in included folders
     matchesTagCriteria(note, filters.tags) && // Must have required tags (hierarchical)
     matchesFilenameCriteria(note, filters.filename) && // Must match filename search
-    matchesDateRangeCriteria(note, filters.dateRange, now) // Must match date criteria
+    matchesDateRangeCriteria(note, filters.dateRange, now, sortKey) // Must match date criteria
   );
 };
 
@@ -147,12 +157,14 @@ const matchesFilenameCriteria = (note: NoteData, filename: string): boolean => {
 const matchesDateRangeCriteria = (
   note: NoteData,
   dateRange: FilterState["dateRange"],
-  now: Date
+  now: Date,
+  sortKey: string = "updated"
 ): boolean => {
   // No date filter means include all notes
   if (!dateRange) return true;
 
-  const noteDate = note.lastModified;
+  // Get date based on sortKey setting, fallback to lastModified
+  const noteDate = getNoteDateBySortKey(note, sortKey);
   const filterDate = normalizeDateInput(dateRange.value);
   // If the provided date value cannot be parsed, treat as no-op filter (graceful fallback)
   if (!filterDate) return true;
@@ -188,6 +200,28 @@ const matchesDateRangeCriteria = (
  */
 const calculateDaysDifference = (fromDate: Date, toDate: Date): number => {
   return Math.floor((fromDate.getTime() - toDate.getTime()) / MILLISECONDS_PER_DAY);
+};
+
+/**
+ * Gets the appropriate date from a note based on the sort key setting
+ * @param {NoteData} note - Note to extract date from
+ * @param {string} sortKey - Frontmatter field name to look for date
+ * @returns {Date} The date value from the specified field or note.lastModified as fallback
+ */
+const getNoteDateBySortKey = (note: NoteData, sortKey: string): Date => {
+  // Try to get date from the specified frontmatter field
+  const frontmatterValue = note.frontmatter?.[sortKey];
+
+  // Parse the frontmatter date value (similar to parseUpdatedDate logic)
+  if (frontmatterValue) {
+    const parsed = new Date(frontmatterValue);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  // Fallback to file system modification time
+  return note.lastModified;
 };
 
 /**

@@ -195,9 +195,10 @@ const recomputeFilteredNotes = (
   notes: NoteData[],
   filters: FilterState,
   sortConfig: SortConfig,
-  pinnedNotes: Set<string>
+  pinnedNotes: Set<string>,
+  sortKey: string = "updated"
 ): NoteData[] => {
-  const filtered = applyFilters(notes, filters, new Date());
+  const filtered = applyFilters(notes, filters, new Date(), sortKey);
   return sortNotes(filtered, sortConfig, pinnedNotes);
 };
 
@@ -269,7 +270,8 @@ export const useCardExplorerStore = create<CardExplorerState>()(
           notes,
           state.filters,
           state.sortConfig,
-          state.pinnedNotes
+          state.pinnedNotes,
+          state.sortConfig.key
         );
 
         // Update all derived state in a single operation
@@ -303,7 +305,8 @@ export const useCardExplorerStore = create<CardExplorerState>()(
         state.notes,
         updatedFilters,
         state.sortConfig,
-        state.pinnedNotes
+        state.pinnedNotes,
+        state.sortConfig.key
       );
       set({ filteredNotes });
     },
@@ -318,7 +321,8 @@ export const useCardExplorerStore = create<CardExplorerState>()(
         state.notes,
         defaultFilters,
         state.sortConfig,
-        state.pinnedNotes
+        state.pinnedNotes,
+        state.sortConfig.key
       );
       set({ filteredNotes });
     },
@@ -333,7 +337,8 @@ export const useCardExplorerStore = create<CardExplorerState>()(
         state.notes,
         state.filters,
         newSortConfig,
-        state.pinnedNotes
+        state.pinnedNotes,
+        newSortConfig.key
       );
       set({ filteredNotes });
     },
@@ -349,7 +354,8 @@ export const useCardExplorerStore = create<CardExplorerState>()(
         state.notes,
         state.filters,
         state.sortConfig,
-        newPinnedNotes
+        newPinnedNotes,
+        state.sortConfig.key
       );
       set({ filteredNotes });
     },
@@ -374,7 +380,13 @@ export const useCardExplorerStore = create<CardExplorerState>()(
 
       // Recompute filtered results with restored configuration
       const state = get();
-      const filteredNotes = recomputeFilteredNotes(state.notes, filters, sortConfig, pinnedNotes);
+      const filteredNotes = recomputeFilteredNotes(
+        state.notes,
+        filters,
+        sortConfig,
+        pinnedNotes,
+        sortConfig.key
+      );
       set({ filteredNotes });
     },
 

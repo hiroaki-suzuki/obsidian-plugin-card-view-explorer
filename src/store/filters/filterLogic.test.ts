@@ -425,4 +425,192 @@ describe("filterLogic", () => {
       });
     });
   });
+
+  describe("getNoteDateBySortKey (via applyFilters)", () => {
+    const baseLastModified = new Date("2024-01-05T12:00:00Z");
+
+    describe("frontmatter date extraction", () => {
+      const testCases = [
+        {
+          description: "valid ISO string date in frontmatter",
+          frontmatterValue: "2024-01-08T10:00:00Z",
+          expected: new Date("2024-01-08T10:00:00Z"),
+        },
+        {
+          description: "valid date string in frontmatter",
+          frontmatterValue: "2024-01-08",
+          expected: new Date("2024-01-08"),
+        },
+        {
+          description: "valid timestamp number in frontmatter",
+          frontmatterValue: 1704715200000, // 2024-01-08T10:00:00Z
+          expected: new Date(1704715200000),
+        },
+        {
+          description: "Date object in frontmatter",
+          frontmatterValue: new Date("2024-01-08T10:00:00Z"),
+          expected: new Date("2024-01-08T10:00:00Z"),
+        },
+        {
+          description: "invalid date string in frontmatter",
+          frontmatterValue: "not-a-date",
+          expected: baseLastModified, // fallback to lastModified
+        },
+        {
+          description: "empty string in frontmatter",
+          frontmatterValue: "",
+          expected: baseLastModified, // fallback to lastModified
+        },
+        {
+          description: "null value in frontmatter",
+          frontmatterValue: null,
+          expected: baseLastModified, // fallback to lastModified
+        },
+        {
+          description: "undefined value in frontmatter",
+          frontmatterValue: undefined,
+          expected: baseLastModified, // fallback to lastModified
+        },
+      ];
+
+      testCases.forEach(({ description, frontmatterValue, expected }) => {
+        it(`should handle ${description}`, () => {
+          const noteWithFrontmatter = createMockNote(
+            "Test Note",
+            "test.md",
+            "",
+            [],
+            { customField: frontmatterValue },
+            baseLastModified
+          );
+
+          const noteWithoutFrontmatter = createMockNote(
+            "Test Note 2",
+            "test2.md",
+            "",
+            [],
+            null,
+            baseLastModified
+          );
+
+          // Create a filter that will test date extraction
+          const filters = createFiltersWith({
+            dateRange: createDateRangeFilter("after", new Date("2024-01-06T00:00:00Z")),
+          });
+
+          // Test with custom sort key
+          const resultCustomKey = applyFilters(
+            [noteWithFrontmatter, noteWithoutFrontmatter],
+            filters,
+            TEST_DATES.NOW,
+            "customField"
+          );
+
+          // Test with default sort key (should use lastModified for both notes)
+          const resultDefaultKey = applyFilters(
+            [noteWithFrontmatter, noteWithoutFrontmatter],
+            filters,
+            TEST_DATES.NOW,
+            "updated"
+          );
+
+          // If expected date is after filter date, note should be included
+          const shouldBeIncluded = expected >= new Date("2024-01-06T00:00:00Z");
+
+          if (shouldBeIncluded) {
+            // Note with frontmatter should be included when using custom key
+            expect(resultCustomKey).toContainEqual(expect.objectContaining({ title: "Test Note" }));
+          } else {
+            // Note with frontmatter should be excluded when using custom key
+            expect(resultCustomKey).not.toContainEqual(
+              expect.objectContaining({ title: "Test Note" })
+            );
+          }
+
+          // Both notes should be excluded when using default key (lastModified is 2024-01-05)
+          expect(resultDefaultKey).toHaveLength(0);
+        });
+      });
+    });
+
+    describe("sort key field selection", () => {
+      it("should use different frontmatter fields based on sortKey parameter", () => {
+        const note = createMockNote(
+          "Multi-field Note",
+          "multi.md",
+          "",
+          [],
+          {
+            created: "2024-01-01T00:00:00Z",
+            updated: "2024-01-02T00:00:00Z",
+            modified: "2024-01-03T00:00:00Z",
+            custom: "2024-01-09T00:00:00Z",
+          },
+          new Date("2024-01-05T00:00:00Z") // lastModified fallback
+        );
+
+        const afterFilter = createFiltersWith({
+          dateRange: createDateRangeFilter("after", new Date("2024-01-08T00:00:00Z")),
+        });
+
+        // Test different sort keys
+        const resultCreated = applyFilters([note], afterFilter, TEST_DATES.NOW, "created");
+        const resultUpdated = applyFilters([note], afterFilter, TEST_DATES.NOW, "updated");
+        const resultModified = applyFilters([note], afterFilter, TEST_DATES.NOW, "modified");
+        const resultCustom = applyFilters([note], afterFilter, TEST_DATES.NOW, "custom");
+        const resultNonexistent = applyFilters([note], afterFilter, TEST_DATES.NOW, "nonexistent");
+
+        // Only 'custom' field (2024-01-09) is after the filter date (2024-01-08)
+        expect(resultCreated).toHaveLength(0); // 2024-01-01 < 2024-01-08
+        expect(resultUpdated).toHaveLength(0); // 2024-01-02 < 2024-01-08
+        expect(resultModified).toHaveLength(0); // 2024-01-03 < 2024-01-08
+        expect(resultCustom).toHaveLength(1); // 2024-01-09 > 2024-01-08
+        expect(resultNonexistent).toHaveLength(0); // fallback to lastModified (2024-01-05) < 2024-01-08
+      });
+    });
+
+    describe("fallback behavior", () => {
+      it("should fallback to lastModified when frontmatter field is missing", () => {
+        const note = createMockNote(
+          "Note without frontmatter",
+          "no-frontmatter.md",
+          "",
+          [],
+          null, // no frontmatter
+          new Date("2024-01-09T00:00:00Z") // lastModified is after filter
+        );
+
+        const filters = createFiltersWith({
+          dateRange: createDateRangeFilter("after", new Date("2024-01-08T00:00:00Z")),
+        });
+
+        const result = applyFilters([note], filters, TEST_DATES.NOW, "updated");
+
+        // Should use lastModified (2024-01-09) and pass filter (> 2024-01-08)
+        expect(result).toHaveLength(1);
+        expect(result[0].title).toBe("Note without frontmatter");
+      });
+
+      it("should fallback to lastModified when frontmatter exists but field is missing", () => {
+        const note = createMockNote(
+          "Note with partial frontmatter",
+          "partial-frontmatter.md",
+          "",
+          [],
+          { title: "Some Title", tags: ["test"] }, // frontmatter exists but no date fields
+          new Date("2024-01-09T00:00:00Z") // lastModified is after filter
+        );
+
+        const filters = createFiltersWith({
+          dateRange: createDateRangeFilter("after", new Date("2024-01-08T00:00:00Z")),
+        });
+
+        const result = applyFilters([note], filters, TEST_DATES.NOW, "updated");
+
+        // Should use lastModified (2024-01-09) and pass filter (> 2024-01-08)
+        expect(result).toHaveLength(1);
+        expect(result[0].title).toBe("Note with partial frontmatter");
+      });
+    });
+  });
 });
