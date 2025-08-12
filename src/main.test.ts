@@ -254,7 +254,7 @@ describe("CardExplorerPlugin (unit)", () => {
         );
         expect(registrationMocks.addCommand).toHaveBeenCalledWith({
           id: "open-card-view-explorer",
-          name: "Open Card View Explorer",
+          name: "Open card explorer",
           callback: expect.any(Function),
         });
         expect(registrationMocks.addRibbonIcon).toHaveBeenCalledWith(
@@ -322,11 +322,6 @@ describe("CardExplorerPlugin (unit)", () => {
         // Verify: Auto-save subscription is cleaned up
         expect(mockUnsubscribe).toHaveBeenCalled();
         expect((plugin as any).unsubscribePinnedNotesAutoSave).toBeUndefined();
-
-        // Verify: View is detached
-        expect((app as any).workspace.detachLeavesOfType).toHaveBeenCalledWith(
-          VIEW_TYPE_CARD_EXPLORER
-        );
       });
 
       it("handles cleanup gracefully when no subscriptions exist", async () => {
@@ -339,11 +334,6 @@ describe("CardExplorerPlugin (unit)", () => {
 
         // Verify: No event cleanup calls made
         expect((app as any).vault.offref).not.toHaveBeenCalled();
-
-        // Verify: View is still detached
-        expect((app as any).workspace.detachLeavesOfType).toHaveBeenCalledWith(
-          VIEW_TYPE_CARD_EXPLORER
-        );
       });
     });
   });
@@ -367,7 +357,7 @@ describe("CardExplorerPlugin (unit)", () => {
         const [commandConfig] = commandCalls[0];
         expect(commandConfig).toEqual({
           id: "open-card-view-explorer",
-          name: "Open Card View Explorer",
+          name: "Open card explorer",
           callback: expect.any(Function),
         });
 

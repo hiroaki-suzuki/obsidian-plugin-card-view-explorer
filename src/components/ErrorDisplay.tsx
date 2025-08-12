@@ -1,6 +1,6 @@
+import { AlertTriangle } from "lucide-react";
 import type React from "react";
 import { useCallback } from "react";
-import { ObsidianIcon } from "./ObsidianIcon";
 
 /**
  * Props for the ErrorDisplay component.
@@ -63,9 +63,8 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
     <div className="card-view-container">
       <div className="card-view-error">
         <div className="error-content">
-          {/* Error icon using the shared ObsidianIcon component */}
           <div className="error-icon" aria-hidden="true">
-            <ObsidianIcon iconName="alert-triangle" />
+            <AlertTriangle size={24} />
           </div>
           {/* Error title */}
           <h3>Error Loading Card View Explorer</h3>

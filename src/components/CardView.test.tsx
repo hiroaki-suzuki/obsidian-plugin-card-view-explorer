@@ -4,10 +4,6 @@ import type CardExplorerPlugin from "../main";
 import type { NoteData } from "../types";
 import { CardView } from "./CardView";
 
-vi.mock("obsidian", () => ({
-  setIcon: vi.fn(),
-}));
-
 vi.mock("../hooks/useCardViewInitialization", () => ({
   useCardViewInitialization: vi.fn(),
 }));

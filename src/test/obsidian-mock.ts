@@ -136,13 +136,3 @@ export class TAbstractFile {
     this.name = name || path.split("/").pop() || "";
   }
 }
-
-/**
- * Mock implementation of Obsidian's setIcon function
- * Used for testing icon-related functionality
- */
-export const setIcon = (element: HTMLElement, iconName: string): void => {
-  // Simple mock implementation that sets a data attribute
-  element.setAttribute("data-icon", iconName);
-  element.innerHTML = `<mock-icon icon="${iconName}"></mock-icon>`;
-};

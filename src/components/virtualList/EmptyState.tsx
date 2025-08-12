@@ -1,6 +1,6 @@
+import { FileSearch } from "lucide-react";
 import type React from "react";
 import { useCardExplorerStore } from "../../store/cardExplorerStore";
-import { ObsidianIcon } from "../ObsidianIcon";
 
 /**
  * Component displayed when filter results are empty
@@ -18,7 +18,7 @@ export const EmptyState: React.FC = () => {
     <div className="virtual-list-container">
       <div className="virtual-list-empty">
         <div className="empty-icon">
-          <ObsidianIcon iconName="file-search" />
+          <FileSearch size={24} />
         </div>
         <h3>No Notes Found</h3>
         <p>

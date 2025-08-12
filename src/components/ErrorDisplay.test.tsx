@@ -3,11 +3,6 @@ import { userEvent } from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ErrorDisplay } from "./ErrorDisplay";
 
-// Mock Obsidian's setIcon function
-vi.mock("obsidian", () => ({
-  setIcon: vi.fn(),
-}));
-
 describe("ErrorDisplay", () => {
   const defaultProps = {
     error: "Test error message",

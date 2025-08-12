@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import type { TFile } from "obsidian";
+import type { Vault } from "obsidian";
 import { describe, expect, it } from "vitest";
 import type { NoteData } from "../types/note";
 import { type UseNoteGridReturn, useNoteGrid } from "./useNoteGrid";
@@ -14,7 +14,7 @@ const makeNote = (id: string): NoteData => ({
     name: `${id}.md`,
     basename: id,
     extension: "md",
-  } as TFile,
+  } as any,
   path: `${id}.md`,
   title: `Note ${id}`,
   preview: `Preview of ${id}`,

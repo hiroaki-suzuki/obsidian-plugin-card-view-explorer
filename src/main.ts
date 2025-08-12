@@ -146,7 +146,7 @@ export default class CardExplorerPlugin extends Plugin {
     // Register commands
     this.addCommand({
       id: "open-card-view-explorer",
-      name: "Open Card View Explorer",
+      name: "Open card explorer",
       callback: () => {
         this.activateView();
       },
@@ -192,9 +192,6 @@ export default class CardExplorerPlugin extends Plugin {
 
     // Clean up pinned notes auto-save subscription
     this.cleanupPinnedNotesAutoSave();
-
-    // Cleanup - detach all Card View Explorer views
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_CARD_EXPLORER);
   }
 
   /**

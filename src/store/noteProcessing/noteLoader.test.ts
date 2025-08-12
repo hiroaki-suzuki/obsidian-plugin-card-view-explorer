@@ -1,5 +1,5 @@
-import type { App, TFile } from "obsidian";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { App, TFile, Vault } from "obsidian";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadNotesFromVault } from "./noteLoader";
 
 /**
@@ -116,9 +116,9 @@ class MockTFileBuilder {
       extension: this.extension,
       stat: { mtime: this.mtime, ctime: this.mtime, size: 1000 },
       parent: this.parentPath ? { path: this.parentPath } : null,
-      vault: {} as any,
+      vault: {} as Vault,
       name: `${this.basename}.${this.extension}`,
-    } as TFile;
+    } as any;
   }
 }
 
@@ -131,9 +131,9 @@ class MockTFileBuilder {
  * @param extension - File extension
  * @param mtime - Modification time (defaults to current time)
  * @param parentPath - Optional parent folder path
- * @returns Mock TFile object
+ * @returns Mock File object
  */
-const createMockTFile = (
+const createMockFile = (
   path: string,
   basename: string,
   extension: string,
@@ -249,20 +249,19 @@ class MockAppBuilder {
  * Provides reusable file configurations for different test cases.
  */
 const createMarkdownFiles = () => ({
-  note1: () => createMockTFile("/note1.md", "note1", "md"),
-  note2: () => createMockTFile("/note2.md", "note2", "md"),
+  note1: () => createMockFile("/note1.md", "note1", "md"),
+  note2: () => createMockFile("/note2.md", "note2", "md"),
   noteInFolder: () =>
-    createMockTFile("/folder/note1.md", "note1", "md", TEST_TIMESTAMPS.JANUARY_2024, "folder"),
-  rootNote: () =>
-    createMockTFile("/note2.md", "note2", "md", TEST_TIMESTAMPS.JANUARY_2024_NEXT_DAY),
+    createMockFile("/folder/note1.md", "note1", "md", TEST_TIMESTAMPS.JANUARY_2024, "folder"),
+  rootNote: () => createMockFile("/note2.md", "note2", "md", TEST_TIMESTAMPS.JANUARY_2024_NEXT_DAY),
 });
 
 /**
  * Factory functions for creating non-markdown files to test file filtering.
  */
 const createNonMarkdownFiles = () => ({
-  image: () => createMockTFile("/image.png", "image", "png") as any,
-  textFile: () => createMockTFile("/document.txt", "document", "txt") as any,
+  image: () => createMockFile("/image.png", "image", "png") as any,
+  textFile: () => createMockFile("/document.txt", "document", "txt") as any,
 });
 
 /**
@@ -424,7 +423,7 @@ describe("noteLoader", () => {
 
       tagTestCases.forEach(({ name, metadata, expectedTags }) => {
         it(`should handle ${name}`, async () => {
-          const mockFile = createMockTFile("/test.md", "test", "md");
+          const mockFile = createMockFile("/test.md", "test", "md");
           const mockApp = new MockAppBuilder()
             .withFiles([mockFile])
             .withMetadataCache({ getFileCache: vi.fn().mockReturnValue(metadata) })
@@ -440,7 +439,7 @@ describe("noteLoader", () => {
     });
 
     it("should extract frontmatter and tags from notes", async () => {
-      const mockFile = createMockTFile("/test.md", "test", "md");
+      const mockFile = createMockFile("/test.md", "test", "md");
       const mockApp = new MockAppBuilder()
         .withFiles([mockFile])
         .withMetadataCache({
@@ -495,7 +494,7 @@ describe("noteLoader", () => {
 
       previewTestCases.forEach(({ name, content, expectedPreview }) => {
         it(`should handle ${name}`, async () => {
-          const mockFile = createMockTFile("/test.md", "test", "md");
+          const mockFile = createMockFile("/test.md", "test", "md");
           const mockApp = new MockAppBuilder()
             .withFiles([mockFile])
             .withEmptyMetadata()
@@ -540,9 +539,9 @@ describe("noteLoader", () => {
         "should handle graceful failure with Error objects",
         withSuppressedConsoleErrors(async () => {
           const mockFiles = [
-            createMockTFile("/note1.md", "note1", "md"),
-            createMockTFile("/note2.md", "note2", "md"),
-            createMockTFile("/note3.md", "note3", "md"),
+            createMockFile("/note1.md", "note1", "md"),
+            createMockFile("/note2.md", "note2", "md"),
+            createMockFile("/note3.md", "note3", "md"),
           ];
 
           // Simulate failure on the second file only
@@ -575,8 +574,8 @@ describe("noteLoader", () => {
         "should handle unknown error types in file processing",
         withSuppressedConsoleErrors(async () => {
           const mockFiles = [
-            createMockTFile("/note1.md", "note1", "md"),
-            createMockTFile("/note2.md", "note2", "md"),
+            createMockFile("/note1.md", "note1", "md"),
+            createMockFile("/note2.md", "note2", "md"),
           ];
 
           const mockApp = new MockAppBuilder()
